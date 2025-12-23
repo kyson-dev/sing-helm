@@ -24,7 +24,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// 1. 处理按键
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "q", "ctrl+c", "ecs":
+		case "q", "ctrl+c", "esc":
 			logger.Info("quit monitor")
 			return m, tea.Quit // 退出程序
 		case "up":

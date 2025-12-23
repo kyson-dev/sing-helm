@@ -1,24 +1,5 @@
 {
-    "log": {
-        "level": "info"
-    },
-    "inbounds": [
-        {
-            "type": "mixed",
-            "tag": "mixed-in",
-            "listen": "127.0.0.1",
-            "listen_port": 17890
-        }
-    ],
     "outbounds": [
-        {
-            "type": "direct",
-            "tag": "direct"
-        },
-        {
-            "type": "block",
-            "tag": "block"
-        },
         {
             "type": "vless",
             "tag": "prod_vless",
@@ -110,10 +91,5 @@
                 "prod_hysteria2_backup"
             ]
         }
-    ],
-    "experimental": {
-        "clash_api": {
-            "external_controller": "127.0.0.1:19090"
-        }
-    }
+    ]
 }

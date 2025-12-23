@@ -1,9 +1,12 @@
 package cli
 
 import (
+	"fmt"
+	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/kyson/minibox/internal/adapter/logger"
+	"github.com/kyson/minibox/internal/core/config"
 	"github.com/kyson/minibox/internal/ui/monitor"
 	"github.com/spf13/cobra"
 )
@@ -17,6 +20,14 @@ func newMonitorCommand() *cobra.Command{
 		Short: "Monitor Sing-box traffic",
 		Run: func(cmd *cobra.Command, args []string) {
 			logger.Info("run monitor command", "host", host)
+			if host == "" {
+				state, err := config.LoadState()
+				if err != nil {
+					logger.Error("Failed to load state", "error", err)
+					os.Exit(1)
+				}
+				host = fmt.Sprintf("%s:%d",state.ListenAddr,state.APIPort)
+			}
 			model := monitor.NewModel(host)
 			p := tea.NewProgram(model, tea.WithAltScreen())
 
@@ -27,6 +38,6 @@ func newMonitorCommand() *cobra.Command{
 			logger.Info("run monitor command success")
 		},
 	}
-	cmd.Flags().StringVarP(&host, "host", "H", "127.0.0.1:19090", "Sing-box API host")
+	cmd.Flags().StringVarP(&host, "host", "H", "", "Sing-box API host")
 	return cmd
 }

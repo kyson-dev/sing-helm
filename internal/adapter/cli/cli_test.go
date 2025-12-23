@@ -42,11 +42,7 @@ func TestCLI_CheckCommand(t *testing.T) {
 			configPath: "non_existent.json",
 			wantErr:    true,
 		},
-		{
-			name:       "empty config",
-			configPath: createTempConfig(t, `{}`),
-			wantErr:    true,
-		},
+		// 移除 empty config 测试，因为现在空配置会自动生成默认的 direct outbound 和 mixed inbound
 	}
 
 	for _, tt := range tests {
@@ -77,19 +73,19 @@ func TestCLI_RunCommand(t *testing.T) {
 			name:       "non-existent config file",
 			configPath: "non_existent_config.json",
 			wantErr:    true,
-			errMsg:     "config file not found",
+			errMsg:     "failed to load profile file",
 		},
 		{
 			name:       "invalid json config",
 			configPath: createTempConfig(t, `{"invalid": json}`),
 			wantErr:    true,
-			errMsg:     "failed to parse config file",
+			errMsg:     "failed to load profile file",
 		},
 		{
-			name:       "empty config",
+			name:       "empty config - missing outbounds",
 			configPath: createTempConfig(t, `{}`),
 			wantErr:    true,
-			errMsg:     "config must have at least one inbound or outbound",
+			errMsg:     "failed to start sing-box",
 		},
 	}
 

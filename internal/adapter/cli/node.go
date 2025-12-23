@@ -6,9 +6,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"github.com/kyson/minibox/internal/adapter/logger"
 	"github.com/kyson/minibox/internal/core/client"
+	"github.com/kyson/minibox/internal/core/config"
+	"github.com/spf13/cobra"
 )
 
 var apiAddr string // 复用 flag
@@ -24,7 +25,7 @@ func newNodeCommand() *cobra.Command {
 	cmd.AddCommand(newUseCommand())
 
 	// 定义 PersistentFlag，让子命令都能用到
-	cmd.PersistentFlags().StringVar(&apiAddr, "api", "127.0.0.1:19090", "API address")
+	cmd.PersistentFlags().StringVar(&apiAddr, "api", "", "API address")
 
 	return cmd
 }
@@ -35,6 +36,14 @@ func newListCommand() *cobra.Command {
 		Use:   "list",
 		Short: "List all proxy groups and nodes",
 		Run: func(cmd *cobra.Command, args []string) {
+			if apiAddr == "" {
+				state, err := config.LoadState()
+				if err != nil {
+					logger.Error("Failed to load state", "error", err)
+					os.Exit(1)
+				}
+				apiAddr = fmt.Sprintf("%s:%d",state.ListenAddr,state.APIPort)
+			}
 			c := client.New(apiAddr)
 			
 			proxies, err := c.GetProxies()
@@ -82,7 +91,15 @@ func newUseCommand() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			group := args[0]
 			node := args[1]
-
+			
+			if apiAddr == "" {
+				state, err := config.LoadState()
+				if err != nil {
+					logger.Error("Failed to load state", "error", err)
+					os.Exit(1)
+				}
+				apiAddr = fmt.Sprintf("%s:%d",state.ListenAddr,state.APIPort)
+			}
 			c := client.New(apiAddr)
 			
 			if err := c.SelectProxy(group, node); err != nil {

@@ -14,36 +14,61 @@ import (
 )
 
 func newRunCommand() *cobra.Command {
-	var configPath string
+	var (
+		profilePath string
+		tunMode     bool
+		systemProxy bool
+		apiPort     int
+		mixPort     int
+	)
 	cmd := &cobra.Command{
 		Use:   "run",
 		Short: "Run sing-box",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runService(context.Background(), configPath)
+
+			runops := config.DefaultRunOptions()
+			if systemProxy {
+				runops.Mode = config.ModeSystem
+			}
+			if tunMode {
+				runops.Mode = config.ModeTUN
+			}
+			runops.APIPort = apiPort
+			runops.MixedPort = mixPort
+
+			return runService(context.Background(), profilePath, &runops)
 		},
 	}
-	cmd.Flags().StringVarP(&configPath, "config", "c", "config.json", "Config file")
+	cmd.Flags().StringVarP(&profilePath, "config", "c", "config.json", "config file")
+	cmd.Flags().BoolVar(&tunMode, "tun", false, "Enable TUN mode")
+	cmd.Flags().BoolVar(&systemProxy, "system-proxy", false, "Enable System Proxy")
+	cmd.Flags().IntVar(&apiPort, "api-port", 0, "Fixed API port")
+	cmd.Flags().IntVar(&mixPort, "mixed-port", 0, "Fixed Mixed port")
 	return cmd
 }
 
 // runService 抽取出来的核心逻辑，便于测试
-func runService(ctx context.Context, configPath string) error {
+func runService(ctx context.Context, profilePath string, runops *config.RunOptions) error {
 	//1. 加载配置文件
-	logger.Info("Loading config file", "path", configPath)
-	opts, err := config.Load(configPath)
+	logger.Info("Loading profile file", "path", profilePath)
+	userConf, err := config.LoadProfile(profilePath)
 	if err != nil {
+		logger.Error("Failed to load profile file", "error", err)
+		return fmt.Errorf("failed to load profile file: %w", err)
+	}
+
+	opts, err := config.Generate(userConf, runops)
+	if err != nil {
+		logger.Error("Failed to generate config", "error", err)
 		return fmt.Errorf("failed to load config file: %w", err)
 	}
 
 	//2. 初始化服务
 	svc := service.NewInstance()
 
-	// 创建可取消的 context
-	//ctx, cancel := context.WithCancel(ctx)
-	//defer cancel()
-
 	//3. 启动服务
 	if err := svc.Start(ctx, opts); err != nil {
+		logger.Error("Failed to start sing-box", "error", err)
 		return fmt.Errorf("failed to start sing-box: %w", err)
 	}
 	defer func() {
@@ -51,6 +76,17 @@ func runService(ctx context.Context, configPath string) error {
 			logger.Error("Failed to close sing-box", "error", err)
 		}
 	}()
+
+	// 保存文件
+	state := config.RuntimeState{
+		RunOptions: *runops,
+		PID:        os.Getpid(),
+	}
+	if err := config.SaveState(&state); err != nil {
+		logger.Error("Failed to save state", "error", err)
+		return fmt.Errorf("failed to save state: %w", err)
+	}
+	defer os.Remove(config.GetStatePath())
 
 	//4. 等待服务退出
 	// 监听信号或 context 取消
