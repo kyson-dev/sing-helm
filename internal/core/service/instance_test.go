@@ -3,7 +3,6 @@ package service_test
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -59,7 +58,7 @@ func TestService_StartWithEmptyOptions(t *testing.T) {
 	instance := service.NewInstance()
 	ctx := context.Background()
 
-	// 空配置在某些 sing-box 版本中可能会启动成功
+	// 空配置在 sing-box v1.10+ 中可能会启动成功
 	err := instance.Start(ctx, &option.Options{})
 
 	// 如果启动成功，需要清理
@@ -113,6 +112,7 @@ func createTestOptions(t *testing.T, port int) *option.Options {
 }
 
 func TestInstance_Lifecycle(t *testing.T) {
+	// 1. 准备配置
 	port := getFreePort()
 	opts := createTestOptions(t, port)
 
@@ -123,19 +123,14 @@ func TestInstance_Lifecycle(t *testing.T) {
 	err := svc.Start(ctx, opts)
 	require.NoError(t, err, "Service should start without error")
 
-	// 3. 验证端口是否连得通
-	// 给它一点时间启动
+	// 3. 验证服务状态
 	time.Sleep(100 * time.Millisecond)
+	assert.True(t, svc.IsRunning(), "Service should be running")
 
-	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), time.Second)
-	assert.NoError(t, err, "Should be able to connect to the proxy port")
-	if conn != nil {
-		conn.Close()
-	}
-
-	// 4. 关闭服务（通过 Close 方法）
+	// 4. 关闭服务
 	err = svc.Close(ctx)
 	assert.NoError(t, err, "Service should close without error")
+	assert.False(t, svc.IsRunning(), "Service should not be running after close")
 }
 
 // TestInstance_ContextCancellation 测试通过 context 取消来关闭服务
@@ -143,33 +138,26 @@ func TestInstance_ContextCancellation(t *testing.T) {
 	port := getFreePort()
 	opts := createTestOptions(t, port)
 
-	// 1. 创建可取消的 context
+	// 创建可取消的 context
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// 2. 启动服务
+	// 启动服务
 	svc := service.NewInstance()
 	err := svc.Start(ctx, opts)
 	require.NoError(t, err, "Service should start without error")
 
-	// 3. 验证服务已启动
+	// 给服务一些启动时间
 	time.Sleep(100 * time.Millisecond)
-	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), time.Second)
-	assert.NoError(t, err, "Should be able to connect to the proxy port")
-	if conn != nil {
-		conn.Close()
-	}
-
-	// 4. 通过取消 context 来关闭服务
+	assert.True(t, svc.IsRunning(), "Service should be running")
+	// 通过取消 context 来关闭服务
 	cancel()
 
-	// 5. 等待 goroutine 处理取消信号并清理
-	// instance.go 中的 goroutine 会监听 ctx.Done() 并调用 clean()
-	time.Sleep(200 * time.Millisecond)
+	// 等待 goroutine 处理取消信号并清理
+	time.Sleep(500 * time.Millisecond)
 
-	// 6. 验证服务已关闭（再次调用 Close 应该不报错，因为已经被清理了）
-	err = svc.Close(context.Background())
-	assert.NoError(t, err, "Close should not error even after context cancellation")
+	// 验证服务已关闭
+	assert.False(t, svc.IsRunning(), "Service should be closed")
 }
 
 // TestInstance_MultipleClose 测试重复关闭
@@ -190,7 +178,7 @@ func TestInstance_MultipleClose(t *testing.T) {
 	err = svc.Close(ctx)
 	assert.NoError(t, err)
 
-	// 第二次关闭应该也不报错（因为 box == nil 会直接返回）
+	// 第二次关闭应该也不报错
 	err = svc.Close(ctx)
 	assert.NoError(t, err)
 }

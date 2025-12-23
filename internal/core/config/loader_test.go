@@ -15,7 +15,7 @@ func TestLoad_Success(t *testing.T) {
 	// 注意：go test 运行时，工作目录是当前包的目录
 	// 所以我们要往上找几层去找到 testdata
 	// "../../../testdata/config.json"
-	path := filepath.Join("..", "..", "..", "testdata", "config.json")
+	path := filepath.Join("..", "..", "..", "testdata", "config.test.json")
 
 	// 2. 加载
 	opts, err := config.Load(path)
@@ -30,6 +30,7 @@ func TestLoad_Success(t *testing.T) {
 	assert.Equal(t, "info", opts.Log.Level)
 	assert.Equal(t, 1, len(opts.Inbounds))
 	assert.Equal(t, "mixed-in", opts.Inbounds[0].Tag)
+	assert.Equal(t, "127.0.0.1:19090", opts.Experimental.ClashAPI.ExternalController)
 }
 
 func TestLoad_FileNotFound(t *testing.T) {

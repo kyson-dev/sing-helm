@@ -33,7 +33,7 @@ all: lint test build
 # 简洁模式测试（推荐日常使用）
 test:
 	@echo "Running tests..."
-	@go test ./... -cover
+	@go test  ./... -cover
 
 # 详细模式测试（查看所有输出）
 test-verbose:

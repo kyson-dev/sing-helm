@@ -19,7 +19,7 @@ func newRunCommand() *cobra.Command {
 		Use:   "run",
 		Short: "Run sing-box",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runService(cmd.Context(), configPath)
+			return runService(context.Background(), configPath)
 		},
 	}
 	cmd.Flags().StringVarP(&configPath, "config", "c", "config.json", "Config file")
@@ -39,8 +39,8 @@ func runService(ctx context.Context, configPath string) error {
 	svc := service.NewInstance()
 
 	// 创建可取消的 context
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	//ctx, cancel := context.WithCancel(ctx)
+	//defer cancel()
 
 	//3. 启动服务
 	if err := svc.Start(ctx, opts); err != nil {

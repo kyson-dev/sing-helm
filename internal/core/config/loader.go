@@ -1,11 +1,13 @@
 package config
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
 	"os"
 
+	"github.com/sagernet/sing-box/include"
 	"github.com/sagernet/sing-box/option"
+	"github.com/sagernet/sing/common/json"
 )
 
 // Load 从指定路径读取并解析配置文件
@@ -22,9 +24,11 @@ func Load(configPath string) (*option.Options, error) {
 		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
 
-	//3. 解析配置文件（JSON）
-	var options option.Options
-	if err := json.Unmarshal(content, &options); err != nil {
+	//3. 使用 sing-box 的 JSON 解析器解析配置文件
+	// 需要使用 include.Context 初始化 context，以便正确解析类型特定的选项
+	ctx := include.Context(context.Background())
+	options, err := json.UnmarshalExtendedContext[option.Options](ctx, content)
+	if err != nil {
 		return nil, fmt.Errorf("failed to parse config file: %w", err)
 	}
 

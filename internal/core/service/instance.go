@@ -7,6 +7,7 @@ import (
 
 	"github.com/kyson/minibox/internal/adapter/logger"
 	box "github.com/sagernet/sing-box"
+	"github.com/sagernet/sing-box/include"
 	"github.com/sagernet/sing-box/option"
 )
 
@@ -30,8 +31,10 @@ func (s *instance) Start(ctx context.Context, opts *option.Options) error {
 	}
 
 	// 1. Initialize sing-box core
+	// context 应该已经在调用处通过 include.Context() 初始化了
+	tx := include.Context(ctx)
 	newBox, err := box.New(box.Options{
-		Context: ctx,
+		Context: tx,
 		Options: *opts,
 	})
 	if err != nil {
@@ -69,3 +72,6 @@ func (s *instance) Close(ctx context.Context) error {
 	return err
 }
 
+func (s *instance) IsRunning() bool {
+	return s.box != nil
+}
