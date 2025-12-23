@@ -61,11 +61,11 @@ func newListCommand() *cobra.Command {
 				if p.Type == "Selector" {
 					fmt.Printf("%-20s %-15s \033[32m%s\033[0m\n", name, p.Type, p.Now)
 					// 可选：打印该组下所有可选节点 (缩进显示)
-					// for _, node := range p.All {
-					// 	mark := " "
-					// 	if node == p.Now { mark = "*" }
-					// 	fmt.Printf("  %s %s\n", mark, node)
-					// }
+					for _, node := range p.All {
+						mark := " "
+						if node == p.Now { mark = "*" }
+						fmt.Printf("  %s %s\n", mark, node)
+					}
 				}
 			}
 		},

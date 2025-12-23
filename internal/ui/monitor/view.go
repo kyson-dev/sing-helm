@@ -2,10 +2,51 @@ package monitor
 
 import (
 	"fmt"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
-// View 渲染 UI 字符串
 func (m Model) View() string {
+    // 1. 顶部：流量面板
+    trafficView := renderTraffic(m)
+    
+    // 2. 底部：节点列表
+    proxyView := renderProxyList(m)
+    
+    // 3. 垂直拼接
+    return lipgloss.JoinVertical(lipgloss.Left, trafficView, proxyView)
+}
+
+func renderProxyList(m Model) string {
+    s := "\nProxies (Select with ↑/↓/Enter):\n"
+    
+    for i, groupName := range m.Groups {
+        cursor := " "
+        if m.CursorGroup == i { cursor = ">" } // 组光标
+        
+        groupData := m.Proxies[groupName]
+        // 显示： > ProxyGroup [当前节点]
+        s += fmt.Sprintf("%s %s [%s]\n", cursor, groupName, groupData.Now)
+        
+        // 如果展开了当前组
+        if m.Expanded && m.CursorGroup == i {
+            for j, nodeName := range m.ExpandedList {
+                nodeCursor := " "
+                if m.CursorNode == j { nodeCursor = "*" } // 节点光标
+                
+                // 高亮当前选中的节点
+                active := ""
+                if nodeName == groupData.Now { active = "(current)" }
+                
+                s += fmt.Sprintf("   %s %s %s\n", nodeCursor, nodeName, active)
+            }
+        }
+    }
+    return s
+}
+
+// View 渲染 UI 字符串
+func renderTraffic(m Model) string {
 	if m.Err != nil {
 		return fmt.Sprintf("Error: %v\nPress q to quit.", m.Err)
 	}
