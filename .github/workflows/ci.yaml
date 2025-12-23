@@ -2,27 +2,27 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ "main" ]
-    tags: [ "v*" ]
+    branches: ["main"]
+    tags: ["v*"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   # 任务 1: 测试
   test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.22'
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
 
-    # 使用 Makefile 运行测试
-    # 这样本地和 CI 运行的测试参数绝对一致
-    - name: Run Tests
-      run: make test
+      # 使用 Makefile 运行测试
+      # test-ci 不使用 -cover，避免 Go 1.22 的 covdata 问题
+      - name: Run Tests
+        run: make test-ci
 
   # 任务 2: 构建 (仅在打 tag 时运行)
   release:
@@ -30,26 +30,26 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-      with:
-        # 【关键点】
-        # git describe 需要历史记录来计算版本号
-        # fetch-depth: 0 表示拉取完整历史，否则 Makefile 里的 VERSION 可能是 "dev"
-        fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          # 【关键点】
+          # git describe 需要历史记录来计算版本号
+          # fetch-depth: 0 表示拉取完整历史，否则 Makefile 里的 VERSION 可能是 "dev"
+          fetch-depth: 0
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.22'
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
 
-    # 使用 Makefile 进行交叉编译
-    # 所有的 TAGS 和 LDFLAGS 都在 Makefile 里管理，这里极其清爽
-    - name: Build All Platforms
-      run: make build-all
+      # 使用 Makefile 进行交叉编译
+      # 所有的 TAGS 和 LDFLAGS 都在 Makefile 里管理，这里极其清爽
+      - name: Build All Platforms
+        run: make build-all
 
-    # 上传产物
-    - name: Upload Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: minibox-release
-        path: bin/
+      # 上传产物
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: minibox-release
+          path: bin/

@@ -43,6 +43,11 @@ test-verbose:
 test-short:
 	go test -short ./...
 
+# CI 测试（不使用 -cover 避免 covdata 问题）
+test-ci:
+	@echo "Running tests for CI..."
+	@go test -v ./...
+
 # 生成覆盖率报告
 test-coverage:
 	@echo "Generating coverage report..."
