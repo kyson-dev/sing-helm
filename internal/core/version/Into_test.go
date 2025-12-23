@@ -13,6 +13,6 @@ func TestInfo_String(t *testing.T) {
 	v := version.Info{}
 	resut := v.String()
 
-	assert.Contains(t, resut, "Proxy Client")
+	assert.Contains(t, resut, "minibox")
 	assert.Contains(t, resut, "dev")
 }

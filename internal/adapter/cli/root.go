@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"fmt"
-
 	"github.com/kyson/minibox/internal/adapter/logger"
 	"github.com/kyson/minibox/internal/core/version"
 	"github.com/spf13/cobra"
@@ -26,7 +24,8 @@ func NewRootCommand() *cobra.Command {
 
 	// register sub commands
 	cmd.AddCommand(newVersionCommand(),
-		newCheckCommand())
+		newCheckCommand(),
+		newRunCommand())
 
 	return cmd
 }
@@ -37,7 +36,7 @@ func newVersionCommand() *cobra.Command {
 		Short: "Show version information",
 		Run: func(cmd *cobra.Command, args []string) {
 			// 这里不直接 fmt.Println，而是用 logger，虽然有点大材小用，但保持一致
-			fmt.Fprintln(cmd.OutOrStdout(), version.Info{})
+			//fmt.Fprintln(cmd.OutOrStdout(), version.Info{})
 			logger.Get().Info("Version", "version", version.Info{})
 		},
 	}

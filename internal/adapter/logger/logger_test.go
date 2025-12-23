@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestSetup(t *testing.T) {
+func TestLogger_Setup(t *testing.T) {
 	// Test instance
 	logger.Setup(true)
 	l := logger.Get()
