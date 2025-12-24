@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
 	"time"
 )
 
@@ -18,6 +20,11 @@ type ProxyData struct {
 // ProxiesResponse 对应 GET /proxies 的响应
 type proxiesResponse struct {
 	Proxies map[string]ProxyData `json:"proxies"`
+}
+
+// DelayResult 延迟测试结果
+type DelayResult struct {
+	Delay int `json:"delay"` // 毫秒
 }
 
 // Client 封装对 Sing-box API 的 HTTP 请求
@@ -87,4 +94,37 @@ func (c *Client) SelectProxy(group, node string) error {
 	}
 
 	return nil
+}
+
+// GetNodeDelay 测试指定节点的延迟
+// name: 节点名称
+// testURL: 测试链接 (如 http://www.gstatic.com/generate_204)
+// timeout: 超时时间 (毫秒)
+func (c *Client) GetNodeDelay(name string, testURL string, timeout int) (int, error) {
+	// 构造 URL: /proxies/:name/delay?url=...&timeout=...
+	// 注意对 params 进行 url encode
+	params := url.Values{}
+	params.Add("url", testURL)
+	params.Add("timeout", strconv.Itoa(timeout))
+	
+	// 注意：节点名称可能包含特殊字符（空格、emoji），必须 Encode
+	encodedName := url.PathEscape(name)
+	apiURL := fmt.Sprintf("%s/proxies/%s/delay?%s", c.baseURL, encodedName, params.Encode())
+
+	resp, err := c.httpClient.Get(apiURL)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("bad status: %s", resp.Status)
+	}
+
+	var res DelayResult
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return 0, err
+	}
+
+	return res.Delay, nil
 }

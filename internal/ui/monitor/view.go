@@ -6,6 +6,14 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+var (
+
+	colorGreen  = lipgloss.NewStyle().Foreground(lipgloss.Color("#00FF00"))
+	colorYellow = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFF00"))
+	colorRed    = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF0000"))
+	colorGray   = lipgloss.NewStyle().Foreground(lipgloss.Color("#666666"))
+)
+
 func (m Model) View() string {
     // 1. 顶部：流量面板
     trafficView := renderTraffic(m)
@@ -32,13 +40,16 @@ func renderProxyList(m Model) string {
         if m.Expanded && m.CursorGroup == i {
             for j, nodeName := range m.ExpandedList {
                 nodeCursor := " "
-                if m.CursorNode == j { nodeCursor = "*" } // 节点光标
-                
-                // 高亮当前选中的节点
-                active := ""
-                if nodeName == groupData.Now { active = "(current)" }
-                
-                s += fmt.Sprintf("   %s %s %s\n", nodeCursor, nodeName, active)
+				if m.CursorNode == j { nodeCursor = "*" }
+				
+				active := ""
+				if nodeName == groupData.Now { active = "(current)" }
+				
+				// [新增] 渲染延迟
+				latencyStr := renderLatency(m, nodeName)
+
+				// 格式: * NodeName [120ms] (current)
+				s += fmt.Sprintf("   %s %-30s %s %s\n", nodeCursor, nodeName, latencyStr, active)
             }
         }
     }
@@ -70,6 +81,35 @@ func renderTraffic(m Model) string {
 
 	// 用边框包起来
 	return boxStyle.Render(content)
+}
+
+// renderLatency 辅助函数：根据延迟返回带颜色的字符串
+func renderLatency(m Model, name string) string {
+	// 1. 检查是否正在测试
+	if m.TestingNodes[name] {
+		return colorGray.Render("[...]")
+	}
+
+	// 2. 检查是否有结果
+	delay, exists := m.Latencies[name]
+	if !exists || delay == 0 {
+		return "" // 没测过就不显示
+	}
+
+	// 3. 渲染结果
+	if delay < 0 {
+		return colorRed.Render("[TIMEOUT]")
+	}
+
+	val := fmt.Sprintf("[%dms]", delay)
+	
+	if delay < 300 {
+		return colorGreen.Render(val)
+	} else if delay < 800 {
+		return colorYellow.Render(val)
+	} else {
+		return colorRed.Render(val)
+	}
 }
 
 // formatBytes 辅助函数

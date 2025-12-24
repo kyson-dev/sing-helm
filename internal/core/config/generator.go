@@ -51,6 +51,7 @@ func Generate(user *UserProfile, opts *RunOptions) (*option.Options, error) {
 		"direct": true,
 		"block":  true,
 		"proxy":  true,
+		"auto":   true,
 	}
 
 	// 1. 过滤并复制用户节点（排除保留 tag）
@@ -70,8 +71,12 @@ func Generate(user *UserProfile, opts *RunOptions) (*option.Options, error) {
 		return nil, fmt.Errorf("failed to generate default outbounds: %w", err)
 	}
 
-	// 3. 复制用户路由
-	result.Route = user.Route
+	// 3. 复制用户路由（如果用户没配置，使用默认路由）
+	if user.Route != nil {
+		result.Route = user.Route
+	} else {
+		result.Route = generateDefaultRoute()
+	}
 
 	var err error
 
@@ -80,10 +85,16 @@ func Generate(user *UserProfile, opts *RunOptions) (*option.Options, error) {
 		return nil, fmt.Errorf("failed to allocate API port: %w", err)
 	}
 
-	// 5. 配置 Experimental (Clash API)
+	// 5. 配置 Experimental (Clash API + Cache File)
 	result.Experimental = &option.ExperimentalOptions{
 		ClashAPI: &option.ClashAPIOptions{
 			ExternalController: net.JoinHostPort(opts.ListenAddr, fmt.Sprintf("%d", opts.APIPort)),
+		},
+		CacheFile: &option.CacheFileOptions{
+			Enabled: true,
+			// 不设置 Path，使用 sing-box 默认值
+			// 设置较短的存活时间，避免缓存文件过大
+			StoreRDRC: false, // 禁用 DNS 反向映射缓存，避免一些问题
 		},
 	}
 
@@ -152,9 +163,35 @@ func generateDefaultOutbounds(opts *option.Options, userNodeTags []string) error
 		return fmt.Errorf("failed to unmarshal block outbound: %w", err)
 	}
 
-	// 3. 生成 proxy outbound (selector 类型，包含所有用户节点)
-	// 如果没有用户节点，proxy 回落到 direct
-	proxyOutbounds := userNodeTags
+	// 3. 生成 auto outbound (urltest 类型，自动测速选择最快节点)
+	// 只有当有用户节点时才创建 auto
+	var auto option.Outbound
+	hasAuto := len(userNodeTags) > 0
+	if hasAuto {
+		autoMap := map[string]any{
+			"type":      "urltest",
+			"tag":       "auto",
+			"outbounds": userNodeTags,
+			"url":       "https://www.gstatic.com/generate_204",
+			"interval":  "3m", // 每 3 分钟测速一次
+			"tolerance": 50,   // 容差 50ms，避免频繁切换
+		}
+		autoData, err := singboxjson.Marshal(autoMap)
+		if err != nil {
+			return fmt.Errorf("failed to marshal auto outbound: %w", err)
+		}
+		if err := singboxjson.UnmarshalContext(ctx, autoData, &auto); err != nil {
+			return fmt.Errorf("failed to unmarshal auto outbound: %w", err)
+		}
+	}
+
+	// 4. 生成 proxy outbound (selector 类型)
+	// 包含：auto（自动选择）、所有用户节点（手动选择）、direct（直连）
+	proxyOutbounds := []string{}
+	if hasAuto {
+		proxyOutbounds = append(proxyOutbounds, "auto") // auto 放第一个作为默认
+	}
+	proxyOutbounds = append(proxyOutbounds, userNodeTags...)
 	if len(proxyOutbounds) == 0 {
 		proxyOutbounds = []string{"direct"}
 	}
@@ -172,8 +209,12 @@ func generateDefaultOutbounds(opts *option.Options, userNodeTags []string) error
 		return fmt.Errorf("failed to unmarshal proxy outbound: %w", err)
 	}
 
-	// 按顺序添加：direct, block, proxy
-	opts.Outbounds = append(opts.Outbounds, direct, block, proxy)
+	// 按顺序添加：direct, block, auto (if exists), proxy
+	opts.Outbounds = append(opts.Outbounds, direct, block)
+	if hasAuto {
+		opts.Outbounds = append(opts.Outbounds, auto)
+	}
+	opts.Outbounds = append(opts.Outbounds, proxy)
 
 	return nil
 }
@@ -183,13 +224,15 @@ func generateDefaultOutbounds(opts *option.Options, userNodeTags []string) error
 func generateTUN(opts *option.Options) {
 	// 使用 JSON 方式构建 TUN 入站配置
 	tunMap := map[string]any{
-		"type":         "tun",
-		"tag":          "tun-in",
-		"address":      []string{"172.19.0.1/30"},
-		"auto_route":   true,
-		"strict_route": true,
-		"stack":        "mixed", // TCP 用 system 性能好，UDP 用 gvisor 兼容性好
-		"mtu":          9000,
+		"type":                       "tun",
+		"tag":                        "tun-in",
+		"address":                    []string{"172.19.0.1/30"},
+		"auto_route":                 true,
+		"strict_route":               true,
+		"stack":                      "mixed", // TCP 用 system 性能好，UDP 用 gvisor 兼容性好
+		"mtu":                        1500,
+		"sniff":                      true, // 嗅探协议
+		"sniff_override_destination": true, // 用嗅探到的域名替换 IP
 	}
 
 	data, err := singboxjson.Marshal(tunMap)
@@ -281,4 +324,89 @@ func generateMixed(opts *option.Options, listenAddr string, port int, setSystemP
 	}
 
 	opts.Inbounds = append(opts.Inbounds, mixed)
+}
+
+// generateDefaultRoute 生成默认路由规则
+// 当用户没有配置 Route 时使用
+func generateDefaultRoute() *option.RouteOptions {
+	ctx := include.Context(context.Background())
+
+	routeMap := map[string]any{
+		"rule_set": []map[string]any{
+			{
+				"tag":             "geosite-google",
+				"type":            "remote",
+				"format":          "binary",
+				"url":             "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-google.srs",
+				"download_detour": "proxy",
+			},
+			{
+				"tag":             "geosite-github",
+				"type":            "remote",
+				"format":          "binary",
+				"url":             "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-github.srs",
+				"download_detour": "proxy",
+			},
+			{
+				"tag":             "geosite-telegram",
+				"type":            "remote",
+				"format":          "binary",
+				"url":             "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-telegram.srs",
+				"download_detour": "proxy",
+			},
+			{
+				"tag":             "geosite-cn",
+				"type":            "remote",
+				"format":          "binary",
+				"url":             "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-cn.srs",
+				"download_detour": "direct",
+			},
+			{
+				"tag":             "geoip-cn",
+				"type":            "remote",
+				"format":          "binary",
+				"url":             "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-cn.srs",
+				"download_detour": "direct",
+			},
+		},
+		"rules": []map[string]any{
+			// 1. DNS 劫持
+			{"protocol": []string{"dns"}, "action": "hijack-dns"},
+			// 2. NTP 直连
+			{"protocol": []string{"ntp"}, "outbound": "direct"},
+			// 3. 阻止 443 端口 UDP (强制 TCP 稳定性)
+			{"port": []int{443}, "protocol": []string{"udp"}, "action": "reject"},
+			// 4. 私有 IP 直连
+			{"ip_is_private": true, "outbound": "direct"},
+			// 5. 常用 CN DNS 直连
+			{
+				"domain":        []string{"alidns.com", "dot.pub"},
+				"domain_suffix": []string{"dnspod.com", "dns.alidns.com"},
+				"outbound":      "direct",
+			},
+			{"ip_cidr": []string{"223.5.5.5/32", "119.29.29.29/32", "180.76.76.76/32", "114.114.114.114/32"}, "outbound": "direct"},
+			// 6. Google/GitHub/Telegram 代理
+			{"domain": []string{"googleapis.cn", "google.cn"}, "rule_set": []string{"geosite-google"}, "outbound": "proxy"},
+			{"rule_set": []string{"geosite-github"}, "outbound": "proxy"},
+			{"rule_set": []string{"geosite-telegram"}, "outbound": "proxy"},
+			// 7. CN 直连
+			{"rule_set": []string{"geosite-cn", "geoip-cn"}, "outbound": "direct"},
+		},
+		"final":                 "proxy",
+		"auto_detect_interface": true,
+	}
+
+	data, err := singboxjson.Marshal(routeMap)
+	if err != nil {
+		logger.Error("failed to marshal default route config", "error", err)
+		return nil
+	}
+
+	var route option.RouteOptions
+	if err := singboxjson.UnmarshalContext(ctx, data, &route); err != nil {
+		logger.Error("failed to unmarshal default route config", "error", err)
+		return nil
+	}
+
+	return &route
 }

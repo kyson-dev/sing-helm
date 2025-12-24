@@ -40,7 +40,7 @@ func newRunCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&tunMode, "tun", false, "Enable TUN mode")
-	cmd.Flags().BoolVar(&systemProxy, "system-proxy", false, "Enable System Proxy")
+	cmd.Flags().BoolVar(&systemProxy, "system-proxy",false, "Enable System Proxy")
 	cmd.Flags().IntVar(&apiPort, "api-port", 0, "Fixed API port")
 	cmd.Flags().IntVar(&mixPort, "mixed-port", 0, "Fixed Mixed port")
 	return cmd

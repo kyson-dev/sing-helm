@@ -11,8 +11,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-
-
 func newMonitorCommand() *cobra.Command{
 	var host string
 	cmd := &cobra.Command{

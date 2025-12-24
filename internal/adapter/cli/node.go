@@ -18,8 +18,8 @@ func newNodeCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "node",
 		Short: "Manage proxy nodes",
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		},
+		// 注意：不要定义 PersistentPreRun，否则会覆盖 root 的 PersistentPreRun
+		// root 的 PersistentPreRun 会调用 env.Init() 和 logger.Setup()
 	}
 
 	// 注册子命令
@@ -44,10 +44,10 @@ func newListCommand() *cobra.Command {
 					logger.Error("Failed to load state", "error", err)
 					os.Exit(1)
 				}
-				apiAddr = fmt.Sprintf("%s:%d",state.ListenAddr,state.APIPort)
+				apiAddr = fmt.Sprintf("%s:%d", state.ListenAddr, state.APIPort)
 			}
 			c := client.New(apiAddr)
-			
+
 			proxies, err := c.GetProxies()
 			if err != nil {
 				logger.Error("Failed to list proxies", "error", err)
@@ -74,7 +74,9 @@ func newListCommand() *cobra.Command {
 					// 可选：打印该组下所有可选节点 (缩进显示)
 					for _, node := range p.All {
 						mark := " "
-						if node == p.Now { mark = "*" }
+						if node == p.Now {
+							mark = "*"
+						}
 						fmt.Printf("  %s %s\n", mark, node)
 					}
 				}
@@ -86,24 +88,24 @@ func newListCommand() *cobra.Command {
 // 2. 实现 Use 命令
 func newUseCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:   "use [group] [node]",
-		Short: "Switch node for a selector group",
+		Use:     "use [group] [node]",
+		Short:   "Switch node for a selector group",
 		Example: "  minibox node use Proxy 'HongKong 01'",
-		Args:  cobra.ExactArgs(2), // 必须传 2 个参数
+		Args:    cobra.ExactArgs(2), // 必须传 2 个参数
 		Run: func(cmd *cobra.Command, args []string) {
 			group := args[0]
 			node := args[1]
-			
+
 			if apiAddr == "" {
 				state, err := config.LoadState()
 				if err != nil {
 					logger.Error("Failed to load state", "error", err)
 					os.Exit(1)
 				}
-				apiAddr = fmt.Sprintf("%s:%d",state.ListenAddr,state.APIPort)
+				apiAddr = fmt.Sprintf("%s:%d", state.ListenAddr, state.APIPort)
 			}
 			c := client.New(apiAddr)
-			
+
 			if err := c.SelectProxy(group, node); err != nil {
 				logger.Error("Failed to switch node", "error", err)
 				os.Exit(1)
