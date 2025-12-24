@@ -13,7 +13,6 @@ import (
 
 // 复用之前的 run flags
 var (
-	dProfilePath string
 	dTunMode     bool
 	dSystemProxy bool
 )
@@ -37,7 +36,15 @@ func newStartCommand() *cobra.Command {
 			logFile := paths.LogFile
 
 			// 传递 --home 给子进程，确保子进程使用相同的目录
-			runArgs := []string{"--home", paths.HomeDir, "run"}
+			runArgs := []string{"--home", paths.HomeDir}
+			if GlobalDebug {
+				runArgs = append(runArgs, "--debug")
+			}
+			if LogFile == "" {
+				LogFile = env.Get().LogFile
+			}
+			runArgs = append(runArgs, "--log", LogFile)
+			runArgs = append(runArgs, "run")
 			if dTunMode {
 				runArgs = append(runArgs, "--tun")
 			}
@@ -47,6 +54,17 @@ func newStartCommand() *cobra.Command {
 
 			// 3. 创建命令对象
 			command := exec.Command(exePath, runArgs...)
+
+			// 关键：将子进程的 stdout/stderr 重定向到 /dev/null
+			// 这样子进程的 isTerminal() 会返回 false，日志会写入文件
+			// 注意：设置为 nil 会继承父进程的 stdout，所以必须显式打开 /dev/null
+			devNull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+			if err == nil {
+				command.Stdout = devNull
+				command.Stderr = devNull
+				defer devNull.Close()
+			}
+			command.Stdin = nil
 
 			// 4. 启动子进程
 			if err := command.Start(); err != nil {
@@ -65,9 +83,7 @@ func newStartCommand() *cobra.Command {
 			fmt.Printf("Log file: %s\n", logFile)
 		},
 	}
-
-	// 绑定 Flags
-	cmd.Flags().StringVarP(&dProfilePath, "config", "c", "config.json", "config file")
+	
 	cmd.Flags().BoolVar(&dTunMode, "tun", false, "Enable TUN mode")
 	cmd.Flags().BoolVar(&dSystemProxy, "system-proxy", false, "Enable System Proxy")
 

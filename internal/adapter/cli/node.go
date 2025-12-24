@@ -18,6 +18,8 @@ func newNodeCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "node",
 		Short: "Manage proxy nodes",
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		},
 	}
 
 	// 注册子命令

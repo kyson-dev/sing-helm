@@ -39,16 +39,16 @@ func Setup(cfg Config) {
 				MaxAge:     28,   // 保留 28 天
 				Compress:   true, // 压缩旧日志
 			}
-			
+
 			// 如果是前台运行，可能希望同时看到；如果是后台，通常只写文件
 			// 这里我们为了通用，如果配置了文件，就只写文件（避免后台运行时 stdout 满）
 			// 或者你可以用 io.MultiWriter(os.Stdout, fileLogger)
 			// writer = io.MultiWriter(os.Stdout, fileLogger)
 			writer = fileLogger
 		}
-		
+
 		ops := &slog.HandlerOptions{
-			Level:     slog.LevelInfo,
+			Level: slog.LevelInfo,
 		}
 		if cfg.Debug {
 			ops.Level = slog.LevelDebug
