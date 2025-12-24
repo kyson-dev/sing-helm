@@ -34,8 +34,9 @@ func (s *instance) Start(ctx context.Context, opts *option.Options) error {
 	// context 应该已经在调用处通过 include.Context() 初始化了
 	tx := include.Context(ctx)
 	newBox, err := box.New(box.Options{
-		Context: tx,
-		Options: *opts,
+		Context:           tx,
+		Options:           *opts,
+		PlatformLogWriter: logger.NewPlatformWriter(), // 将 sing-box 日志重定向到我们的 logger
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create box instance: %w", err)

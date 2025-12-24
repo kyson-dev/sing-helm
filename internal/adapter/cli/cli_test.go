@@ -92,7 +92,7 @@ func TestCLI_RunCommand(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// 重置环境，确保每次都可以重新初始化路径
-			env.Reset()
+			env.ResetForTest()
 
 			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 			defer cancel()

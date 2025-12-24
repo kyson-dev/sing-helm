@@ -80,8 +80,9 @@ func Init(flagHome string) error {
 	return err
 }
 
-// Reset 重置环境状态（仅用于测试或需要重新初始化时）
-func Reset() {
+// ResetForTest 重置环境单例状态
+// ⚠️ 仅供测试使用，生产代码禁止调用
+func ResetForTest() {
 	current = Paths{}
 	once = sync.Once{}
 }

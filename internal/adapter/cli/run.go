@@ -25,7 +25,7 @@ func newRunCommand() *cobra.Command {
 		Use:   "run",
 		Short: "Run sing-box",
 		RunE: func(cmd *cobra.Command, args []string) error {
-		
+
 			runops := config.DefaultRunOptions()
 			if systemProxy {
 				runops.Mode = config.ModeSystem
@@ -106,4 +106,3 @@ func runService(ctx context.Context, runops *config.RunOptions) error {
 	logger.Info("Service stopped gracefully")
 	return nil
 }
-
