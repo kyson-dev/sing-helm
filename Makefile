@@ -55,11 +55,36 @@ test-coverage:
 	@go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report generated: coverage.html"
 
-# 默认构建 (当前系统架构)
-build:
-	@echo "Building $(APP) for local os/arch..."
-	$(ENV) go build $(FLAGS) -o $(BUILD_DIR)/$(APP) ./cmd/$(APP)
+# 默认构建 (当前系统架构，正式版本，使用 ~/.minibox)
+# build:
+# 	@echo "Building $(APP) for local os/arch..."
+# 	$(ENV) go build $(FLAGS) -o $(BUILD_DIR)/$(APP) ./cmd/$(APP)
+# 	@echo "Build success! Size: $$(du -h $(BUILD_DIR)/$(APP) | cut -f1)"
+
+# 开发模式构建 (工作目录在项目下，方便测试)
+# 二进制文件: ./bin/minibox
+# 工作目录: ./bin/.minibox
+DEV_HOME := ./bin/.minibox
+DEV_LDFLAGS := $(LDFLAGS) -X 'github.com/kyson/minibox/internal/env.DefaultHome=$(DEV_HOME)'
+DEV_FLAGS := -tags "$(TAGS)" -trimpath -ldflags "$(DEV_LDFLAGS)"
+
+build-dev:
+	@echo "Building $(APP) for development..."
+	@echo "Binary:   $(BUILD_DIR)/$(APP)"
+	@echo "Home dir: $(DEV_HOME)"
+	@mkdir -p $(DEV_HOME)
+	$(ENV) go build $(DEV_FLAGS) -o $(BUILD_DIR)/$(APP) ./cmd/$(APP)
+	@echo ""
 	@echo "Build success! Size: $$(du -h $(BUILD_DIR)/$(APP) | cut -f1)"
+	@echo ""
+	@echo "Usage:"
+	@echo "  ./bin/minibox run            # Use default mode"
+	@echo "  ./bin/minibox run --tun      # Use TUN mode (requires sudo)"
+	@echo ""
+	@echo "Files:"
+	@echo "  Config: $(DEV_HOME)/profile.json"
+	@echo "  Logs:   $(DEV_HOME)/minibox.log"
+	@echo "  State:  $(DEV_HOME)/state.json"
 
 # --- 交叉编译 (Cross Compilation) ---
 # Go 的一大杀器：一条命令打出 Windows, Linux, macOS 包

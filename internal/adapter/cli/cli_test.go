@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/kyson/minibox/internal/adapter/cli"
+	"github.com/kyson/minibox/internal/env"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -82,20 +83,37 @@ func TestCLI_RunCommand(t *testing.T) {
 			errMsg:     "failed to load profile file",
 		},
 		{
-			name:       "empty config - missing outbounds",
+			name:       "empty config - should start successfully with defaults",
 			configPath: createTempConfig(t, `{}`),
-			wantErr:    true,
-			errMsg:     "failed to start sing-box",
+			wantErr:    false, // 现在的代码会自动补全默认 outbound，所以应该能启动成功
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// 重置环境，确保每次都可以重新初始化路径
+			env.Reset()
+
 			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 			defer cancel()
 
+			// 创建临时的 home 目录
+			tmpHome := t.TempDir()
+
+			// 如果提供了 configPath (临时文件路径)，将其复制/重命名为 profile.json 放到 tmpHome 下
+			// 如果是 "non_existent"，则不创建
+			if tt.configPath != "" && tt.configPath != "non_existent_config.json" {
+				content, err := os.ReadFile(tt.configPath)
+				assert.NoError(t, err)
+				err = os.WriteFile(tmpHome+"/profile.json", content, 0644)
+				assert.NoError(t, err)
+			}
+
+			// 如果是测试 "non_existent"，我们什么都不放，run 命令会在 tmpHome 下找 profile.json 找不到
+
 			root := cli.NewRootCommand()
-			root.SetArgs([]string{"run", "--config", tt.configPath})
+			// 使用 --home 指定工作目录
+			root.SetArgs([]string{"run", "--home", tmpHome})
 			root.SetContext(ctx)
 
 			err := root.Execute()

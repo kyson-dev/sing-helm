@@ -2,11 +2,15 @@ package logger
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sync"
 	"time"
+
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 var (
@@ -14,17 +18,43 @@ var (
 	once     sync.Once
 )
 
+type Config struct {
+	Debug    bool
+	FilePath string // 如果为空，则只输出到 stdout
+}
+
 // Set up logger level
-func Setup(debug bool) {
+func Setup(cfg Config) {
 	once.Do(func() {
+		var writer io.Writer = os.Stdout
+
+		// 如果指定了文件路径，则使用 MultiWriter (同时写文件和屏幕)
+		// 或者仅写文件（取决于你的需求，后台模式通常只写文件）
+		if cfg.FilePath != "" {
+			_ = os.MkdirAll(filepath.Dir(cfg.FilePath), 0755)
+			fileLogger := &lumberjack.Logger{
+				Filename:   cfg.FilePath,
+				MaxSize:    10,   // 每个日志文件最大 10MB
+				MaxBackups: 3,    // 保留最近 3 个文件
+				MaxAge:     28,   // 保留 28 天
+				Compress:   true, // 压缩旧日志
+			}
+			
+			// 如果是前台运行，可能希望同时看到；如果是后台，通常只写文件
+			// 这里我们为了通用，如果配置了文件，就只写文件（避免后台运行时 stdout 满）
+			// 或者你可以用 io.MultiWriter(os.Stdout, fileLogger)
+			// writer = io.MultiWriter(os.Stdout, fileLogger)
+			writer = fileLogger
+		}
+		
 		ops := &slog.HandlerOptions{
-			AddSource: true,
 			Level:     slog.LevelInfo,
 		}
-		if debug {
+		if cfg.Debug {
 			ops.Level = slog.LevelDebug
+			ops.AddSource = true // Debug 模式显示源码位置
 		}
-		handel := slog.NewTextHandler(os.Stdout, ops)
+		handel := slog.NewTextHandler(writer, ops)
 		instance = slog.New(handel)
 		slog.SetDefault(instance)
 	})
@@ -33,7 +63,7 @@ func Setup(debug bool) {
 // Get logger instance
 func Get() *slog.Logger {
 	if instance == nil {
-		Setup(false)
+		Setup(Config{})
 	}
 	return instance
 }

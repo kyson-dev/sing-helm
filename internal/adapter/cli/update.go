@@ -3,10 +3,10 @@ package cli
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/kyson/minibox/internal/adapter/logger"
 	"github.com/kyson/minibox/internal/core/updater"
+	"github.com/kyson/minibox/internal/env"
 	"github.com/spf13/cobra"
 )
 
@@ -24,10 +24,7 @@ func newUpdateCommand() *cobra.Command {
 func updateRules() error {
 	// 1. 确定下载目录 (当前目录)
 	// 也可以做的更高级：读取配置里的 WorkingDir
-	dir, err := os.Getwd()
-	if err != nil {
-		return err
-	}
+	dir := env.Get().AssetDir
 	logger.Info("Updating rules...", "dir", dir)
 
 	ctx, cancle := context.WithCancel(context.Background())

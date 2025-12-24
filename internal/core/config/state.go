@@ -3,7 +3,8 @@ package config
 import (
 	"encoding/json"
 	"os"
-	"path/filepath"
+
+	"github.com/kyson/minibox/internal/env"
 )
 
 type RuntimeState struct {
@@ -12,10 +13,7 @@ type RuntimeState struct {
 }
 
 func GetStatePath() string {
-	home, _ := os.UserHomeDir()
-	dir := filepath.Join(home, ".minibox")
-	_ = os.MkdirAll(dir, 0755)
-	return filepath.Join(dir, "state.json")
+	return env.Get().StateFile
 }
 
 func SaveState(s *RuntimeState) error {

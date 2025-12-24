@@ -10,12 +10,12 @@ import (
 	"github.com/kyson/minibox/internal/adapter/logger"
 	"github.com/kyson/minibox/internal/core/config"
 	"github.com/kyson/minibox/internal/core/service"
+	"github.com/kyson/minibox/internal/env"
 	"github.com/spf13/cobra"
 )
 
 func newRunCommand() *cobra.Command {
 	var (
-		profilePath string
 		tunMode     bool
 		systemProxy bool
 		apiPort     int
@@ -36,10 +36,9 @@ func newRunCommand() *cobra.Command {
 			runops.APIPort = apiPort
 			runops.MixedPort = mixPort
 
-			return runService(context.Background(), profilePath, &runops)
+			return runService(context.Background(), &runops)
 		},
 	}
-	cmd.Flags().StringVarP(&profilePath, "config", "c", "config.json", "config file")
 	cmd.Flags().BoolVar(&tunMode, "tun", false, "Enable TUN mode")
 	cmd.Flags().BoolVar(&systemProxy, "system-proxy", false, "Enable System Proxy")
 	cmd.Flags().IntVar(&apiPort, "api-port", 0, "Fixed API port")
@@ -48,7 +47,10 @@ func newRunCommand() *cobra.Command {
 }
 
 // runService 抽取出来的核心逻辑，便于测试
-func runService(ctx context.Context, profilePath string, runops *config.RunOptions) error {
+func runService(ctx context.Context, runops *config.RunOptions) error {
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	profilePath := env.Get().ConfigFile
 	//1. 加载配置文件
 	logger.Info("Loading profile file", "path", profilePath)
 	userConf, err := config.LoadProfile(profilePath)
@@ -67,12 +69,12 @@ func runService(ctx context.Context, profilePath string, runops *config.RunOptio
 	svc := service.NewInstance()
 
 	//3. 启动服务
-	if err := svc.Start(ctx, opts); err != nil {
+	if err := svc.Start(runCtx, opts); err != nil {
 		logger.Error("Failed to start sing-box", "error", err)
 		return fmt.Errorf("failed to start sing-box: %w", err)
 	}
 	defer func() {
-		if err := svc.Close(ctx); err != nil {
+		if err := svc.Close(runCtx); err != nil {
 			logger.Error("Failed to close sing-box", "error", err)
 		}
 	}()
