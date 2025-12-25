@@ -29,38 +29,80 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "up":
 			if m.Expanded {
 				if m.CursorNode > 0 {
+					// 正常向上移动
 					m.CursorNode--
+				} else {
+					// 在第一个节点，切换到上一组
+					if m.CursorGroup > 0 {
+						m.CursorGroup--
+					} else {
+						// 第一组循环到最后一组
+						m.CursorGroup = len(m.Groups) - 1
+					}
+					// 展开新组，光标在最后一个节点
+					newGroup := m.Groups[m.CursorGroup]
+					m.ExpandedList = m.Proxies[newGroup].All
+					m.CursorNode = len(m.ExpandedList) - 1
 				}
 			} else {
 				if m.CursorGroup > 0 {
 					m.CursorGroup--
+				} else {
+					// 循环到最后一组
+					m.CursorGroup = len(m.Groups) - 1
 				}
 			}
 		case "down":
 			if m.Expanded {
 				if m.CursorNode < len(m.ExpandedList)-1 {
+					// 正常向下移动
 					m.CursorNode++
+				} else {
+					// 在最后一个节点，切换到下一组
+					if m.CursorGroup < len(m.Groups)-1 {
+						m.CursorGroup++
+					} else {
+						// 最后一组循环到第一组
+						m.CursorGroup = 0
+					}
+					// 展开新组，光标在第一个节点
+					newGroup := m.Groups[m.CursorGroup]
+					m.ExpandedList = m.Proxies[newGroup].All
+					m.CursorNode = 0
 				}
 			} else {
 				if m.CursorGroup < len(m.Groups)-1 {
 					m.CursorGroup++
+				} else {
+					// 循环到第一组
+					m.CursorGroup = 0
 				}
 			}
-			// --- 展开/收起/选择逻辑 ---
-		case "enter":
-			if !m.Expanded {
-				// 1. 展开组
+			// --- 展开/收起逻辑 ---
+		case "right":
+			if !m.Expanded && len(m.Groups) > 0 {
+				// 展开组
 				m.Expanded = true
 				currentGroup := m.Groups[m.CursorGroup]
 				m.ExpandedList = m.Proxies[currentGroup].All
 				m.CursorNode = 0 // 重置节点光标
-			} else {
-				// 2. 选中节点并切换
+			}
+
+		// --- 选择节点 (不收起) ---
+		case "enter": // Enter 键
+			if m.Expanded && len(m.ExpandedList) > 0 {
 				group := m.Groups[m.CursorGroup]
 				node := m.ExpandedList[m.CursorNode]
-
-				// 执行切换 (异步命令)
+				// 执行切换 (异步命令)，不收起列表
 				return m, switchNode(m.apiClient, group, node)
+			} else {
+				// 选择展开
+				return m, func() tea.Msg {
+					return tea.KeyMsg{
+						Type:  tea.KeyRunes,
+						Runes: []rune("right"),
+					}
+				}
 			}
 
 		case "left":
@@ -94,6 +136,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// 3. 处理流量更新
 	case trafficMsg:
 		m.Stats = TrafficStats(msg)
+		// 累加总流量
+		m.TotalUp += msg.Up
+		m.TotalDown += msg.Down
 		// 处理完一条数据，继续读下一条 (循环)
 		return m, readTraffic(m.wsConn)
 
@@ -107,11 +152,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Proxies = msg
 		// 提取所有的 Selector 组名并排序
 		m.Groups = extractSelectorGroups(msg)
+
+		// 默认展开第一个组并自动测速
+		if len(m.Groups) > 0 && !m.Expanded {
+			m.Expanded = true
+			m.CursorGroup = 0
+			m.ExpandedList = m.Proxies[m.Groups[0]].All
+			m.CursorNode = 0
+
+			// 自动触发测速：发送 't' 按键消息
+			return m, func() tea.Msg {
+				return tea.KeyMsg{
+					Type:  tea.KeyRunes,
+					Runes: []rune{'t'},
+				}
+			}
+		}
+
 		return m, nil
 
 		// 处理 switchNode 成功的 Msg，重新拉取列表以刷新 "Now" 状态
 	case nodeSwitchedMsg:
-		m.Expanded = false                  // 切换成功后收起
+		//m.Expanded = false                  // 切换成功后收起
 		return m, fetchProxies(m.apiClient) // 刷新列表
 
 	// 处理测速结果
@@ -175,22 +237,31 @@ func switchNode(c *client.Client, group, node string) tea.Cmd {
 	}
 }
 
-// extractSelectorGroups 从所有代理中提取出类型为 Selector 的组名，并排序
+// extractSelectorGroups 从所有代理中提取出可切换的组（Selector 和 URLTest）
 func extractSelectorGroups(proxies map[string]client.ProxyData) []string {
 	var groups []string
 
 	for name, data := range proxies {
-		// 关键点：我们只显示 "Selector" 类型
-		// 因为只有这种类型可以包含其他节点，允许用户切换
-		// 忽略 "Direct", "Reject", "Vmess", "Shadowsocks" 等具体节点
-		if data.Type == "Selector" {
+		// Selector: 手动选择组（如 proxy）
+		// URLTest: 自动测速组（如 auto）
+		if data.Type == "Selector" || data.Type == "URLTest" {
 			groups = append(groups, name)
 		}
 	}
 
-	// 必须排序！如果不排序，Go 的 map 遍历顺序是随机的
-	// 会导致你的 TUI 界面每次刷新时，列表顺序都在变，光标会乱跳
-	sort.Strings(groups)
+	// 自定义排序：auto 放在最后，其他按字母顺序
+	sort.Slice(groups, func(i, j int) bool {
+		// 如果 i 是 auto，放在后面
+		if groups[i] == "auto" {
+			return false
+		}
+		// 如果 j 是 auto，i 放在前面
+		if groups[j] == "auto" {
+			return true
+		}
+		// 其他情况按字母顺序
+		return groups[i] < groups[j]
+	})
 
 	return groups
 }

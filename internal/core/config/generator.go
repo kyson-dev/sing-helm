@@ -55,7 +55,8 @@ func Generate(user *UserProfile, opts *RunOptions) (*option.Options, error) {
 	}
 
 	// 1. 过滤并复制用户节点（排除保留 tag）
-	var userNodeTags []string
+	var userNodeTags []string   // 所有用户节点（包括 Selector 组）
+	var actualNodeTags []string // 只包含实际代理节点（排除 Selector/URLTest）
 	for _, out := range user.Outbounds {
 		if reservedTags[out.Tag] {
 			// 忽略用户配置的保留 tag
@@ -64,10 +65,19 @@ func Generate(user *UserProfile, opts *RunOptions) (*option.Options, error) {
 		}
 		result.Outbounds = append(result.Outbounds, out)
 		userNodeTags = append(userNodeTags, out.Tag)
+
+		// 检查是否是实际节点（非 Selector/URLTest）
+		outMap := map[string]any{}
+		data, _ := singboxjson.Marshal(out)
+		singboxjson.Unmarshal(data, &outMap)
+		outType, _ := outMap["type"].(string)
+		if outType != "selector" && outType != "urltest" {
+			actualNodeTags = append(actualNodeTags, out.Tag)
+		}
 	}
 
 	// 2. 生成程序默认的 outbound (direct, block, proxy)
-	if err := generateDefaultOutbounds(result, userNodeTags); err != nil {
+	if err := generateDefaultOutbounds(result, userNodeTags, actualNodeTags); err != nil {
 		return nil, fmt.Errorf("failed to generate default outbounds: %w", err)
 	}
 
@@ -130,9 +140,10 @@ func resolvePort(port int) (int, error) {
 	return netutil.GetFreePort()
 }
 
-// generateDefaultOutbounds 生成程序默认的 outbound (direct, block, proxy)
-// proxy 是一个 selector，包含所有用户配置的节点
-func generateDefaultOutbounds(opts *option.Options, userNodeTags []string) error {
+// generateDefaultOutbounds 生成程序默认的 outbound (direct, block, proxy, auto)
+// userNodeTags: 所有用户节点（包括 Selector 组）
+// actualNodeTags: 只包含实际代理节点（排除 Selector/URLTest）
+func generateDefaultOutbounds(opts *option.Options, userNodeTags []string, actualNodeTags []string) error {
 	ctx := include.Context(context.Background())
 
 	// 1. 生成 direct outbound
@@ -164,14 +175,14 @@ func generateDefaultOutbounds(opts *option.Options, userNodeTags []string) error
 	}
 
 	// 3. 生成 auto outbound (urltest 类型，自动测速选择最快节点)
-	// 只有当有用户节点时才创建 auto
+	// 只包含实际代理节点，不包含 Selector/URLTest 组
 	var auto option.Outbound
-	hasAuto := len(userNodeTags) > 0
+	hasAuto := len(actualNodeTags) > 0
 	if hasAuto {
 		autoMap := map[string]any{
 			"type":      "urltest",
 			"tag":       "auto",
-			"outbounds": userNodeTags,
+			"outbounds": actualNodeTags, // 只包含实际节点
 			"url":       "https://www.gstatic.com/generate_204",
 			"interval":  "3m", // 每 3 分钟测速一次
 			"tolerance": 50,   // 容差 50ms，避免频繁切换
@@ -230,7 +241,7 @@ func generateTUN(opts *option.Options) {
 		"auto_route":                 true,
 		"strict_route":               true,
 		"stack":                      "mixed", // TCP 用 system 性能好，UDP 用 gvisor 兼容性好
-		"mtu":                        1500,
+		"mtu":                        9000,
 		"sniff":                      true, // 嗅探协议
 		"sniff_override_destination": true, // 用嗅探到的域名替换 IP
 	}

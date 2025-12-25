@@ -31,7 +31,6 @@ func (s *instance) Start(ctx context.Context, opts *option.Options) error {
 	}
 
 	// 1. Initialize sing-box core
-	// context 应该已经在调用处通过 include.Context() 初始化了
 	tx := include.Context(ctx)
 	newBox, err := box.New(box.Options{
 		Context:           tx,
@@ -44,10 +43,10 @@ func (s *instance) Start(ctx context.Context, opts *option.Options) error {
 	s.box = newBox
 
 	// 2. Start sing-box core
-	// Start() 是非阻塞的，它会启动 goroutines 然后立即返回
 	if err := s.box.Start(); err != nil {
 		return fmt.Errorf("failed to start sing-box core: %w", err)
 	}
+	// TODO: 这里缺少了sing-box异常退出的处理
 
 	// 3. Wait for sing-box core to exit
 	go func() {
