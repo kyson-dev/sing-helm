@@ -11,13 +11,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// 复用之前的 run flags
-var (
-	dTunMode     bool
-	dSystemProxy bool
-)
-
 func newStartCommand() *cobra.Command {
+	var dMode string
+	var dRule string
 	cmd := &cobra.Command{
 		Use:   "start",
 		Short: "Start minibox in background",
@@ -45,11 +41,13 @@ func newStartCommand() *cobra.Command {
 			}
 			runArgs = append(runArgs, "--log", LogFile)
 			runArgs = append(runArgs, "run")
-			if dTunMode {
-				runArgs = append(runArgs, "--tun")
+
+			// 添加 mode 参数
+			if dMode != "" && dMode != "default" {
+				runArgs = append(runArgs, "--mode", dMode)
 			}
-			if dSystemProxy {
-				runArgs = append(runArgs, "--system-proxy")
+			if dRule != "" && dRule != "rule" {
+				runArgs = append(runArgs, "--route", dRule)
 			}
 
 			// 3. 创建命令对象
@@ -83,9 +81,9 @@ func newStartCommand() *cobra.Command {
 			fmt.Printf("Log file: %s\n", logFile)
 		},
 	}
-	
-	cmd.Flags().BoolVar(&dTunMode, "tun", false, "Enable TUN mode")
-	cmd.Flags().BoolVar(&dSystemProxy, "system-proxy", false, "Enable System Proxy")
+
+	cmd.Flags().StringVarP(&dMode, "mode", "m", "system", "Proxy mode: system, tun, or default")
+	cmd.Flags().StringVarP(&dRule, "route", "r", "rule", "Route mode: rule, global, or direct")
 
 	return cmd
 }

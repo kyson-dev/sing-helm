@@ -44,11 +44,11 @@ func newStopCommand() *cobra.Command {
 					}
 					time.Sleep(100 * time.Millisecond)
 				}
-				fmt.Println("Stop command sent, but state file still exists.")
+				// 超时后强制清理
+				fmt.Println("Stop command sent, cleaning up state file...")
+				_ = os.Remove(config.GetStatePath())
+				fmt.Println("Stopped.")
 			}
-			
-			// 兜底清理（理论上 run 命令退出时会 defer remove state）
-			defer os.Remove(config.GetStatePath())
 		},
 	}
 }

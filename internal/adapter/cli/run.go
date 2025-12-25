@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/kyson/minibox/internal/adapter/logger"
 	"github.com/kyson/minibox/internal/core/config"
@@ -16,31 +14,34 @@ import (
 
 func newRunCommand() *cobra.Command {
 	var (
-		tunMode     bool
-		systemProxy bool
-		apiPort     int
-		mixPort     int
+		mode    string
+		rule    string
+		apiPort int
+		mixPort int
 	)
 	cmd := &cobra.Command{
 		Use:   "run",
 		Short: "Run sing-box",
 		RunE: func(cmd *cobra.Command, args []string) error {
-
 			runops := config.DefaultRunOptions()
-			if systemProxy {
-				runops.Mode = config.ModeSystem
+			m, err := config.ParseProxyMode(mode)
+			if err != nil {
+				return err
 			}
-			if tunMode {
-				runops.Mode = config.ModeTUN
+			runops.ProxyMode = m
+			r, err := config.ParseRouteMode(rule)
+			if err != nil {
+				return err
 			}
+			runops.RouteMode = r
 			runops.APIPort = apiPort
 			runops.MixedPort = mixPort
 
 			return runService(context.Background(), &runops)
 		},
 	}
-	cmd.Flags().BoolVar(&tunMode, "tun", false, "Enable TUN mode")
-	cmd.Flags().BoolVar(&systemProxy, "system-proxy",false, "Enable System Proxy")
+	cmd.Flags().StringVarP(&mode, "mode", "m", "system", "Proxy mode: system, tun, or default")
+	cmd.Flags().StringVarP(&rule, "route", "r", "rule", "Route mode: rule, global, or direct")
 	cmd.Flags().IntVar(&apiPort, "api-port", 0, "Fixed API port")
 	cmd.Flags().IntVar(&mixPort, "mixed-port", 0, "Fixed Mixed port")
 	return cmd
@@ -51,35 +52,29 @@ func runService(ctx context.Context, runops *config.RunOptions) error {
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	profilePath := env.Get().ConfigFile
-	//1. 加载配置文件
+
+	//1. 加载用户配置
 	logger.Info("Loading profile file", "path", profilePath)
-	userConf, err := config.LoadProfile(profilePath)
+	base, err := config.LoadProfile(profilePath)
 	if err != nil {
 		logger.Error("Failed to load profile file", "error", err)
 		return fmt.Errorf("failed to load profile file: %w", err)
 	}
 
-	opts, err := config.Generate(userConf, runops)
-	if err != nil {
-		logger.Error("Failed to generate config", "error", err)
-		return fmt.Errorf("failed to load config file: %w", err)
+	// 2. 构建完整配置
+	builder := config.NewConfigBuilder(base, runops)
+	for _, m := range config.DefaultModules(runops) {
+		builder.With(m)
 	}
 
-	//2. 初始化服务
-	svc := service.NewInstance()
-
-	//3. 启动服务
-	if err := svc.Start(runCtx, opts); err != nil {
-		logger.Error("Failed to start sing-box", "error", err)
-		return fmt.Errorf("failed to start sing-box: %w", err)
+	// 3. 保存完整配置到 raw.json
+	rawPath := env.Get().RawConfigFile
+	if err := builder.SaveToFile(rawPath); err != nil {
+		logger.Error("Failed to save raw config", "error", err)
+		return fmt.Errorf("failed to save raw config: %w", err)
 	}
-	defer func() {
-		if err := svc.Close(runCtx); err != nil {
-			logger.Error("Failed to close sing-box", "error", err)
-		}
-	}()
 
-	// 保存文件
+	// 4. 保存运行状态
 	state := config.RuntimeState{
 		RunOptions: *runops,
 		PID:        os.Getpid(),
@@ -90,17 +85,19 @@ func runService(ctx context.Context, runops *config.RunOptions) error {
 	}
 	defer os.Remove(config.GetStatePath())
 
-	//4. 等待服务退出
-	// 监听信号或 context 取消
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	defer signal.Stop(sigCh)
+	// 5. 初始化服务
+	svc := service.NewInstance()
 
-	select {
-	case sig := <-sigCh:
-		logger.Info("Received signal, shutting down...", "signal", sig)
-	case <-ctx.Done():
-		logger.Info("Context cancelled, shutting down...")
+	// 6. 从配置文件启动
+	if err := svc.StartFromFile(runCtx, rawPath); err != nil {
+		logger.Error("Sing-box error", "error", err)
+		return fmt.Errorf("sing-box error: %w", err)
+	}
+
+	// 阻塞
+	if err := svc.Run(runCtx, env.Get().SocketFile); err != nil {
+		logger.Error("Sing-box error", "error", err)
+		return fmt.Errorf("sing-box error: %w", err)
 	}
 
 	logger.Info("Service stopped gracefully")

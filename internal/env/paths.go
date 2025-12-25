@@ -8,12 +8,14 @@ import (
 
 // Paths 定义了应用所有的关键路径
 type Paths struct {
-	HomeDir    string // 主目录
-	ConfigFile string // profile.json
-	LogFile    string // minibox.log
-	StateFile  string // state.json
-	SocketFile string // 仅 Linux 用，或存放 API 地址的文件
-	AssetDir   string // 存放 geoip.db/geosite.db
+	HomeDir       string // 主目录
+	ConfigFile    string // profile.json (用户配置)
+	RawConfigFile string // raw.json (生成的完整配置)
+	LogFile       string // minibox.log
+	StateFile     string // state.json
+	SocketFile    string // 仅 Linux 用，或存放 API 地址的文件
+	AssetDir      string // 存放 geoip.db/geosite.db
+	CacheFile     string // cache.db (sing-box 缓存)
 }
 
 var (
@@ -69,12 +71,14 @@ func Init(flagHome string) error {
 
 		// 3. 定义子路径
 		current = Paths{
-			HomeDir:    home,
-			ConfigFile: filepath.Join(home, "profile.json"),
-			LogFile:    filepath.Join(home, "minibox.log"),
-			StateFile:  filepath.Join(home, "state.json"),
-			SocketFile: filepath.Join(home, "api.addr"),
-			AssetDir:   filepath.Join(home, "assets"), // 资源文件放在 assets 子目录
+			HomeDir:       home,
+			ConfigFile:    filepath.Join(home, "profile.json"),
+			RawConfigFile: filepath.Join(home, "raw.json"),
+			LogFile:       filepath.Join(home, "minibox.log"),
+			StateFile:     filepath.Join(home, "state.json"),
+			SocketFile:    filepath.Join(home, "ipc.sock"),
+			AssetDir:      filepath.Join(home, "assets"),
+			CacheFile:     filepath.Join(home, "cache.db"),
 		}
 	})
 	return err

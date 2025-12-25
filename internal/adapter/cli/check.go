@@ -15,13 +15,19 @@ func newCheckCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			logger.Info("Check configuration file.....", "path", configPath)
 
-			user, err := config.LoadProfile(configPath)
+			base, err := config.LoadProfile(configPath)
 			if err != nil {
 				logger.Error("Config check failed", "error", err)
 				return err
 			}
+
 			runops := config.DefaultRunOptions()
-			opts, err := config.Generate(user, &runops)
+			builder := config.NewConfigBuilder(base, &runops)
+			for _, m := range config.DefaultModules(&runops) {
+				builder.With(m)
+			}
+
+			opts, err := builder.Build()
 			if err != nil {
 				logger.Error("Config check failed", "error", err)
 				return err

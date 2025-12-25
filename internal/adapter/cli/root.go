@@ -8,12 +8,14 @@ import (
 	"github.com/kyson/minibox/internal/env"
 	"github.com/spf13/cobra"
 )
+
 // RootCmd 是为了让 main 能访问，但实际不建议直接暴露全局变量
 // 这里演示"依赖注入"式的构建
 var GlobalDebug bool
-var LogFile     string
+var LogFile string
+
 func NewRootCommand() *cobra.Command {
-	var homeDir string 
+	var homeDir string
 	cmd := &cobra.Command{
 		Use:   "minibox",
 		Short: "Small and beautiful sing-box client",
@@ -25,8 +27,8 @@ func NewRootCommand() *cobra.Command {
 			}
 			if LogFile == "" {
 				logger.Setup(logger.Config{Debug: GlobalDebug})
-			}else {
-				logger.Setup(logger.Config{Debug: GlobalDebug,FilePath: LogFile})
+			} else {
+				logger.Setup(logger.Config{Debug: GlobalDebug, FilePath: LogFile})
 			}
 		},
 	}
@@ -43,6 +45,8 @@ func NewRootCommand() *cobra.Command {
 		newUpdateCommand(),
 		newMonitorCommand(),
 		newNodeCommand(),
+		newModeCommand(),
+		newRouteCommand(),
 		newStartCommand(),
 		newStopCommand(),
 		newLogCommand(),
@@ -50,6 +54,7 @@ func NewRootCommand() *cobra.Command {
 
 	return cmd
 }
+
 // execute command
 func Execute() error {
 	return NewRootCommand().Execute()
