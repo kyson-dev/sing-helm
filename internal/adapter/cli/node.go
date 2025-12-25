@@ -39,6 +39,11 @@ func newListCommand() *cobra.Command {
 		Short: "List all proxy groups and nodes",
 		Run: func(cmd *cobra.Command, args []string) {
 			if apiAddr == "" {
+				// 1. 检查是否在运行
+				if err := config.CheckLock(); err != nil {
+					logger.Error("Minibox is not running", "error", err)
+					os.Exit(1)
+				}
 				state, err := config.LoadState()
 				if err != nil {
 					logger.Error("Failed to load state", "error", err)
@@ -97,6 +102,11 @@ func newUseCommand() *cobra.Command {
 			node := args[1]
 
 			if apiAddr == "" {
+				// 1. 检查是否在运行
+				if err := config.CheckLock(); err != nil {
+					logger.Error("Minibox is not running", "error", err)
+					os.Exit(1)
+				}
 				state, err := config.LoadState()
 				if err != nil {
 					logger.Error("Failed to load state", "error", err)

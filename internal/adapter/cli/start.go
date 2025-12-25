@@ -19,8 +19,8 @@ func newStartCommand() *cobra.Command {
 		Short: "Start minibox in background",
 		Run: func(cmd *cobra.Command, args []string) {
 			// 1. 检查是否已经运行
-			if _, err := config.LoadState(); err == nil {
-				fmt.Println("Minibox is already running. Please stop it first.")
+			if err := config.CheckLock(); err == nil {
+				fmt.Println("Minibox is already running (lock file exists). Please stop it first.")
 				os.Exit(1)
 			}
 

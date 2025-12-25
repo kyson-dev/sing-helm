@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newMonitorCommand() *cobra.Command{
+func newMonitorCommand() *cobra.Command {
 	var host string
 	cmd := &cobra.Command{
 		Use:   "monitor",
@@ -19,19 +19,24 @@ func newMonitorCommand() *cobra.Command{
 		Run: func(cmd *cobra.Command, args []string) {
 			logger.Info("run monitor command", "host", host)
 			if host == "" {
+				// 1. 检查是否在运行
+				if err := config.CheckLock(); err != nil {
+					logger.Error("Minibox is not running", "error", err)
+					os.Exit(1)
+				}
 				state, err := config.LoadState()
 				if err != nil {
 					logger.Error("Failed to load state", "error", err)
 					os.Exit(1)
 				}
-				host = fmt.Sprintf("%s:%d",state.ListenAddr,state.APIPort)
+				host = fmt.Sprintf("%s:%d", state.ListenAddr, state.APIPort)
 			}
 			model := monitor.NewModel(host)
 			p := tea.NewProgram(model, tea.WithAltScreen())
 
 			if _, err := p.Run(); err != nil {
 				logger.Error("run monitor command failed", "error", err)
-				return 
+				return
 			}
 			logger.Info("run monitor command success")
 		},

@@ -14,10 +14,19 @@ func newStopCommand() *cobra.Command {
 		Use:   "stop",
 		Short: "Stop the running daemon",
 		Run: func(cmd *cobra.Command, args []string) {
-			// 1. 读取状态
+			// 1. 检查是否在运行 (通过锁)
+			if err := config.CheckLock(); err != nil {
+				fmt.Println("Minibox is not running.")
+				// 尝试清理残留的 state 文件
+				_ = os.Remove(config.GetStatePath())
+				return
+			}
+
+			// 读取状态以获取 PID
 			state, err := config.LoadState()
 			if err != nil {
-				fmt.Println("Minibox is not running.")
+				fmt.Println("Minibox is running but state file is missing or corrupted.")
+				// 这种情况下很难 graceful stop，可能需要提示用户手动 kill
 				return
 			}
 

@@ -49,6 +49,13 @@ func newRunCommand() *cobra.Command {
 
 // runService 抽取出来的核心逻辑，便于测试
 func runService(ctx context.Context, runops *config.RunOptions) error {
+	// 获取文件锁，确保单实例运行
+	lock, err := config.AcquireLock()
+	if err != nil {
+		return fmt.Errorf("minibox is already running (failed to acquire lock): %w", err)
+	}
+	defer lock.Release()
+
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	profilePath := env.Get().ConfigFile

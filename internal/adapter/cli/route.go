@@ -20,6 +20,11 @@ func newRouteCommand() *cobra.Command {
 Note: This will restart sing-box to apply the new mode.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// 1. 检查是否在运行
+			if err := config.CheckLock(); err != nil {
+				return fmt.Errorf("minibox is not running: %w", err)
+			}
+
 			// 如果没有参数，显示当前模式
 			if len(args) == 0 {
 				state, err := config.LoadState()
