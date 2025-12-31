@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"os"
+
 	"github.com/kyson/minibox/internal/adapter/logger"
 	"github.com/kyson/minibox/internal/core/config"
 	"github.com/kyson/minibox/internal/env"
@@ -29,13 +31,18 @@ func SwitchProxyMode(modeStr string) (string, error) {
 		return string(state.ProxyMode), nil // 已经处于该模式
 	}
 
-	// 4. 更新状态
+	// 4. 权限检查：涉及 TUN 模式的操作需要 root 权限
+	if (proxyMode == config.ProxyModeTUN || state.ProxyMode == config.ProxyModeTUN) && os.Geteuid() != 0 {
+		return "", fmt.Errorf("operating with TUN mode requires root permission")
+	}
+
+	// 5. 更新状态
 	state.ProxyMode = proxyMode
 	if err := applyConfigAndReload(state); err != nil {
 		return "", err
 	}
 
-	logger.Info("Proxy mode switched successfully", "mode", proxyMode)
+	logger.Debug("Proxy mode switched successfully", "mode", proxyMode)
 	return string(proxyMode), nil
 }
 
@@ -64,7 +71,7 @@ func SwitchRouteMode(modeStr string) (string, error) {
 		return "", err
 	}
 
-	logger.Info("Route mode switched successfully", "mode", routeMode)
+	logger.Debug("Route mode switched successfully", "mode", routeMode)
 	return string(routeMode), nil
 }
 

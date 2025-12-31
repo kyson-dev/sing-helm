@@ -7,6 +7,16 @@ import (
 
 // --- 1. 数据结构定义 ---
 
+// ConnState 连接状态
+type ConnState int
+
+const (
+	ConnStateConnecting   ConnState = iota // 正在连接
+	ConnStateConnected                     // 已连接
+	ConnStateReconnecting                  // 重连中
+	ConnStateError                         // 错误
+)
+
 // TrafficStats 对应 Clash API 的流量格式
 type TrafficStats struct {
 	Up   int64 `json:"up"`
@@ -22,9 +32,18 @@ type Model struct {
 	connected bool
 	apiClient *client.Client
 
+	// --- 连接状态 ---
+	ConnState ConnState // 连接状态
+
 	// --- 累计流量 ---
 	TotalUp   int64 // 累计上传
 	TotalDown int64 // 累计下载
+
+	// --- 状态信息 ---
+	ProxyMode   string // 代理模式: system, tun, default
+	RouteMode   string // 路由模式: rule, global, direct
+	Connections int    // 当前活跃连接数
+	Memory      uint64 // 内存使用 (bytes)
 
 	// --- 节点列表状态 ---
 	Groups  []string                    // 所有的组名 (用于排序显示)
@@ -56,6 +75,11 @@ func NewModel(apiHost string) Model {
 		// --- 测速状态 ---
 		Latencies:    make(map[string]int),
 		TestingNodes: make(map[string]bool),
+
+		// --- 默认状态 ---
+		ProxyMode: "system",
+		RouteMode: "rule",
+		ConnState: ConnStateConnecting,
 	}
 }
 
@@ -73,3 +97,27 @@ type latencyMsg struct {                    // 测速结果消息
 	Name  string
 	Delay int // -1 代表失败
 }
+
+// 状态信息消息
+type statusMsg struct {
+	ProxyMode   string // 代理模式
+	RouteMode   string // 路由模式
+	Connections int    // 连接数
+	Memory      uint64 // 内存
+	TotalUp     int64  // 总上传流量
+	TotalDown   int64  // 总下载流量
+}
+
+// 模式切换消息
+type modeChangedMsg struct {
+	Mode string
+	Err  error
+}
+type routeChangedMsg struct {
+	Mode string
+	Err  error
+}
+
+// 重连相关消息
+type reconnectMsg struct{}     // 触发重连
+type reconnectFailMsg struct{} // 重连失败

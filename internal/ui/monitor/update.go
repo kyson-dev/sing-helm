@@ -2,17 +2,21 @@ package monitor
 
 import (
 	"sort"
+	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gorilla/websocket"
-	"github.com/kyson/minibox/internal/adapter/logger"
 	"github.com/kyson/minibox/internal/core/client"
+	"github.com/kyson/minibox/internal/core/config"
+	"github.com/kyson/minibox/internal/core/controller"
 )
 
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		connectWS(m.apiBase),      // 连 WS
 		fetchProxies(m.apiClient), // 拉节点列表
+		fetchStatus(m.apiClient),  // 获取状态信息
 	)
 }
 
@@ -21,10 +25,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 
 	// 1. 处理按键
+	// case tea.WindowSizeMsg:
+	// 	m.Width = msg.Width
+	// 	m.Height = msg.Height
+	// 	return m, nil
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "q", "ctrl+c", "esc":
-			logger.Info("quit monitor")
+			// logger.Info("quit monitor")
 			return m, tea.Quit // 退出程序
 		case "up":
 			if m.Expanded {
@@ -125,29 +134,42 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// tea.Batch 可以并行执行多个 Cmd
 				return m, tea.Batch(cmds...)
 			}
+		case "m": // 切换代理模式
+			return m, switchProxyMode(m.ProxyMode)
+		case "r": // 切换路由模式
+			return m, switchRouteMode(m.RouteMode)
 		}
 
 	// 2. 处理连接成功
 	case connMsg:
 		m.wsConn = msg.conn
 		m.connected = true
-		return m, readTraffic(m.wsConn)
+		m.ConnState = ConnStateConnected
+		m.Err = nil
+		return m, tea.Batch(readTraffic(m.wsConn), fetchProxies(m.apiClient), fetchStatus(m.apiClient))
 
 	// 3. 处理流量更新
 	case trafficMsg:
 		m.Stats = TrafficStats(msg)
-		// 累加总流量
-		m.TotalUp += msg.Up
-		m.TotalDown += msg.Down
-		// 处理完一条数据，继续读下一条 (循环)
-		return m, readTraffic(m.wsConn)
+		// 处理完一条数据，继续读下一条 (循环)，同时刷新状态
+		return m, tea.Batch(readTraffic(m.wsConn), fetchStatus(m.apiClient))
 
-	// 4. 处理错误
+	// 4. 处理错误 - 触发重连而不是退出
 	case errMsg:
+		// logger.Info("Connection error, will reconnect", "error", msg)
 		m.Err = msg
-		return m, tea.Quit
+		m.connected = false
+		m.ConnState = ConnStateReconnecting
+		if m.wsConn != nil {
+			m.wsConn.Close()
+			m.wsConn = nil
+		}
+		return m, reconnectAfterDelay(1 * time.Second)
 
-	// 获取所有节点
+	// 5. 处理重连消息
+	case reconnectMsg:
+		// logger.Info("Attempting to reconnect...")
+		return m, connectWS(m.apiBase)
 	case proxiesMsg:
 		m.Proxies = msg
 		// 提取所有的 Selector 组名并排序
@@ -183,6 +205,29 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// 保存延迟结果
 		m.Latencies[msg.Name] = msg.Delay
 		return m, nil
+
+	// 处理状态信息更新
+	case statusMsg:
+		m.ProxyMode = msg.ProxyMode // 更新 ProxyMode
+		m.RouteMode = msg.RouteMode
+		m.Connections = msg.Connections
+		m.Memory = msg.Memory
+		m.TotalUp = msg.TotalUp
+		m.TotalDown = msg.TotalDown
+		return m, nil
+
+	// 处理模式切换结果
+	case modeChangedMsg:
+		if msg.Err == nil {
+			m.ProxyMode = msg.Mode
+		}
+		return m, fetchStatus(m.apiClient) // 刷新状态
+
+	case routeChangedMsg:
+		if msg.Err == nil {
+			m.RouteMode = msg.Mode
+		}
+		return m, fetchStatus(m.apiClient) // 刷新状态
 	}
 
 	return m, nil
@@ -193,11 +238,18 @@ func connectWS(host string) tea.Cmd {
 		u := "ws://" + host + "/traffic?token=" // 如果有 token 需要加在这里
 		conn, _, err := websocket.DefaultDialer.Dial(u, nil)
 		if err != nil {
-			logger.Error("connect to ws failed", "error", err)
+			// logger.Error("connect to ws failed", "error", err)
 			return errMsg(err)
 		}
 		return connMsg{conn: conn}
 	}
+}
+
+// reconnectAfterDelay 延迟重连
+func reconnectAfterDelay(d time.Duration) tea.Cmd {
+	return tea.Tick(d, func(t time.Time) tea.Msg {
+		return reconnectMsg{}
+	})
 }
 
 // fetchProxies 异步拉取节点
@@ -220,7 +272,7 @@ func readTraffic(conn *websocket.Conn) tea.Cmd {
 		var stats TrafficStats
 		// ReadJSON 会阻塞，直到有新数据
 		if err := conn.ReadJSON(&stats); err != nil {
-			logger.Error("read traffic failed", "error", err)
+			// logger.Error("read traffic failed", "error", err)
 			return errMsg(err)
 		}
 		return trafficMsg(stats)
@@ -276,5 +328,86 @@ func checkNodeLatency(c *client.Client, name string) tea.Cmd {
 			return latencyMsg{Name: name, Delay: -1}
 		}
 		return latencyMsg{Name: name, Delay: delay}
+	}
+}
+
+// fetchStatus 获取状态信息（路由模式、连接数、内存、总流量）
+func fetchStatus(c *client.Client) tea.Cmd {
+	return func() tea.Msg {
+		// 1. 从 API 获取动态数据 (连接、内存、流量)
+		conns, err := c.GetConnections()
+		if err != nil {
+			return statusMsg{} // 出错时返回空状态
+		}
+
+		// 2. 从本地状态文件获取配置模式 (ProxyMode, RouteMode)
+		// API 不会返回正确的业务模式，必须读取本地状态
+		proxyMode := "unknown"
+		routeMode := "unknown"
+
+		if state, err := config.LoadState(); err == nil {
+			proxyMode = string(state.ProxyMode)
+			routeMode = string(state.RouteMode)
+		}
+
+		return statusMsg{
+			ProxyMode:   proxyMode,
+			RouteMode:   routeMode,
+			Connections: len(conns.Connections),
+			Memory:      conns.Memory,
+			TotalUp:     conns.UploadTotal,
+			TotalDown:   conns.DownloadTotal,
+		}
+	}
+}
+
+// switchProxyMode 切换代理模式 (通过 IPC 触发 daemon 重载)
+func switchProxyMode(current string) tea.Cmd {
+	return func() tea.Msg {
+		// 循环切换: system -> tun -> default -> system
+		var next string
+		switch strings.ToLower(current) {
+		case "system":
+			next = "tun"
+		case "tun":
+			next = "default"
+		default:
+			next = "system"
+		}
+
+		// 通过 IPC 调用 daemon 切换模式（会触发 sing-box 重载）
+		_, err := controller.SwitchProxyMode(next)
+		if err != nil {
+			// logger.Error("Failed to switch proxy mode", "error", err)
+			return modeChangedMsg{Mode: current, Err: err}
+		}
+
+		return modeChangedMsg{Mode: next, Err: nil}
+	}
+}
+
+// switchRouteMode 切换路由模式 (通过 API 实时更新)
+// switchRouteMode 切换路由模式 (通过 IPC 触发 daemon 重载)
+func switchRouteMode(current string) tea.Cmd {
+	return func() tea.Msg {
+		// 循环切换: rule -> global -> direct -> rule
+		var next string
+		switch strings.ToLower(current) {
+		case "rule":
+			next = "global"
+		case "global":
+			next = "direct"
+		default:
+			next = "rule"
+		}
+
+		// 通过 IPC 调用 daemon 切换模式（确保生效并持久化）
+		_, err := controller.SwitchRouteMode(next)
+		if err != nil {
+			// logger.Error("Failed to switch route mode", "error", err, "from", current, "to", next)
+			return routeChangedMsg{Mode: current, Err: err}
+		}
+		// logger.Info("Route mode switched via IPC", "from", current, "to", next)
+		return routeChangedMsg{Mode: next, Err: nil}
 	}
 }

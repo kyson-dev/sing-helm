@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/signal"
@@ -81,11 +82,24 @@ func (s *instance) clean() {
 func (s *instance) ReloadFromFile(ctx context.Context, configPath string) error {
 	if s.box != nil {
 		if err := s.box.Close(); err != nil {
-			return fmt.Errorf("failed to close box instance: %w", err)
+			// 忽略 "file already closed" 错误
+			if !isAlreadyClosedError(err) {
+				return fmt.Errorf("failed to close box instance: %w", err)
+			}
+			logger.Info("Box instance already closed, continuing reload")
 		}
 		s.box = nil
 	}
 	return s.StartFromFile(ctx, configPath)
+}
+
+// isAlreadyClosedError 检查是否是 "file already closed" 错误
+func isAlreadyClosedError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	return errStr == "file already closed" || errStr == "use of closed file"
 }
 
 // StartFromFile 从配置文件启动 sing-box
@@ -163,6 +177,11 @@ func (s *instance) handleConnection(ctx context.Context, conn net.Conn) {
 
 		var req ipc.Request
 		if err := decoder.Decode(&req); err != nil {
+			if err == io.EOF {
+				// 客户端正常关闭连接
+				logger.Info("IPC connection closed by client")
+				return
+			}
 			logger.Error("Failed to decode IPC request", "error", err)
 			return
 		}

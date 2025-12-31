@@ -36,11 +36,12 @@ var (
 			Padding(0, 1).
 			Bold(true)
 
-	// 节点列表区域
-	proxyBoxStyle = lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder()).
+	// 卡片样式
+	cardStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("#444444")).
-			Padding(0, 1)
+			Padding(0, 1).
+			Width(28)
 
 	// 帮助栏
 	helpStyle = lipgloss.NewStyle().
@@ -53,25 +54,45 @@ var (
 )
 
 func (m Model) View() string {
-	if m.Err != nil {
-		return fmt.Sprintf("Error: %v\n\nPress q to quit.", m.Err)
-	}
-
-	if !m.connected {
+	// 根据连接状态显示不同界面
+	switch m.ConnState {
+	case ConnStateConnecting:
 		return renderConnecting()
+	case ConnStateReconnecting:
+		return renderReconnecting(m)
+	case ConnStateError:
+		return fmt.Sprintf("Error: %v\n\nPress q to quit.", m.Err)
 	}
 
 	// 构建各部分
 	header := renderHeader()
-	traffic := renderTrafficPanel(m)
+
+	// 左列：Status + Traffic
+	leftCol := lipgloss.JoinVertical(lipgloss.Left,
+		renderStatusCard(m),
+		"",
+		renderTrafficCard(m),
+	)
+
+	// 右列：Connections + Traffic Total
+	rightCol := lipgloss.JoinVertical(lipgloss.Left,
+		renderConnectionsCard(m),
+		"",
+		renderTrafficTotalCard(m),
+	)
+
+	// 左右拼接
+	cards := lipgloss.JoinHorizontal(lipgloss.Top, leftCol, "  ", rightCol)
+
+	// 代理节点面板（全宽）
 	proxies := renderProxyPanel(m)
 	help := renderHelpBar()
 
-	// 拼接
+	// 最终拼接
 	content := lipgloss.JoinVertical(lipgloss.Left,
 		header,
 		"",
-		traffic,
+		cards,
 		"",
 		proxies,
 		"",
@@ -94,32 +115,132 @@ func renderConnecting() string {
 	)
 }
 
+// renderReconnecting 重连中界面
+func renderReconnecting(m Model) string {
+	return mainBoxStyle.Render(
+		lipgloss.JoinVertical(lipgloss.Center,
+			titleStyle.Render(" Minibox Monitor "),
+			"",
+			colorYellow.Render("🔄 Reconnecting..."),
+			"",
+			colorDim.Render("Mode switching may cause temporary disconnect"),
+			"",
+			colorDim.Render("Press q to quit"),
+		),
+	)
+}
+
 // renderHeader 标题栏
 func renderHeader() string {
 	return titleStyle.Render(" 📡 Minibox Monitor ")
 }
 
-// renderTrafficPanel 流量面板
-func renderTrafficPanel(m Model) string {
+// renderStatusCard 状态卡片
+func renderStatusCard(m Model) string {
+	title := colorMagenta.Render("Status")
+
+	modeLine := fmt.Sprintf("%s  %s",
+		colorDim.Render("Mode:"),
+		colorCyan.Render(fmt.Sprintf("[m] %s", m.ProxyMode)))
+
+	routeLine := fmt.Sprintf("%s %s",
+		colorDim.Render("Route:"),
+		colorMagenta.Render(fmt.Sprintf("[r] %s", m.RouteMode)))
+
+	content := lipgloss.JoinVertical(lipgloss.Left,
+		title,
+		colorDim.Render(strings.Repeat("─", 26)),
+		modeLine,
+		routeLine,
+	)
+
+	return cardStyle.Render(content)
+}
+
+// renderConnectionsCard 连接卡片
+func renderConnectionsCard(m Model) string {
+	title := colorMagenta.Render("Connections")
+
+	totalLine := fmt.Sprintf("%-10s %s",
+		colorDim.Render("Total:"),
+		colorCyan.Render(fmt.Sprintf("%d", m.Connections)))
+
+	memLine := fmt.Sprintf("%-10s %s",
+		colorDim.Render("Memory:"),
+		colorWhite.Render(formatMemory(m.Memory)))
+
+	content := lipgloss.JoinVertical(lipgloss.Left,
+		title,
+		colorDim.Render(strings.Repeat("─", 26)),
+		totalLine,
+		memLine,
+	)
+
+	return cardStyle.Render(content)
+}
+
+// renderTrafficCard 流量卡片（当前速度）
+func renderTrafficCard(m Model) string {
+	title := colorMagenta.Render("Traffic")
+
 	upSpeed := formatBytes(m.Stats.Up)
 	downSpeed := formatBytes(m.Stats.Down)
+
+	upLine := fmt.Sprintf("%-10s %s",
+		colorUpload.Render("Uplink:"),
+		colorWhite.Render(upSpeed+"/s"))
+
+	downLine := fmt.Sprintf("%-10s %s",
+		colorDown.Render("Downlink:"),
+		colorWhite.Render(downSpeed+"/s"))
+
+	content := lipgloss.JoinVertical(lipgloss.Left,
+		title,
+		colorDim.Render(strings.Repeat("─", 26)),
+		upLine,
+		downLine,
+	)
+
+	return cardStyle.Render(content)
+}
+
+// renderTrafficTotalCard 流量总计卡片
+func renderTrafficTotalCard(m Model) string {
+	title := colorMagenta.Render("Traffic Total")
+
 	upTotal := formatBytes(m.TotalUp)
 	downTotal := formatBytes(m.TotalDown)
 
-	// 使用表格式布局
-	upLine := fmt.Sprintf("  %s %-12s %s",
-		colorUpload.Render("▲ Upload:"),
-		colorWhite.Render(upSpeed+"/s"),
-		colorDim.Render("Total: "+upTotal),
+	upLine := fmt.Sprintf("%-10s %s",
+		colorUpload.Render("Uplink:"),
+		colorWhite.Render(upTotal))
+
+	downLine := fmt.Sprintf("%-10s %s",
+		colorDown.Render("Downlink:"),
+		colorWhite.Render(downTotal))
+
+	content := lipgloss.JoinVertical(lipgloss.Left,
+		title,
+		colorDim.Render(strings.Repeat("─", 26)),
+		upLine,
+		downLine,
 	)
 
-	downLine := fmt.Sprintf("  %s %-12s %s",
-		colorDown.Render("▼ Download:"),
-		colorWhite.Render(downSpeed+"/s"),
-		colorDim.Render("Total: "+downTotal),
-	)
+	return cardStyle.Render(content)
+}
 
-	return lipgloss.JoinVertical(lipgloss.Left, upLine, downLine)
+// formatMemory 格式化内存 (uint64 bytes)
+func formatMemory(bytes uint64) string {
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	div, exp := uint64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }
 
 // renderProxyPanel 代理节点面板
@@ -218,7 +339,16 @@ func renderLatency(m Model, name string) string {
 		return colorDim.Render("[... ] ")
 	}
 
-	delay, exists := m.Latencies[name]
+	// 对于 URLTest 类型的组（如 auto），显示其选中节点的延迟
+	actualName := name
+	if proxyData, exists := m.Proxies[name]; exists {
+		if proxyData.Type == "URLTest" && proxyData.Now != "" {
+			// 使用选中节点的延迟
+			actualName = proxyData.Now
+		}
+	}
+
+	delay, exists := m.Latencies[actualName]
 	if !exists || delay == 0 {
 		return colorDim.Render("[----] ")
 	}
@@ -243,10 +373,11 @@ func renderLatency(m Model, name string) string {
 func renderHelpBar() string {
 	keys := []struct{ key, desc string }{
 		{"↑↓", "Move"},
-		{"←", "Collapse"},
-		{"→/Enter", "Expand"},
-		{"Space", "Select"},
+		{"←→", "Expand"},
+		{"Enter", "Select"},
 		{"t", "Test"},
+		{"m", "Mode"},
+		{"r", "Route"},
 		{"q", "Quit"},
 	}
 
