@@ -5,6 +5,8 @@ import (
 	"github.com/sagernet/sing-box/option"
 )
 
+const testMixedPortEnv = "MINIBOX_TEST_MIXED_PORT"
+
 // MixedModule Mixed 入站模块
 // 支持设置系统代理
 type MixedModule struct {
@@ -27,10 +29,14 @@ func (m *MixedModule) Apply(opts *option.Options, ctx *BuildContext) error {
 	// 确定端口
 	port := m.Port
 	if port == 0 {
-		var err error
-		port, err = netutil.GetFreePort()
-		if err != nil {
-			return err
+		if override, ok := getPortOverride(testMixedPortEnv); ok {
+			port = override
+		} else {
+			var err error
+			port, err = netutil.GetFreePort()
+			if err != nil {
+				return err
+			}
 		}
 	}
 

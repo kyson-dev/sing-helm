@@ -7,18 +7,28 @@ import (
 	//"syscall"
 )
 
+var registryDir string
+
 // Registry 记录所有已知的 minibox 实例路径
 type Registry struct {
 	Instances []string `json:"instances"`
 }
 
 func getGlobalRegistryPath() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
+	dir := registryDir
+	if dir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		// 使用 ~/.config/minibox 存放全局配置，避免和环境目录 ~/.minibox 混淆
+		dir = filepath.Join(home, ".config", "minibox")
 	}
-	// 使用 ~/.config/minibox 存放全局配置，避免和环境目录 ~/.minibox 混淆
-	dir := filepath.Join(home, ".config", "minibox")
+
+	if abs, err := filepath.Abs(dir); err == nil {
+		dir = abs
+	}
+
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return "", err
 	}
@@ -139,4 +149,22 @@ func GetActives() []string {
 		return []string{active}
 	}
 	return []string{}
+}
+
+// SetRegistryDir 设置自定义注册表目录，仅供测试使用
+func SetRegistryDir(dir string) {
+	if dir == "" {
+		registryDir = ""
+		return
+	}
+	if abs, err := filepath.Abs(dir); err == nil {
+		registryDir = abs
+	} else {
+		registryDir = dir
+	}
+}
+
+// ResetRegistryDir 恢复注册表目录的默认行为
+func ResetRegistryDir() {
+	registryDir = ""
 }

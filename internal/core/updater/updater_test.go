@@ -12,20 +12,37 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
 func TestUpdater_DownLoad(t *testing.T) {
-	// 1. 启动一个 Mock Server
-	// 当我们访问这个 server 时，它返回一段假数据
-	mockContent :=  "This is a fake geoip database content"
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// 1. 构造一个 Handler 模拟下载内容
+	mockContent := "This is a fake geoip database content"
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Length", "37")
 		_, _ = w.Write([]byte(mockContent))
-	}))
-	defer ts.Close()
+	})
 
-	tmpDir := t.TempDir() // 文件夹
-	// 执行下载
+	trans := roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, req)
+		resp := recorder.Result()
+		resp.Request = req
+		return resp, nil
+	})
+
+	client := &http.Client{Transport: trans}
+	updater.SetHTTPClientFactory(func() *http.Client {
+		return client
+	})
+	defer updater.ResetHTTPClientFactory()
+
+	tmpDir := t.TempDir()
 	downloadedBytes := int64(0)
-	err := updater.Download(context.Background(), ts.URL, tmpDir, "test.db", func(current, total int64) {
+	err := updater.Download(context.Background(), "http://fake.test", tmpDir, "test.db", func(current, total int64) {
 		downloadedBytes = current
 	})
 

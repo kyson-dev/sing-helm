@@ -49,7 +49,7 @@ func TestUpdate_Quit(t *testing.T) {
 	// 但在单元测试中，我们通常看它是否返回了特定的系统 Cmd，或者简单地看 coverage
 	// 这里更严谨的做法是：
 	assert.NotNil(t, cmd, "Should return quit command")
-	
+
 	// 在 BubbleTea 这里的测试通常比较 tricky，因为 Quit 是个 func() Msg
 	// 只要不为 nil 且我们逻辑里写了 return tea.Quit 即可
 }
@@ -63,9 +63,9 @@ func TestView_Rendering(t *testing.T) {
 
 	// 2. 测试已连接且有数据状态
 	m2 := NewModel("dummy")
-	m2.connected = true
+	m2.ConnState = ConnStateConnected
 	m2.Stats = TrafficStats{
-		Up:   1024,       // 1.0 KB
+		Up:   1024,        // 1.0 KB
 		Down: 1024 * 1024, // 1.0 MB
 	}
 

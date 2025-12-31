@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -11,6 +12,15 @@ import (
 	"github.com/kyson/minibox/internal/env"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestMain(m *testing.M) {
+	registryDir := filepath.Join(os.TempDir(), "minibox-registry-test")
+	env.SetRegistryDir(registryDir)
+	os.Setenv("MINIBOX_TEST_SKIP_SERVICE", "1")
+	os.Setenv("MINIBOX_TEST_MIXED_PORT", "10808")
+	os.Setenv("MINIBOX_TEST_API_PORT", "18080")
+	os.Exit(m.Run())
+}
 
 func TestCLI_VersionCommand(t *testing.T) {
 	cmd := cli.NewRootCommand()

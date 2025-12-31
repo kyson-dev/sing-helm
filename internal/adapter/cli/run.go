@@ -12,6 +12,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const skipServiceEnv = "MINIBOX_TEST_SKIP_SERVICE"
+
 func newRunCommand() *cobra.Command {
 	var (
 		mode    string
@@ -97,6 +99,11 @@ func runService(ctx context.Context, runops *config.RunOptions) error {
 	}
 	defer os.Remove(config.GetStatePath())
 
+	if shouldSkipService() {
+		logger.Info("Skipping sing-box startup due to test mode")
+		return nil
+	}
+
 	// 5. 初始化服务
 	svc := service.NewInstance()
 
@@ -114,4 +121,8 @@ func runService(ctx context.Context, runops *config.RunOptions) error {
 
 	logger.Info("Service stopped gracefully")
 	return nil
+}
+
+func shouldSkipService() bool {
+	return os.Getenv(skipServiceEnv) == "1"
 }

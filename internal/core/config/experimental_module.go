@@ -8,6 +8,8 @@ import (
 	"github.com/sagernet/sing-box/option"
 )
 
+const testAPIPortEnv = "MINIBOX_TEST_API_PORT"
+
 // ExperimentalModule 实验性模块
 // 负责配置 Clash API 和缓存
 type ExperimentalModule struct {
@@ -29,10 +31,14 @@ func (m *ExperimentalModule) Apply(opts *option.Options, ctx *BuildContext) erro
 	// 确定 API 端口
 	apiPort := m.APIPort
 	if apiPort == 0 {
-		var err error
-		apiPort, err = netutil.GetFreePort()
-		if err != nil {
-			return err
+		if override, ok := getPortOverride(testAPIPortEnv); ok {
+			apiPort = override
+		} else {
+			var err error
+			apiPort, err = netutil.GetFreePort()
+			if err != nil {
+				return err
+			}
 		}
 	}
 

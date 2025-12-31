@@ -11,6 +11,13 @@ import (
 	"github.com/kyson/minibox/internal/adapter/logger"
 )
 
+var (
+	defaultHTTPClientFactory = func() *http.Client {
+		return &http.Client{}
+	}
+	httpClientFactory = defaultHTTPClientFactory
+)
+
 type ProgressCallback func(current, total int64)
 
 func Download(ctx context.Context, url, destDir, filename string, onProgress ProgressCallback) error {
@@ -24,7 +31,7 @@ func Download(ctx context.Context, url, destDir, filename string, onProgress Pro
 
 	// 2. 发送请求
 	// 超时控制由 Context 统一管理，不在 Client 层设置 Timeout
-	client := &http.Client{}
+	client := httpClientFactory()
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("network error: %w", err)
@@ -83,6 +90,19 @@ func Download(ctx context.Context, url, destDir, filename string, onProgress Pro
 
 	logger.Info("Download saved", "path", destPath)
 	return nil
+}
+
+// SetHTTPClientFactory 用于测试，用自定义的 HTTP 客户端替换默认实现。
+func SetHTTPClientFactory(factory func() *http.Client) {
+	if factory == nil {
+		return
+	}
+	httpClientFactory = factory
+}
+
+// ResetHTTPClientFactory 恢复默认的 HTTP 客户端行为。
+func ResetHTTPClientFactory() {
+	httpClientFactory = defaultHTTPClientFactory
 }
 
 type progressReader struct {

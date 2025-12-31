@@ -6,6 +6,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	checkCommandMixedPort = 10808
+	checkCommandAPIPort   = 18080
+)
+
 func newCheckCommand() *cobra.Command {
 	var configPath string
 
@@ -25,6 +30,12 @@ func newCheckCommand() *cobra.Command {
 			}
 
 			runops := config.DefaultRunOptions()
+			if runops.MixedPort == 0 {
+				runops.MixedPort = checkCommandMixedPort
+			}
+			if runops.APIPort == 0 {
+				runops.APIPort = checkCommandAPIPort
+			}
 			builder := config.NewConfigBuilder(base, &runops)
 			for _, m := range config.DefaultModules(&runops) {
 				builder.With(m)
