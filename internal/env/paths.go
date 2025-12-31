@@ -13,6 +13,7 @@ type Paths struct {
 	RawConfigFile string // raw.json (生成的完整配置)
 	LogFile       string // minibox.log
 	StateFile     string // state.json
+	LookFile      string // minibox.lock
 	SocketFile    string // 仅 Linux 用，或存放 API 地址的文件
 	AssetDir      string // 存放 geoip.db/geosite.db
 	CacheFile     string // cache.db (sing-box 缓存)
@@ -28,60 +29,48 @@ func Get() Paths {
 	return current
 }
 
-var (
-	// 这个变量是给 ldflags 注入用的
-	// 默认为空，如果有注入，它就会变成 "/var/lib/minibox" 之类的值
-	DefaultHome string
-)
-
 // Init 初始化环境
-// flagHome: 命令行传入的 --home 参数，为空则自动探测
-func Init(flagHome string) error {
+// home: 必须是已解析的绝对路径或相对路径，如果为空则报错（或者使用默认？）
+// 为了保持兼容性，我们可以让 Init("") 依旧使用默认 ~/.minibox，
+// 但真正的智能选择逻辑交给 setup.go
+func Init(home string) error {
 	var err error
 	once.Do(func() {
-		// 1. 确定主目录 (HomeDir)
-		home := ""
-
-		if flagHome != "" {
-			// 1. 最高优先级：命令行 Flag (--home)
-			home = flagHome
-		} else if envHome := os.Getenv("MINIBOX_HOME"); envHome != "" {
-			// 2. 次高优先级：环境变量 (用户在 .zshrc 里配的)
-			home = envHome
-		} else if DefaultHome != "" {
-			// 3. 第三优先级：构建时注入的默认值 (ldflags)
-			// 适用于发行版打包，比如 rpm/deb 包希望默认在 /var/lib/minibox
-			home = DefaultHome
-		} else {
-			// 4. 最低优先级：代码里的硬编码兜底
+		if home == "" {
+			// 兜底默认值
 			userHome, _ := os.UserHomeDir()
 			home = filepath.Join(userHome, ".minibox")
 		}
 
-		// 转换成绝对路径，避免后续逻辑混乱
+		// 转换成绝对路径
 		home, err = filepath.Abs(home)
 		if err != nil {
 			return
 		}
 
-		// 2. 确保主目录存在
+		// 确保主目录存在
 		if err = os.MkdirAll(home, 0755); err != nil {
 			return
 		}
 
-		// 3. 定义子路径
-		current = Paths{
-			HomeDir:       home,
-			ConfigFile:    filepath.Join(home, "profile.json"),
-			RawConfigFile: filepath.Join(home, "raw.json"),
-			LogFile:       filepath.Join(home, "minibox.log"),
-			StateFile:     filepath.Join(home, "state.json"),
-			SocketFile:    filepath.Join(home, "ipc.sock"),
-			AssetDir:      filepath.Join(home, "assets"),
-			CacheFile:     filepath.Join(home, "cache.db"),
-		}
+		current = GetPath(home)
 	})
 	return err
+}
+
+// GetPath 根据主目录生成路径配置 (纯函数)
+func GetPath(home string) Paths {
+	return Paths{
+		HomeDir:       home,
+		ConfigFile:    filepath.Join(home, "profile.json"),
+		RawConfigFile: filepath.Join(home, "raw.json"),
+		LogFile:       filepath.Join(home, "minibox.log"),
+		StateFile:     filepath.Join(home, "state.json"),
+		LookFile:      GetLockPath(home), // 使用 lock.go 中的单一事实来源
+		SocketFile:    filepath.Join(home, "ipc.sock"),
+		AssetDir:      filepath.Join(home, "assets"),
+		CacheFile:     filepath.Join(home, "cache.db"),
+	}
 }
 
 // ResetForTest 重置环境单例状态

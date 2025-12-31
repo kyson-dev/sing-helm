@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/kyson/minibox/internal/core/config"
+	"github.com/kyson/minibox/internal/env"
 	"github.com/spf13/cobra"
 )
 
@@ -15,10 +16,8 @@ func newStopCommand() *cobra.Command {
 		Short: "Stop the running daemon",
 		Run: func(cmd *cobra.Command, args []string) {
 			// 1. 检查是否在运行 (通过锁)
-			if err := config.CheckLock(); err != nil {
+			if err := env.CheckLock(env.Get().HomeDir); err != nil {
 				fmt.Println("Minibox is not running.")
-				// 尝试清理残留的 state 文件
-				_ = os.Remove(config.GetStatePath())
 				return
 			}
 

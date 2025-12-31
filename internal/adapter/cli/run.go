@@ -23,6 +23,11 @@ func newRunCommand() *cobra.Command {
 		Use:   "run",
 		Short: "Run sing-box",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// 检查是否已经运行 (启动命令必须独占)
+			if err := env.CheckLock(env.Get().HomeDir); err == nil {
+				return fmt.Errorf("minibox is already running at %s", env.Get().HomeDir)
+			}
+
 			runops := config.DefaultRunOptions()
 			m, err := config.ParseProxyMode(mode)
 			if err != nil {
@@ -50,7 +55,7 @@ func newRunCommand() *cobra.Command {
 // runService 抽取出来的核心逻辑，便于测试
 func runService(ctx context.Context, runops *config.RunOptions) error {
 	// 获取文件锁，确保单实例运行
-	lock, err := config.AcquireLock()
+	lock, err := env.AcquireLock(env.Get().HomeDir)
 	if err != nil {
 		return fmt.Errorf("minibox is already running (failed to acquire lock): %w", err)
 	}

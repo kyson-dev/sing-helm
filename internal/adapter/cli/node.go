@@ -9,6 +9,7 @@ import (
 	"github.com/kyson/minibox/internal/adapter/logger"
 	"github.com/kyson/minibox/internal/core/client"
 	"github.com/kyson/minibox/internal/core/config"
+	"github.com/kyson/minibox/internal/env"
 	"github.com/spf13/cobra"
 )
 
@@ -40,7 +41,7 @@ func newListCommand() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			if apiAddr == "" {
 				// 1. 检查是否在运行
-				if err := config.CheckLock(); err != nil {
+				if err := env.CheckLock(env.Get().HomeDir); err != nil {
 					logger.Error("Minibox is not running", "error", err)
 					os.Exit(1)
 				}
@@ -103,7 +104,7 @@ func newUseCommand() *cobra.Command {
 
 			if apiAddr == "" {
 				// 1. 检查是否在运行
-				if err := config.CheckLock(); err != nil {
+				if err := env.CheckLock(env.Get().HomeDir); err != nil {
 					logger.Error("Minibox is not running", "error", err)
 					os.Exit(1)
 				}

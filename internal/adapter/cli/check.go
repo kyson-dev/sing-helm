@@ -12,6 +12,9 @@ func newCheckCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "check",
 		Short: "Check configuration file",
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			// 不需要环境检查，或者以后实现特定的检查逻辑
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			logger.Info("Check configuration file.....", "path", configPath)
 

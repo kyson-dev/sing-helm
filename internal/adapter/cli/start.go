@@ -6,7 +6,6 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/kyson/minibox/internal/core/config"
 	"github.com/kyson/minibox/internal/env"
 	"github.com/spf13/cobra"
 )
@@ -18,12 +17,11 @@ func newStartCommand() *cobra.Command {
 		Use:   "start",
 		Short: "Start minibox in background",
 		Run: func(cmd *cobra.Command, args []string) {
-			// 1. 检查是否已经运行
-			if err := config.CheckLock(); err == nil {
-				fmt.Println("Minibox is already running (lock file exists). Please stop it first.")
+			// 1. 检查是否已经运行 (启动命令必须独占)
+			if err := env.CheckLock(env.Get().HomeDir); err == nil {
+				fmt.Printf("minibox is already running at %s\n", env.Get().HomeDir)
 				os.Exit(1)
 			}
-
 			// 2. 准备启动参数
 			exePath, _ := os.Executable()
 

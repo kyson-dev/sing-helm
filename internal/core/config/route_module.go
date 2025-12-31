@@ -60,20 +60,6 @@ func (m *RouteModule) generateDefaultRoute() (*option.RouteOptions, error) {
 				"download_detour": "proxy",
 			},
 			{
-				"tag":             "geosite-github",
-				"type":            "remote",
-				"format":          "binary",
-				"url":             "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-github.srs",
-				"download_detour": "proxy",
-			},
-			{
-				"tag":             "geosite-telegram",
-				"type":            "remote",
-				"format":          "binary",
-				"url":             "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-telegram.srs",
-				"download_detour": "proxy",
-			},
-			{
 				"tag":             "geosite-cn",
 				"type":            "remote",
 				"format":          "binary",
@@ -104,10 +90,8 @@ func (m *RouteModule) generateDefaultRoute() (*option.RouteOptions, error) {
 				"outbound":      "direct",
 			},
 			{"ip_cidr": []string{"223.5.5.5/32", "119.29.29.29/32", "180.76.76.76/32", "114.114.114.114/32"}, "outbound": "direct"},
-			// 6. Google/GitHub/Telegram 代理
+			// 6. Google代理
 			{"domain": []string{"googleapis.cn", "google.cn"}, "rule_set": []string{"geosite-google"}, "outbound": "proxy"},
-			{"rule_set": []string{"geosite-github"}, "outbound": "proxy"},
-			{"rule_set": []string{"geosite-telegram"}, "outbound": "proxy"},
 			// 7. CN 直连
 			{"rule_set": []string{"geosite-cn", "geoip-cn"}, "outbound": "direct"},
 		},

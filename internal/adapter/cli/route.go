@@ -5,6 +5,7 @@ import (
 
 	"github.com/kyson/minibox/internal/core/config"
 	"github.com/kyson/minibox/internal/core/controller"
+	"github.com/kyson/minibox/internal/env"
 	"github.com/spf13/cobra"
 )
 
@@ -21,7 +22,7 @@ Note: This will restart sing-box to apply the new mode.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// 1. 检查是否在运行
-			if err := config.CheckLock(); err != nil {
+			if err := env.CheckLock(env.Get().HomeDir); err != nil {
 				return fmt.Errorf("minibox is not running: %w", err)
 			}
 

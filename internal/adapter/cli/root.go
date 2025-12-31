@@ -9,7 +9,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// RootCmd 是为了让 main 能访问，但实际不建议直接暴露全局变量
 // 这里演示"依赖注入"式的构建
 var GlobalDebug bool
 var LogFile string
@@ -20,11 +19,14 @@ func NewRootCommand() *cobra.Command {
 		Use:   "minibox",
 		Short: "Small and beautiful sing-box client",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			// 1. [关键] 初始化环境
-			if err := env.Init(homeDir); err != nil {
-				fmt.Println(err)
+			home, _ := cmd.Flags().GetString("home")
+
+			// 使用 setup 初始化环境，支持智能探测和注册
+			if err := env.Setup(home); err != nil {
+				fmt.Printf("Environment setup failed: %v\n", err)
 				os.Exit(1)
 			}
+
 			if LogFile == "" {
 				logger.Setup(logger.Config{Debug: GlobalDebug})
 			} else {
