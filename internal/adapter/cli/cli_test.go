@@ -3,6 +3,7 @@ package cli_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -10,15 +11,28 @@ import (
 
 	"github.com/kyson/minibox/internal/adapter/cli"
 	"github.com/kyson/minibox/internal/env"
+	"github.com/kyson/minibox/internal/ipc"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestMain(m *testing.M) {
+	// 创建独立的测试 registry 目录
 	registryDir := filepath.Join(os.TempDir(), "minibox-registry-test")
+	os.RemoveAll(registryDir) // 清理旧的测试数据
+	os.MkdirAll(registryDir, 0755)
+
 	env.SetRegistryDir(registryDir)
+	defer env.ResetRegistryDir()    // 确保测试结束后恢复
+	defer os.RemoveAll(registryDir) // 清理测试目录
+
 	os.Setenv("MINIBOX_TEST_SKIP_SERVICE", "1")
 	os.Setenv("MINIBOX_TEST_MIXED_PORT", "10808")
 	os.Setenv("MINIBOX_TEST_API_PORT", "18080")
+	cli.SetCommandSenderFactory(func() ipc.CommandSender {
+		return &ipc.FakeSender{Response: ipc.CommandResult{Status: "ok"}}
+	})
+	defer cli.ResetCommandSenderFactory()
+
 	os.Exit(m.Run())
 }
 
@@ -34,9 +48,10 @@ func TestCLI_VersionCommand(t *testing.T) {
 
 func TestCLI_CheckCommand(t *testing.T) {
 	tests := []struct {
-		name       string
-		configPath string
-		wantErr    bool
+		name          string
+		configPath    string
+		wantErr       bool
+		forceFallback bool
 	}{
 		{
 			name:       "valid config",
@@ -44,20 +59,29 @@ func TestCLI_CheckCommand(t *testing.T) {
 			wantErr:    false,
 		},
 		{
-			name:       "invalid json format",
-			configPath: createTempConfig(t, `{"invalid": json}`),
-			wantErr:    true,
+			name:          "invalid json format",
+			configPath:    createTempConfig(t, `{"invalid": json}`),
+			wantErr:       true,
+			forceFallback: true,
 		},
 		{
-			name:       "non-existent file",
-			configPath: "non_existent.json",
-			wantErr:    true,
+			name:          "non-existent file",
+			configPath:    "non_existent.json",
+			wantErr:       true,
+			forceFallback: true,
 		},
 		// 移除 empty config 测试，因为现在空配置会自动生成默认的 direct outbound 和 mixed inbound
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.forceFallback {
+				cli.SetCommandSenderFactory(func() ipc.CommandSender {
+					return &ipc.FakeSender{Err: fmt.Errorf("ipc: connect failed: fallback")}
+				})
+				t.Cleanup(cli.ResetCommandSenderFactory)
+			}
+
 			root := cli.NewRootCommand()
 			root.SetArgs([]string{"check", "--config", tt.configPath})
 			err := root.Execute()
@@ -75,27 +99,31 @@ func TestCLI_CheckCommand(t *testing.T) {
 // 注意：完整的集成测试需要真实的 sing-box 环境，这里只测试配置加载
 func TestCLI_RunCommand(t *testing.T) {
 	tests := []struct {
-		name       string
-		configPath string
-		wantErr    bool
-		errMsg     string
+		name          string
+		configPath    string
+		wantErr       bool
+		errMsg        string
+		forceFallback bool
 	}{
 		{
-			name:       "non-existent config file",
-			configPath: "non_existent_config.json",
-			wantErr:    true,
-			errMsg:     "failed to load profile file",
+			name:          "non-existent config file",
+			configPath:    "non_existent_config.json",
+			wantErr:       true,
+			errMsg:        "failed to load profile file",
+			forceFallback: true,
 		},
 		{
-			name:       "invalid json config",
-			configPath: createTempConfig(t, `{"invalid": json}`),
-			wantErr:    true,
-			errMsg:     "failed to load profile file",
+			name:          "invalid json config",
+			configPath:    createTempConfig(t, `{"invalid": json}`),
+			wantErr:       true,
+			errMsg:        "failed to load profile file",
+			forceFallback: true,
 		},
 		{
-			name:       "empty config - should start successfully with defaults",
-			configPath: createTempConfig(t, `{}`),
-			wantErr:    false, // 现在的代码会自动补全默认 outbound，所以应该能启动成功
+			name:          "empty config - should start successfully with defaults",
+			configPath:    createTempConfig(t, `{}`),
+			wantErr:       false, // 现在的代码会自动补全默认 outbound，所以应该能启动成功
+			forceFallback: false,
 		},
 	}
 
@@ -112,6 +140,13 @@ func TestCLI_RunCommand(t *testing.T) {
 
 			// 如果提供了 configPath (临时文件路径)，将其复制/重命名为 profile.json 放到 tmpHome 下
 			// 如果是 "non_existent"，则不创建
+			if tt.forceFallback {
+				cli.SetCommandSenderFactory(func() ipc.CommandSender {
+					return &ipc.FakeSender{Err: fmt.Errorf("ipc: connect failed: fallback")}
+				})
+				t.Cleanup(cli.ResetCommandSenderFactory)
+			}
+
 			if tt.configPath != "" && tt.configPath != "non_existent_config.json" {
 				content, err := os.ReadFile(tt.configPath)
 				assert.NoError(t, err)
@@ -136,6 +171,74 @@ func TestCLI_RunCommand(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCLI_ModeCommandStatus(t *testing.T) {
+	var output bytes.Buffer
+	resp := ipc.CommandResult{
+		Status: "ok",
+		Data:   map[string]any{"proxy_mode": "tun"},
+	}
+	cli.SetCommandSenderFactory(func() ipc.CommandSender {
+		return &ipc.FakeSender{Response: resp}
+	})
+	t.Cleanup(cli.ResetCommandSenderFactory)
+
+	cmd := cli.NewRootCommand()
+	cmd.SetOut(&output)
+	cmd.SetArgs([]string{"mode"})
+
+	assert.NoError(t, cmd.Execute())
+	assert.Contains(t, output.String(), "Current proxy mode: tun")
+}
+
+func TestCLI_ModeCommandSwitch(t *testing.T) {
+	var output bytes.Buffer
+	cli.SetCommandSenderFactory(func() ipc.CommandSender {
+		return &ipc.FakeSender{Response: ipc.CommandResult{Status: "ok"}}
+	})
+	t.Cleanup(cli.ResetCommandSenderFactory)
+
+	cmd := cli.NewRootCommand()
+	cmd.SetOut(&output)
+	cmd.SetArgs([]string{"mode", "default"})
+
+	assert.NoError(t, cmd.Execute())
+	assert.Contains(t, output.String(), "Proxy mode switched to: default")
+}
+
+func TestCLI_RouteCommandStatus(t *testing.T) {
+	var output bytes.Buffer
+	resp := ipc.CommandResult{
+		Status: "ok",
+		Data:   map[string]any{"route_mode": "global"},
+	}
+	cli.SetCommandSenderFactory(func() ipc.CommandSender {
+		return &ipc.FakeSender{Response: resp}
+	})
+	t.Cleanup(cli.ResetCommandSenderFactory)
+
+	cmd := cli.NewRootCommand()
+	cmd.SetOut(&output)
+	cmd.SetArgs([]string{"route"})
+
+	assert.NoError(t, cmd.Execute())
+	assert.Contains(t, output.String(), "Current route mode: global")
+}
+
+func TestCLI_RouteCommandSwitch(t *testing.T) {
+	var output bytes.Buffer
+	cli.SetCommandSenderFactory(func() ipc.CommandSender {
+		return &ipc.FakeSender{Response: ipc.CommandResult{Status: "ok"}}
+	})
+	t.Cleanup(cli.ResetCommandSenderFactory)
+
+	cmd := cli.NewRootCommand()
+	cmd.SetOut(&output)
+	cmd.SetArgs([]string{"route", "direct"})
+
+	assert.NoError(t, cmd.Execute())
+	assert.Contains(t, output.String(), "Route mode switched to: direct")
 }
 
 // createTempConfig 创建临时配置文件用于测试

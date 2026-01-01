@@ -3,9 +3,6 @@ package cli
 import (
 	"fmt"
 
-	"github.com/kyson/minibox/internal/core/config"
-	"github.com/kyson/minibox/internal/core/controller"
-	"github.com/kyson/minibox/internal/env"
 	"github.com/spf13/cobra"
 )
 
@@ -21,32 +18,29 @@ func newRouteCommand() *cobra.Command {
 Note: This will restart sing-box to apply the new mode.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// 1. 检查是否在运行
-			if err := env.CheckLock(env.Get().HomeDir); err != nil {
-				return fmt.Errorf("minibox is not running: %w", err)
-			}
-
-			// 如果没有参数，显示当前模式
 			if len(args) == 0 {
-				state, err := config.LoadState()
+				resp, err := dispatchToDaemon(cmd.Context(), "status", nil)
 				if err != nil {
-					return fmt.Errorf("daemon not running: %w", err)
+					return err
 				}
-				routeMode := state.RouteMode
-				if routeMode == "" {
-					routeMode = config.RouteModeRule
+
+				if mode, ok := resp.Data["route_mode"].(string); ok && mode != "" {
+					fmt.Printf("Current route mode: %s\n", mode)
+					return nil
 				}
-				fmt.Printf("Current route mode: %s\n", routeMode)
-				return nil
+				return fmt.Errorf("missing route mode in daemon status")
 			}
 
 			mode := args[0]
-			newMode, err := controller.SwitchRouteMode(mode)
+			resp, err := dispatchToDaemon(cmd.Context(), "route", map[string]any{"route": mode})
 			if err != nil {
 				return err
 			}
 
-			fmt.Printf("Route mode switched to: %s\n", newMode)
+			if newMode, ok := resp.Data["route_mode"].(string); ok && newMode != "" {
+				mode = newMode
+			}
+			fmt.Printf("Route mode switched to: %s\n", mode)
 			return nil
 		},
 	}

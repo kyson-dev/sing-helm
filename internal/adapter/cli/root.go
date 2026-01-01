@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/kyson/minibox/internal/adapter/logger"
 	"github.com/kyson/minibox/internal/env"
@@ -18,13 +17,12 @@ func NewRootCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "minibox",
 		Short: "Small and beautiful sing-box client",
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			home, _ := cmd.Flags().GetString("home")
 
 			// 使用 setup 初始化环境，支持智能探测和注册
 			if err := env.Setup(home); err != nil {
-				fmt.Printf("Environment setup failed: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("environment setup failed: %w", err)
 			}
 
 			if LogFile == "" {
@@ -32,6 +30,7 @@ func NewRootCommand() *cobra.Command {
 			} else {
 				logger.Setup(logger.Config{Debug: GlobalDebug, FilePath: LogFile})
 			}
+			return nil
 		},
 	}
 
@@ -46,6 +45,9 @@ func NewRootCommand() *cobra.Command {
 		newConfigCommand(),
 		newRunCommand(),
 		newUpdateCommand(),
+		newStatusCommand(),
+		newHealthCommand(),
+		newReloadCommand(),
 		newMonitorCommand(),
 		newNodeCommand(),
 		newModeCommand(),

@@ -60,10 +60,23 @@ type Model struct {
 	Expanded     bool     // 当前组是否展开
 	ExpandedList []string // 展开组里的节点列表缓存
 
+	// --- 请求状态（防止连续请求）---
+	RequestState RequestState // 当前请求状态
+
 	// --- 窗口尺寸 ---
 	Width  int
 	Height int
 }
+
+// RequestState 请求状态
+type RequestState int
+
+const (
+	RequestStateIdle RequestState = iota // 空闲，可以发起新请求
+	RequestingMode                       // 正在请求切换 mode
+	RequestingRoute                      // 正在请求切换 route
+	RequestingNode                       // 正在请求切换节点
+)
 
 // NewModel 初始化模型
 func NewModel(apiHost string) Model {
@@ -116,6 +129,11 @@ type modeChangedMsg struct {
 type routeChangedMsg struct {
 	Mode string
 	Err  error
+}
+
+// 超时消息（用于重置卡住的请求状态）
+type requestTimeoutMsg struct {
+	RequestType string // "mode", "route", "node"
 }
 
 // 重连相关消息

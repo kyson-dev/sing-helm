@@ -3,9 +3,6 @@ package cli
 import (
 	"fmt"
 
-	"github.com/kyson/minibox/internal/core/config"
-	"github.com/kyson/minibox/internal/core/controller"
-	"github.com/kyson/minibox/internal/env"
 	"github.com/spf13/cobra"
 )
 
@@ -21,32 +18,29 @@ func newModeCommand() *cobra.Command {
 Note: This will restart sing-box to apply the new mode.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// 1. 检查是否在运行
-			if err := env.CheckLock(env.Get().HomeDir); err != nil {
-				return fmt.Errorf("minibox is not running: %w", err)
-			}
-
-			// 如果没有参数，显示当前模式
 			if len(args) == 0 {
-				state, err := config.LoadState()
+				resp, err := dispatchToDaemon(cmd.Context(), "status", nil)
 				if err != nil {
-					return fmt.Errorf("daemon not running: %w", err)
+					return err
 				}
-				proxyMode := state.ProxyMode
-				if proxyMode == "" {
-					proxyMode = config.ProxyModeSystem
+
+				if mode, ok := resp.Data["proxy_mode"].(string); ok && mode != "" {
+					fmt.Printf("Current proxy mode: %s\n", mode)
+					return nil
 				}
-				fmt.Printf("Current proxy mode: %s\n", proxyMode)
-				return nil
+				return fmt.Errorf("missing proxy mode in daemon status")
 			}
 
 			mode := args[0]
-			newMode, err := controller.SwitchProxyMode(mode)
+			resp, err := dispatchToDaemon(cmd.Context(), "mode", map[string]any{"mode": mode})
 			if err != nil {
 				return err
 			}
 
-			fmt.Printf("Proxy mode switched to: %s\n", newMode)
+			if newMode, ok := resp.Data["proxy_mode"].(string); ok && newMode != "" {
+				mode = newMode
+			}
+			fmt.Printf("Proxy mode switched to: %s\n", mode)
 			return nil
 		},
 	}

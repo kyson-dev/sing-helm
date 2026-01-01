@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"context"
 	"sort"
 	"strings"
 	"time"
@@ -8,7 +9,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gorilla/websocket"
 	"github.com/kyson/minibox/internal/core/client"
-	"github.com/kyson/minibox/internal/core/config"
 	"github.com/kyson/minibox/internal/core/controller"
 )
 
@@ -100,8 +100,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// --- 选择节点 (不收起) ---
 		case "enter": // Enter 键
 			if m.Expanded && len(m.ExpandedList) > 0 {
+				// 检查是否空闲
+				if m.RequestState != RequestStateIdle {
+					return m, nil // 有请求进行中，忽略
+				}
 				group := m.Groups[m.CursorGroup]
 				node := m.ExpandedList[m.CursorNode]
+				// 设置请求状态
+				m.RequestState = RequestingNode
 				// 执行切换 (异步命令)，不收起列表
 				return m, switchNode(m.apiClient, group, node)
 			} else {
@@ -135,9 +141,31 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Batch(cmds...)
 			}
 		case "m": // 切换代理模式
-			return m, switchProxyMode(m.ProxyMode)
+			// 检查是否空闲
+			if m.RequestState != RequestStateIdle {
+				return m, nil // 有请求进行中，忽略
+			}
+			m.RequestState = RequestingMode
+			// 启动超时保护（5秒后自动重置）
+			return m, tea.Batch(
+				switchProxyMode(m.ProxyMode),
+				tea.Tick(5*time.Second, func(t time.Time) tea.Msg {
+					return requestTimeoutMsg{RequestType: "mode"}
+				}),
+			)
 		case "r": // 切换路由模式
-			return m, switchRouteMode(m.RouteMode)
+			// 检查是否空闲
+			if m.RequestState != RequestStateIdle {
+				return m, nil // 有请求进行中，忽略
+			}
+			m.RequestState = RequestingRoute
+			// 启动超时保护（5秒后自动重置）
+			return m, tea.Batch(
+				switchRouteMode(m.RouteMode),
+				tea.Tick(5*time.Second, func(t time.Time) tea.Msg {
+					return requestTimeoutMsg{RequestType: "route"}
+				}),
+			)
 		}
 
 	// 2. 处理连接成功
@@ -146,13 +174,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.connected = true
 		m.ConnState = ConnStateConnected
 		m.Err = nil
+
+		// 重置请求状态（新连接，清除旧状态）
+		m.RequestState = RequestStateIdle
+
 		return m, tea.Batch(readTraffic(m.wsConn), fetchProxies(m.apiClient), fetchStatus(m.apiClient))
 
 	// 3. 处理流量更新
 	case trafficMsg:
 		m.Stats = TrafficStats(msg)
-		// 处理完一条数据，继续读下一条 (循环)，同时刷新状态
-		return m, tea.Batch(readTraffic(m.wsConn), fetchStatus(m.apiClient))
+		// 处理完一条数据，继续读下一条 (循环)
+		// 性能优化：只循环流量，不触发高开销的 IPC 状态查询
+		return m, readTraffic(m.wsConn)
 
 	// 4. 处理错误 - 触发重连而不是退出
 	case errMsg:
@@ -160,6 +193,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Err = msg
 		m.connected = false
 		m.ConnState = ConnStateReconnecting
+
+		// 重置请求状态（因为连接断开了）
+		m.RequestState = RequestStateIdle
+
 		if m.wsConn != nil {
 			m.wsConn.Close()
 			m.wsConn = nil
@@ -169,6 +206,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// 5. 处理重连消息
 	case reconnectMsg:
 		// logger.Info("Attempting to reconnect...")
+		// 确保请求状态已重置
+		m.RequestState = RequestStateIdle
 		return m, connectWS(m.apiBase)
 	case proxiesMsg:
 		m.Proxies = msg
@@ -196,6 +235,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// 处理 switchNode 成功的 Msg，重新拉取列表以刷新 "Now" 状态
 	case nodeSwitchedMsg:
 		//m.Expanded = false                  // 切换成功后收起
+		m.RequestState = RequestStateIdle   // 重置为空闲
 		return m, fetchProxies(m.apiClient) // 刷新列表
 
 	// 处理测速结果
@@ -214,20 +254,63 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Memory = msg.Memory
 		m.TotalUp = msg.TotalUp
 		m.TotalDown = msg.TotalDown
-		return m, nil
+
+		// 建立 1秒 的独立心跳，低频查询状态，避免 IPC 风暴
+		return m, tea.Tick(1*time.Second, func(t time.Time) tea.Msg {
+			return fetchStatus(m.apiClient)()
+		})
 
 	// 处理模式切换结果
 	case modeChangedMsg:
+		m.RequestState = RequestStateIdle // 重置为空闲
 		if msg.Err == nil {
 			m.ProxyMode = msg.Mode
 		}
-		return m, fetchStatus(m.apiClient) // 刷新状态
+		// mode 切换会导致 sing-box 重启，需要重新连接 WebSocket
+		if m.wsConn != nil {
+			m.wsConn.Close()
+			m.wsConn = nil
+		}
+		m.ConnState = ConnStateReconnecting
+		return m, tea.Batch(
+			fetchStatus(m.apiClient),
+			reconnectAfterDelay(500*time.Millisecond), // 等待 sing-box 重启
+		)
 
 	case routeChangedMsg:
+		m.RequestState = RequestStateIdle // 重置为空闲
 		if msg.Err == nil {
 			m.RouteMode = msg.Mode
 		}
-		return m, fetchStatus(m.apiClient) // 刷新状态
+		// route 切换会导致 sing-box 重启，需要重新连接 WebSocket
+		if m.wsConn != nil {
+			m.wsConn.Close()
+			m.wsConn = nil
+		}
+		m.ConnState = ConnStateReconnecting
+		return m, tea.Batch(
+			fetchStatus(m.apiClient),
+			reconnectAfterDelay(500*time.Millisecond), // 等待 sing-box 重启
+		)
+
+	// 处理请求超时（防止状态卡住）
+	case requestTimeoutMsg:
+		// 只在对应的请求状态下才重置
+		switch msg.RequestType {
+		case "mode":
+			if m.RequestState == RequestingMode {
+				m.RequestState = RequestStateIdle
+			}
+		case "route":
+			if m.RequestState == RequestingRoute {
+				m.RequestState = RequestStateIdle
+			}
+		case "node":
+			if m.RequestState == RequestingNode {
+				m.RequestState = RequestStateIdle
+			}
+		}
+		return m, nil
 	}
 
 	return m, nil
@@ -340,14 +423,18 @@ func fetchStatus(c *client.Client) tea.Cmd {
 			return statusMsg{} // 出错时返回空状态
 		}
 
-		// 2. 从本地状态文件获取配置模式 (ProxyMode, RouteMode)
-		// API 不会返回正确的业务模式，必须读取本地状态
+		// 2. 从 daemon 状态获取配置模式 (ProxyMode, RouteMode)
+		// API 不会返回正确的业务模式
 		proxyMode := "unknown"
 		routeMode := "unknown"
 
-		if state, err := config.LoadState(); err == nil {
-			proxyMode = string(state.ProxyMode)
-			routeMode = string(state.RouteMode)
+		if status, err := controller.FetchStatus(context.Background()); err == nil {
+			if status.ProxyMode != "" {
+				proxyMode = status.ProxyMode
+			}
+			if status.RouteMode != "" {
+				routeMode = status.RouteMode
+			}
 		}
 
 		return statusMsg{
@@ -362,23 +449,51 @@ func fetchStatus(c *client.Client) tea.Cmd {
 }
 
 // switchProxyMode 切换代理模式 (通过 IPC 触发 daemon 重载)
+// 智能跳过 TUN：如果 daemon 不是 root 权限，自动跳过 TUN 模式
 func switchProxyMode(current string) tea.Cmd {
 	return func() tea.Msg {
-		// 循环切换: system -> tun -> default -> system
+		// 检查 daemon 是否以 root 权限运行
+		status, err := controller.FetchStatus(context.Background())
+		isRoot := false
+		if err == nil {
+			// 通过检查 PID 对应的进程权限来判断
+			// 简化方案：尝试切换到 TUN，如果失败则跳过
+			isRoot = (status.PID > 0) // 这里需要更准确的检查，暂时简化
+		}
+
+		// 循环切换逻辑
 		var next string
 		switch strings.ToLower(current) {
 		case "system":
-			next = "tun"
+			if isRoot {
+				next = "tun"
+			} else {
+				// 非 root，跳过 TUN，直接到 default
+				next = "default"
+			}
 		case "tun":
 			next = "default"
+		case "default":
+			next = "system"
 		default:
 			next = "system"
 		}
 
 		// 通过 IPC 调用 daemon 切换模式（会触发 sing-box 重载）
-		_, err := controller.SwitchProxyMode(next)
+		_, err = controller.SwitchProxyMode(next)
 		if err != nil {
-			// logger.Error("Failed to switch proxy mode", "error", err)
+			// 如果是 TUN 权限错误，自动跳到下一个模式
+			if strings.Contains(err.Error(), "root permission") || strings.Contains(err.Error(), "permission") {
+				// 跳过 TUN，尝试下一个模式
+				if next == "tun" {
+					next = "default"
+					_, err = controller.SwitchProxyMode(next)
+					if err != nil {
+						return modeChangedMsg{Mode: current, Err: err}
+					}
+					return modeChangedMsg{Mode: next, Err: nil}
+				}
+			}
 			return modeChangedMsg{Mode: current, Err: err}
 		}
 

@@ -4,107 +4,105 @@ import (
 	"context"
 	"fmt"
 
-	"os"
-
 	"github.com/kyson/minibox/internal/adapter/logger"
-	"github.com/kyson/minibox/internal/core/config"
 	"github.com/kyson/minibox/internal/env"
 	"github.com/kyson/minibox/internal/ipc"
 )
 
 // SwitchProxyMode 切换代理模式
 func SwitchProxyMode(modeStr string) (string, error) {
-	// 1. 验证模式
-	proxyMode, err := config.ParseProxyMode(modeStr)
+	resp, err := sendCommand(context.Background(), "mode", map[string]any{"mode": modeStr})
 	if err != nil {
 		return "", err
 	}
-
-	// 2. 加载状态
-	state, err := config.LoadState()
-	if err != nil {
-		return "", fmt.Errorf("daemon not running: %w", err)
+	if mode, ok := resp.Data["proxy_mode"].(string); ok && mode != "" {
+		logger.Debug("Proxy mode switched successfully", "mode", mode)
+		return mode, nil
 	}
-
-	// 3. 检查是否需要切换
-	if state.ProxyMode == proxyMode {
-		return string(state.ProxyMode), nil // 已经处于该模式
-	}
-
-	// 4. 权限检查：涉及 TUN 模式的操作需要 root 权限
-	if (proxyMode == config.ProxyModeTUN || state.ProxyMode == config.ProxyModeTUN) && os.Geteuid() != 0 {
-		return "", fmt.Errorf("operating with TUN mode requires root permission")
-	}
-
-	// 5. 更新状态
-	state.ProxyMode = proxyMode
-	if err := applyConfigAndReload(state); err != nil {
-		return "", err
-	}
-
-	logger.Debug("Proxy mode switched successfully", "mode", proxyMode)
-	return string(proxyMode), nil
+	logger.Debug("Proxy mode switched successfully", "mode", modeStr)
+	return modeStr, nil
 }
 
 // SwitchRouteMode 切换路由模式
 func SwitchRouteMode(modeStr string) (string, error) {
-	// 1. 验证模式
-	routeMode, err := config.ParseRouteMode(modeStr)
+	resp, err := sendCommand(context.Background(), "route", map[string]any{"route": modeStr})
 	if err != nil {
 		return "", err
 	}
-
-	// 2. 加载状态
-	state, err := config.LoadState()
-	if err != nil {
-		return "", fmt.Errorf("daemon not running: %w", err)
+	if mode, ok := resp.Data["route_mode"].(string); ok && mode != "" {
+		logger.Debug("Route mode switched successfully", "mode", mode)
+		return mode, nil
 	}
-
-	// 3. 检查是否需要切换
-	if state.RouteMode == routeMode {
-		return string(state.RouteMode), nil
-	}
-
-	// 4. 更新状态
-	state.RouteMode = routeMode
-	if err := applyConfigAndReload(state); err != nil {
-		return "", err
-	}
-
-	logger.Debug("Route mode switched successfully", "mode", routeMode)
-	return string(routeMode), nil
+	logger.Debug("Route mode switched successfully", "mode", modeStr)
+	return modeStr, nil
 }
 
-// applyConfigAndReload 重新生成配置并通知 daemon 重载
-func applyConfigAndReload(state *config.RuntimeState) error {
-	// 1. 加载用户配置
-	base, err := config.LoadOptions(env.Get().ConfigFile)
+type Status struct {
+	ProxyMode  string
+	RouteMode  string
+	ListenAddr string
+	APIPort    int
+	MixedPort  int
+	PID        int
+	Running    bool
+}
+
+func FetchStatus(ctx context.Context) (*Status, error) {
+	resp, err := sendCommand(ctx, "status", nil)
 	if err != nil {
-		return fmt.Errorf("failed to load profile: %w", err)
+		return nil, err
 	}
-
-	// 2. 重新构建配置
-	builder := config.NewConfigBuilder(base, &state.RunOptions)
-	for _, m := range config.DefaultModules(&state.RunOptions) {
-		builder.With(m)
+	status := &Status{}
+	if mode, ok := resp.Data["proxy_mode"].(string); ok {
+		status.ProxyMode = mode
 	}
-
-	// 3. 保存 raw.json
-	if err := builder.SaveToFile(env.Get().RawConfigFile); err != nil {
-		return fmt.Errorf("failed to save config: %w", err)
+	if mode, ok := resp.Data["route_mode"].(string); ok {
+		status.RouteMode = mode
 	}
-
-	// 4. 保存状态
-	if err := config.SaveState(state); err != nil {
-		return fmt.Errorf("failed to save state: %w", err)
+	if addr, ok := resp.Data["listen_addr"].(string); ok {
+		status.ListenAddr = addr
 	}
-
-	// 5. 通知 daemon
-	ipcClient := ipc.NewClient(env.Get().SocketFile)
-	ctx := context.Background()
-	if err := ipcClient.Call(ctx, ipc.MethodReload, nil, nil); err != nil {
-		return fmt.Errorf("failed to reload: %w", err)
+	if port, ok := asInt(resp.Data["api_port"]); ok {
+		status.APIPort = port
 	}
+	if port, ok := asInt(resp.Data["mixed_port"]); ok {
+		status.MixedPort = port
+	}
+	if pid, ok := asInt(resp.Data["pid"]); ok {
+		status.PID = pid
+	}
+	if running, ok := resp.Data["running"].(bool); ok {
+		status.Running = running
+	}
+	return status, nil
+}
 
-	return nil
+func sendCommand(ctx context.Context, name string, payload map[string]any) (ipc.CommandResult, error) {
+	sender := ipc.NewUnixSender(env.Get().SocketFile)
+	resp, err := sender.Send(ctx, ipc.CommandMessage{Name: name, Payload: payload})
+	if err != nil {
+		return ipc.CommandResult{}, fmt.Errorf("ipc send failed: %w", err)
+	}
+	if resp.Status == "" {
+		resp.Status = "ok"
+	}
+	if resp.Status != "ok" {
+		if resp.Error != "" {
+			return resp, fmt.Errorf("daemon error: %s", resp.Error)
+		}
+		return resp, fmt.Errorf("daemon responded with status %s", resp.Status)
+	}
+	return resp, nil
+}
+
+func asInt(val any) (int, bool) {
+	switch v := val.(type) {
+	case float64:
+		return int(v), true
+	case int:
+		return v, true
+	case int64:
+		return int(v), true
+	}
+	return 0, false
 }

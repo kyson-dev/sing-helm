@@ -2,17 +2,17 @@ package cli
 
 import (
 	"context"
-	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/kyson/minibox/internal/adapter/logger"
-	"github.com/kyson/minibox/internal/core/config"
-	"github.com/kyson/minibox/internal/core/service"
+	coredaemon "github.com/kyson/minibox/internal/core/daemon"
 	"github.com/kyson/minibox/internal/env"
+	"github.com/kyson/minibox/internal/ipc"
 	"github.com/spf13/cobra"
 )
-
-const skipServiceEnv = "MINIBOX_TEST_SKIP_SERVICE"
 
 func newRunCommand() *cobra.Command {
 	var (
@@ -25,104 +25,83 @@ func newRunCommand() *cobra.Command {
 		Use:   "run",
 		Short: "Run sing-box",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// 检查是否已经运行 (启动命令必须独占)
-			if err := env.CheckLock(env.Get().HomeDir); err == nil {
-				return fmt.Errorf("minibox is already running at %s", env.Get().HomeDir)
+			payload := map[string]any{}
+			if cmd.Flags().Changed("mode") {
+				payload["mode"] = mode
+			}
+			if cmd.Flags().Changed("route") {
+				payload["route"] = rule
+			}
+			if cmd.Flags().Changed("api-port") {
+				payload["api_port"] = apiPort
+			}
+			if cmd.Flags().Changed("mixed-port") {
+				payload["mixed_port"] = mixPort
 			}
 
-			runops := config.DefaultRunOptions()
-			m, err := config.ParseProxyMode(mode)
-			if err != nil {
-				return err
-			}
-			runops.ProxyMode = m
-			r, err := config.ParseRouteMode(rule)
-			if err != nil {
-				return err
-			}
-			runops.RouteMode = r
-			runops.APIPort = apiPort
-			runops.MixedPort = mixPort
-
-			return runService(context.Background(), &runops)
+			// 无论是前台还是后台运行，都启动 Daemon + IPC + Sing-box
+			// 前台运行：阻塞终端
+			// 后台运行：由 start 命令触发，这里也是阻塞（但在后台进程中）
+			return runAsDaemon(cmd.Context(), payload)
 		},
 	}
-	cmd.Flags().StringVarP(&mode, "mode", "m", "system", "Proxy mode: system, tun, or default")
-	cmd.Flags().StringVarP(&rule, "route", "r", "rule", "Route mode: rule, global, or direct")
+	cmd.Flags().StringVarP(&mode, "mode", "m", "", "Proxy mode: system, tun, or default")
+	cmd.Flags().StringVarP(&rule, "route", "r", "", "Route mode: rule, global, or direct")
 	cmd.Flags().IntVar(&apiPort, "api-port", 0, "Fixed API port")
 	cmd.Flags().IntVar(&mixPort, "mixed-port", 0, "Fixed Mixed port")
 	return cmd
 }
 
-// runService 抽取出来的核心逻辑，便于测试
-func runService(ctx context.Context, runops *config.RunOptions) error {
-	// 获取文件锁，确保单实例运行
-	lock, err := env.AcquireLock(env.Get().HomeDir)
-	if err != nil {
-		return fmt.Errorf("minibox is already running (failed to acquire lock): %w", err)
-	}
-	defer lock.Release()
+// runAsDaemon 以 daemon 模式运行：启动 sing-box 和 IPC 服务器
+func runAsDaemon(ctx context.Context, payload map[string]any) error {
+	logger.Info("Starting in daemon mode")
 
+	// 创建独立的 context，不依赖于命令的 context
+	// 这样 daemon 的生命周期完全由信号和 IPC 控制
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	profilePath := env.Get().ConfigFile
 
-	//1. 加载用户配置
-	logger.Info("Loading profile file", "path", profilePath)
-	base, err := config.LoadProfile(profilePath)
+	// 监听系统信号（Ctrl+C, kill）
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(sigCh)
+
+	// 在后台监听信号，收到信号时取消 context
+	go func() {
+		sig := <-sigCh
+		logger.Info("Received signal, initiating shutdown...", "signal", sig)
+		cancel()
+	}()
+
+	// 创建 daemon 实例
+	d := coredaemon.NewDaemon()
+
+	// 在后台启动 sing-box 服务（通过 IPC run 命令）
+	go func() {
+		// 等待 IPC 服务器启动
+		time.Sleep(200 * time.Millisecond)
+
+		// 现在（正确）
+		sender := ipc.NewUnixSender(env.Get().SocketFile)
+		_, err := sender.Send(context.Background(), ipc.CommandMessage{
+			Name:    "run",
+			Payload: payload,
+		})
+		if err != nil {
+			logger.Error("Failed to send run command", "error", err)
+			return
+		}
+		logger.Info("Run command sent successfully")
+	}()
+
+	// 启动 IPC 服务器（阻塞直到 context 取消或发生错误）
+	err := d.Serve(runCtx)
+
 	if err != nil {
-		logger.Error("Failed to load profile file", "error", err)
-		return fmt.Errorf("failed to load profile file: %w", err)
+		logger.Error("Daemon stopped with error", "error", err)
+		return err
 	}
 
-	// 2. 构建完整配置
-	builder := config.NewConfigBuilder(base, runops)
-	for _, m := range config.DefaultModules(runops) {
-		builder.With(m)
-	}
-
-	// 3. 保存完整配置到 raw.json
-	rawPath := env.Get().RawConfigFile
-	if err := builder.SaveToFile(rawPath); err != nil {
-		logger.Error("Failed to save raw config", "error", err)
-		return fmt.Errorf("failed to save raw config: %w", err)
-	}
-
-	// 4. 保存运行状态
-	state := config.RuntimeState{
-		RunOptions: *runops,
-		PID:        os.Getpid(),
-	}
-	if err := config.SaveState(&state); err != nil {
-		logger.Error("Failed to save state", "error", err)
-		return fmt.Errorf("failed to save state: %w", err)
-	}
-	defer os.Remove(config.GetStatePath())
-
-	if shouldSkipService() {
-		logger.Info("Skipping sing-box startup due to test mode")
-		return nil
-	}
-
-	// 5. 初始化服务
-	svc := service.NewInstance()
-
-	// 6. 从配置文件启动
-	if err := svc.StartFromFile(runCtx, rawPath); err != nil {
-		logger.Error("Sing-box error", "error", err)
-		return fmt.Errorf("sing-box error: %w", err)
-	}
-
-	// 阻塞
-	if err := svc.Run(runCtx, env.Get().SocketFile); err != nil {
-		logger.Error("Sing-box error", "error", err)
-		return fmt.Errorf("sing-box error: %w", err)
-	}
-
-	logger.Info("Service stopped gracefully")
+	logger.Info("Daemon stopped gracefully")
 	return nil
-}
-
-func shouldSkipService() bool {
-	return os.Getenv(skipServiceEnv) == "1"
 }

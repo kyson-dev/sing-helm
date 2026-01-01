@@ -8,8 +8,8 @@ import (
 )
 
 type RuntimeState struct {
-	RunOptions `json:"run_options"`
-	PID     int `json:"pid"`
+	RunOptions RunOptions `json:"run_options"`
+	PID        int        `json:"pid"`
 }
 
 func GetStatePath() string {

@@ -65,7 +65,7 @@ func (m Model) View() string {
 	}
 
 	// 构建各部分
-	header := renderHeader()
+	header := renderHeader(m)
 
 	// 左列：Status + Traffic
 	leftCol := lipgloss.JoinVertical(lipgloss.Left,
@@ -130,9 +130,54 @@ func renderReconnecting(m Model) string {
 	)
 }
 
-// renderHeader 标题栏
-func renderHeader() string {
-	return titleStyle.Render(" 📡 Minibox Monitor ")
+// renderHeader 标题栏（带状态指示器）
+func renderHeader(m Model) string {
+	title := " 📡 Minibox Monitor "
+	status := renderStatusIndicator(m)
+
+	// 标题和状态指示器左右对齐
+	titlePart := titleStyle.Render(title)
+
+	// 在标题右侧添加状态
+	headerLine := lipgloss.JoinHorizontal(lipgloss.Top,
+		titlePart,
+		" ",
+		status,
+	)
+
+	return headerLine
+}
+
+// renderStatusIndicator 渲染状态指示器（精致小圆点）
+func renderStatusIndicator(m Model) string {
+	var dot, label string
+	var dotStyle lipgloss.Style
+
+	switch m.ConnState {
+	case ConnStateConnecting:
+		dotStyle = colorYellow
+		label = "Connecting"
+	case ConnStateConnected:
+		if m.RequestState != RequestStateIdle {
+			dotStyle = colorCyan
+			label = "Requesting"
+		} else {
+			dotStyle = colorGreen
+			label = "Connected"
+		}
+	case ConnStateReconnecting:
+		dotStyle = colorYellow
+		label = "Reconnecting"
+	case ConnStateError:
+		dotStyle = colorRed
+		label = "Error"
+	default:
+		dotStyle = colorGray
+		label = "Unknown"
+	}
+
+	dot = "⏺" // 使用中等大小圆点
+	return dotStyle.Render(dot) + " " + colorDim.Render(label)
 }
 
 // renderStatusCard 状态卡片

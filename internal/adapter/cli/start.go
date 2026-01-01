@@ -16,11 +16,11 @@ func newStartCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "start",
 		Short: "Start minibox in background",
-		Run: func(cmd *cobra.Command, args []string) {
-			// 1. 检查是否已经运行 (启动命令必须独占)
-			if err := env.CheckLock(env.Get().HomeDir); err == nil {
-				fmt.Printf("minibox is already running at %s\n", env.Get().HomeDir)
-				os.Exit(1)
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if resp, err := dispatchToDaemon(cmd.Context(), "status", nil); err == nil {
+				if running, _ := resp.Data["running"].(bool); running {
+					return fmt.Errorf("minibox is already running")
+				}
 			}
 			// 2. 准备启动参数
 			exePath, _ := os.Executable()
@@ -41,10 +41,10 @@ func newStartCommand() *cobra.Command {
 			runArgs = append(runArgs, "run")
 
 			// 添加 mode 参数
-			if dMode != "" && dMode != "default" {
+			if dMode != "" {
 				runArgs = append(runArgs, "--mode", dMode)
 			}
-			if dRule != "" && dRule != "rule" {
+			if dRule != "" {
 				runArgs = append(runArgs, "--route", dRule)
 			}
 
@@ -64,24 +64,23 @@ func newStartCommand() *cobra.Command {
 
 			// 4. 启动子进程
 			if err := command.Start(); err != nil {
-				fmt.Printf("Failed to start daemon: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("failed to start daemon: %w", err)
 			}
 
 			// 5. 等待一小会儿，确保子进程没有立即崩溃 (比如配置错误)
 			time.Sleep(1 * time.Second)
 			if command.ProcessState != nil && command.ProcessState.Exited() {
-				fmt.Println("Daemon process exited unexpectedly. Check logs.")
-				os.Exit(1)
+				return fmt.Errorf("daemon process exited unexpectedly; check logs")
 			}
 
 			fmt.Printf("Minibox started [PID: %d]\n", command.Process.Pid)
 			fmt.Printf("Log file: %s\n", logFile)
+			return nil
 		},
 	}
 
-	cmd.Flags().StringVarP(&dMode, "mode", "m", "system", "Proxy mode: system, tun, or default")
-	cmd.Flags().StringVarP(&dRule, "route", "r", "rule", "Route mode: rule, global, or direct")
+	cmd.Flags().StringVarP(&dMode, "mode", "m", "", "Proxy mode: system, tun, or default")
+	cmd.Flags().StringVarP(&dRule, "route", "r", "", "Route mode: rule, global, or direct")
 
 	return cmd
 }

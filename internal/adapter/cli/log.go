@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/kyson/minibox/internal/adapter/logger"
-	"github.com/kyson/minibox/internal/env"
 	"github.com/nxadm/tail"
 	"github.com/spf13/cobra"
 )
@@ -14,7 +13,16 @@ func newLogCommand() *cobra.Command {
 		Use:   "log",
 		Short: "Stream application logs",
 		Run: func(cmd *cobra.Command, args []string) {
-			logPath := env.Get().LogFile
+			resp, err := dispatchToDaemon(cmd.Context(), "log", nil)
+			if err != nil {
+				logger.Error("Failed to resolve log path", "error", err)
+				return
+			}
+			logPath, ok := resp.Data["path"].(string)
+			if !ok || logPath == "" {
+				logger.Error("Missing log path from daemon")
+				return
+			}
 
 			t, err := tail.TailFile(logPath, tail.Config{
 				Follow: true,

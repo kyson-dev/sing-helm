@@ -1,15 +1,13 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 
 	"github.com/kyson/minibox/internal/adapter/logger"
 	"github.com/kyson/minibox/internal/core/client"
-	"github.com/kyson/minibox/internal/core/config"
-	"github.com/kyson/minibox/internal/env"
 	"github.com/spf13/cobra"
 )
 
@@ -38,27 +36,19 @@ func newListCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "List all proxy groups and nodes",
-		Run: func(cmd *cobra.Command, args []string) {
-			if apiAddr == "" {
-				// 1. 检查是否在运行
-				if err := env.CheckLock(env.Get().HomeDir); err != nil {
-					logger.Error("Minibox is not running", "error", err)
-					os.Exit(1)
-				}
-				state, err := config.LoadState()
-				if err != nil {
-					logger.Error("Failed to load state", "error", err)
-					os.Exit(1)
-				}
-				apiAddr = fmt.Sprintf("%s:%d", state.ListenAddr, state.APIPort)
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload := map[string]any{}
+			if apiAddr != "" {
+				payload["api"] = apiAddr
 			}
-			c := client.New(apiAddr)
-
-			proxies, err := c.GetProxies()
+			resp, err := dispatchToDaemon(cmd.Context(), "node.list", payload)
 			if err != nil {
-				logger.Error("Failed to list proxies", "error", err)
-				fmt.Println("Tip: Is minibox running?")
-				os.Exit(1)
+				return fmt.Errorf("failed to list proxies: %w (tip: is minibox running?)", err)
+			}
+
+			proxies, err := decodeProxies(resp.Data["proxies"])
+			if err != nil {
+				return fmt.Errorf("failed to decode proxies: %w", err)
 			}
 
 			// 简单的美化输出
@@ -87,6 +77,7 @@ func newListCommand() *cobra.Command {
 					}
 				}
 			}
+			return nil
 		},
 	}
 }
@@ -98,31 +89,38 @@ func newUseCommand() *cobra.Command {
 		Short:   "Switch node for a selector group",
 		Example: "  minibox node use Proxy 'HongKong 01'",
 		Args:    cobra.ExactArgs(2), // 必须传 2 个参数
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			group := args[0]
 			node := args[1]
 
-			if apiAddr == "" {
-				// 1. 检查是否在运行
-				if err := env.CheckLock(env.Get().HomeDir); err != nil {
-					logger.Error("Minibox is not running", "error", err)
-					os.Exit(1)
-				}
-				state, err := config.LoadState()
-				if err != nil {
-					logger.Error("Failed to load state", "error", err)
-					os.Exit(1)
-				}
-				apiAddr = fmt.Sprintf("%s:%d", state.ListenAddr, state.APIPort)
+			payload := map[string]any{
+				"group": group,
+				"node":  node,
 			}
-			c := client.New(apiAddr)
-
-			if err := c.SelectProxy(group, node); err != nil {
-				logger.Error("Failed to switch node", "error", err)
-				os.Exit(1)
+			if apiAddr != "" {
+				payload["api"] = apiAddr
+			}
+			if _, err := dispatchToDaemon(cmd.Context(), "node.use", payload); err != nil {
+				return fmt.Errorf("failed to switch node: %w", err)
 			}
 
 			logger.Info("Switched successfully", "group", group, "node", node)
+			return nil
 		},
 	}
+}
+
+func decodeProxies(raw any) (map[string]client.ProxyData, error) {
+	if raw == nil {
+		return nil, fmt.Errorf("missing proxies data")
+	}
+	data, err := json.Marshal(raw)
+	if err != nil {
+		return nil, err
+	}
+	var proxies map[string]client.ProxyData
+	if err := json.Unmarshal(data, &proxies); err != nil {
+		return nil, err
+	}
+	return proxies, nil
 }
