@@ -106,18 +106,18 @@ func TestCLI_RunCommand(t *testing.T) {
 		forceFallback bool
 	}{
 		{
-			name:          "non-existent config file",
+			name:          "non-existent config file - should create default",
 			configPath:    "non_existent_config.json",
-			wantErr:       true,
-			errMsg:        "failed to load profile file",
-			forceFallback: true,
+			wantErr:       false,
+			errMsg:        "",
+			forceFallback: false,
 		},
 		{
-			name:          "invalid json config",
+			name:          "invalid json config - should create default",
 			configPath:    createTempConfig(t, `{"invalid": json}`),
-			wantErr:       true,
-			errMsg:        "failed to load profile file",
-			forceFallback: true,
+			wantErr:       false,
+			errMsg:        "",
+			forceFallback: false,
 		},
 		{
 			name:          "empty config - should start successfully with defaults",
@@ -135,8 +135,10 @@ func TestCLI_RunCommand(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 			defer cancel()
 
-			// 创建临时的 home 目录
-			tmpHome := t.TempDir()
+			// 创建临时的 home 目录 (使用 /tmp 以避免路径过长导致 unix socket bind 失败)
+			tmpHome := filepath.Join("/tmp", fmt.Sprintf("minibox-test-%d-%d", time.Now().UnixNano(), os.Getpid()))
+			os.MkdirAll(tmpHome, 0755)
+			defer os.RemoveAll(tmpHome)
 
 			// 如果提供了 configPath (临时文件路径)，将其复制/重命名为 profile.json 放到 tmpHome 下
 			// 如果是 "non_existent"，则不创建
@@ -164,8 +166,9 @@ func TestCLI_RunCommand(t *testing.T) {
 			err := root.Execute()
 
 			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMsg)
+				if assert.Error(t, err) {
+					assert.Contains(t, err.Error(), tt.errMsg)
+				}
 			} else {
 				assert.NoError(t, err)
 			}

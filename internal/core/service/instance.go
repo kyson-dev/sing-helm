@@ -22,6 +22,17 @@ func NewInstance() *instance {
 	return &instance{}
 }
 
+func (s *instance) Stop() {
+	if s.box != nil {
+		if err := s.box.Close(); err != nil {
+			logger.Error("Failed to close box instance", "error", err)
+			return 
+		}
+		logger.Info("Sing-box instance closed successfully")
+		s.box = nil
+	}
+}	
+
 // ReloadFromFile 从配置文件重新加载 sing-box
 func (s *instance) ReloadFromFile(ctx context.Context, configPath string) error {
 	if s.box != nil {
@@ -95,13 +106,5 @@ func (s *instance) Start(ctx context.Context, opts *option.Options) error {
 	}
 	s.box = newBox
 	logger.Info("Sing-box core started, launching cleanup goroutine")
-	go func() {
-		<-ctx.Done()
-		if err := s.box.Close(); err != nil {
-			logger.Error("Failed to close box instance", "error", err)
-			return 
-		}
-		logger.Info("Sing-box instance closed successfully")
-	}()
 	return nil
 }

@@ -25,7 +25,7 @@ Note: This will restart sing-box to apply the new mode.`,
 				}
 
 				if mode, ok := resp.Data["route_mode"].(string); ok && mode != "" {
-					fmt.Printf("Current route mode: %s\n", mode)
+					cmd.Printf("Current route mode: %s\n", mode)
 					return nil
 				}
 				return fmt.Errorf("missing route mode in daemon status")
@@ -40,7 +40,7 @@ Note: This will restart sing-box to apply the new mode.`,
 			if newMode, ok := resp.Data["route_mode"].(string); ok && newMode != "" {
 				mode = newMode
 			}
-			fmt.Printf("Route mode switched to: %s\n", mode)
+			cmd.Printf("Route mode switched to: %s\n", mode)
 			return nil
 		},
 	}

@@ -78,11 +78,11 @@ build-dev:
 # --- 交叉编译 (Cross Compilation) ---
 # Go 的一大杀器：一条命令打出 Windows, Linux, macOS 包
 build-all:
-	@echo "Building for Linux (amd64)..."
-	GOOS=linux GOARCH=amd64 $(ENV) go build $(FLAGS) -o $(BUILD_DIR)/$(APP)-linux-amd64 ./cmd/$(APP)
+# 	@echo "Building for Linux (amd64)..."
+# 	GOOS=linux GOARCH=amd64 $(ENV) go build $(FLAGS) -o $(BUILD_DIR)/$(APP)-linux-amd64 ./cmd/$(APP)
 	
-	@echo "Building for Windows (amd64)..."
-	GOOS=windows GOARCH=amd64 $(ENV) go build $(FLAGS) -o $(BUILD_DIR)/$(APP)-windows-amd64.exe ./cmd/$(APP)
+# 	@echo "Building for Windows (amd64)..."
+# 	GOOS=windows GOARCH=amd64 $(ENV) go build $(FLAGS) -o $(BUILD_DIR)/$(APP)-windows-amd64.exe ./cmd/$(APP)
 	
 	@echo "Building for macOS (arm64/M1)..."
 	GOOS=darwin GOARCH=arm64 $(ENV) go build $(FLAGS) -o $(BUILD_DIR)/$(APP)-darwin-arm64 ./cmd/$(APP)

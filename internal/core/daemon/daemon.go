@@ -21,6 +21,7 @@ import (
 type ServiceRunner interface {
 	StartFromFile(context.Context, string) error
 	ReloadFromFile(context.Context, string) error
+	Stop()
 }
 
 type Daemon struct {
@@ -30,6 +31,7 @@ type Daemon struct {
 	serviceFactory func() ServiceRunner
 	lock           *env.DaemonLock
 	running        bool
+	reloading      bool // 防止并发 reload
 	state          *config.RuntimeState
 }
 
@@ -104,6 +106,7 @@ func (d *Daemon) cleanup() {
 		d.lock = nil
 	}
 	if d.service != nil {
+		d.service.Stop()
 		d.service = nil
 	}
 	if state != nil {
@@ -189,6 +192,9 @@ func (d *Daemon) handleRun(ctx context.Context, payload map[string]any) ipc.Comm
 	startFailed = false
 	d.mu.Lock()
 	d.service = svc
+	if d.state == nil {
+		d.state = &config.RuntimeState{}
+	}
 	d.state.RunOptions = runops
 	d.mu.Unlock()
 
@@ -325,6 +331,20 @@ func (d *Daemon) handleRoute(ctx context.Context, payload map[string]any) ipc.Co
 }
 
 func (d *Daemon) applyRunOptions(ctx context.Context, state *config.RuntimeState) error {
+	// 检查并设置 reloading 标志，防止并发 reload
+	d.mu.Lock()
+	if d.reloading {
+		d.mu.Unlock()
+		return errors.New("reload already in progress")
+	}
+	d.reloading = true
+	d.mu.Unlock()
+	defer func() {
+		d.mu.Lock()
+		d.reloading = false
+		d.mu.Unlock()
+	}()
+
 	if err := runtime.BuildConfig(env.Get().ConfigFile, env.Get().RawConfigFile, &state.RunOptions); err != nil {
 		return err
 	}

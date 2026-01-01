@@ -20,12 +20,14 @@ type fakeService struct {
 	reloadPath string
 	runStarted chan struct{}
 	runStopped chan struct{}
+	stopCh     chan struct{}
 }
 
 func newFakeService() *fakeService {
 	return &fakeService{
 		runStarted: make(chan struct{}),
 		runStopped: make(chan struct{}),
+		stopCh:     make(chan struct{}),
 	}
 }
 
@@ -37,7 +39,10 @@ func (f *fakeService) StartFromFile(ctx context.Context, path string) error {
 	// 模拟服务启动
 	go func() {
 		f.runStarted <- struct{}{}
-		<-ctx.Done()
+		select {
+		case <-ctx.Done():
+		case <-f.stopCh:
+		}
 		f.runStopped <- struct{}{}
 	}()
 	return nil
@@ -46,6 +51,14 @@ func (f *fakeService) StartFromFile(ctx context.Context, path string) error {
 func (f *fakeService) ReloadFromFile(ctx context.Context, path string) error {
 	f.reloadPath = path
 	return nil
+}
+
+func (f *fakeService) Stop() {
+	select {
+	case <-f.stopCh:
+	default:
+		close(f.stopCh)
+	}
 }
 
 func TestDaemonHandleCommands(t *testing.T) {

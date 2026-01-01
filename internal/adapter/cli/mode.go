@@ -25,7 +25,7 @@ Note: This will restart sing-box to apply the new mode.`,
 				}
 
 				if mode, ok := resp.Data["proxy_mode"].(string); ok && mode != "" {
-					fmt.Printf("Current proxy mode: %s\n", mode)
+					cmd.Printf("Current proxy mode: %s\n", mode)
 					return nil
 				}
 				return fmt.Errorf("missing proxy mode in daemon status")
@@ -40,7 +40,7 @@ Note: This will restart sing-box to apply the new mode.`,
 			if newMode, ok := resp.Data["proxy_mode"].(string); ok && newMode != "" {
 				mode = newMode
 			}
-			fmt.Printf("Proxy mode switched to: %s\n", mode)
+			cmd.Printf("Proxy mode switched to: %s\n", mode)
 			return nil
 		},
 	}
