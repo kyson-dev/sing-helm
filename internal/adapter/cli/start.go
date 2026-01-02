@@ -79,7 +79,11 @@ func newStartCommand() *cobra.Command {
 			for {
 				select {
 				case <-timeout:
-					return fmt.Errorf("daemon failed to start; check permissions or run with sudo")
+					logHint := ""
+					if logFile != "" {
+						logHint = fmt.Sprintf(" (log: %s)", logFile)
+					}
+					return fmt.Errorf("daemon failed to start; check logs%s or run with sudo", logHint)
 				case <-ticker.C:
 					resp, err := dispatchToDaemon(cmd.Context(), "status", nil)
 					if err == nil {
@@ -92,6 +96,7 @@ func newStartCommand() *cobra.Command {
 							}
 							return nil
 						}
+						return fmt.Errorf("sing-box is not running; check logs for details")
 					}
 				}
 			}
