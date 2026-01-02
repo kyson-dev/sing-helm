@@ -60,13 +60,22 @@ func (d *Daemon) SetServiceFactory(factory func() ServiceRunner) {
 // Serve starts the IPC server. Blocks until ctx is cancelled.
 // Use "run" IPC command to start sing-box service.
 func (d *Daemon) Serve(ctx context.Context) error {
+	if err := env.EnsureRuntimeDirs(env.Get().RuntimeDir, env.Get().LogFile); err != nil {
+		if os.IsPermission(err) {
+			return fmt.Errorf("runtime directory not writable (try sudo): %w", err)
+		}
+		return fmt.Errorf("runtime directory not writable: %w", err)
+	}
 	// 检查是否已有实例在运行（通过尝试获取锁）
-	lock, err := env.AcquireLock(env.Get().HomeDir)
+	lock, err := env.AcquireLock(env.Get().RuntimeDir)
 	if err != nil {
 		return fmt.Errorf("another instance is already running: %w", err)
 	}
 	d.lock = lock
 	d.loadState()
+	_ = env.SaveRuntimeMeta(env.Get().RuntimeDir, env.RuntimeMeta{
+		ConfigHome: env.Get().HomeDir,
+	})
 
 	// 创建可取消的 context，用于控制所有子服务的生命周期
 	ctx, cancel := context.WithCancel(ctx)
@@ -277,7 +286,7 @@ func (d *Daemon) handleStatus() ipc.CommandResult {
 
 func (d *Daemon) handleMode(ctx context.Context, payload map[string]any) ipc.CommandResult {
 	if !d.isRunning() {
-		return ipc.CommandResult{Status: "error", Error: "daemon not running"}
+		return ipc.CommandResult{Status: "error", Error: "sing-box not running"}
 	}
 	modeStr, ok := payload["mode"].(string)
 	if !ok || modeStr == "" {
@@ -306,7 +315,7 @@ func (d *Daemon) handleMode(ctx context.Context, payload map[string]any) ipc.Com
 
 func (d *Daemon) handleRoute(ctx context.Context, payload map[string]any) ipc.CommandResult {
 	if !d.isRunning() {
-		return ipc.CommandResult{Status: "error", Error: "daemon not running"}
+		return ipc.CommandResult{Status: "error", Error: "sing-box not running"}
 	}
 	routeStr, ok := payload["route"].(string)
 	if !ok || routeStr == "" {
@@ -345,19 +354,30 @@ func (d *Daemon) applyRunOptions(ctx context.Context, state *config.RuntimeState
 		d.mu.Unlock()
 	}()
 
+	backupPath, _ := backupConfig(env.Get().RawConfigFile)
 	if err := runtime.BuildConfig(env.Get().ConfigFile, env.Get().RawConfigFile, &state.RunOptions); err != nil {
 		return err
 	}
 	if d.service == nil {
-		return errors.New("service not available")
+		err := errors.New("service not available")
+		return err
 	}
-	// TODO: 这里有优化空间，可以设计如果出错，就恢复到之前的状态重启，保证服务可用
 	if err := d.service.ReloadFromFile(ctx, env.Get().RawConfigFile); err != nil {
 		var reloadErr *service.ReloadError
 		if errors.As(err, &reloadErr) && reloadErr.Stage == service.ReloadStageStart {
-			d.mu.Lock()
-			d.running = false
-			d.mu.Unlock()
+			if backupPath != "" {
+				if retryErr := d.service.StartFromFile(ctx, backupPath); retryErr == nil {
+					if restoreErr := restoreConfig(backupPath, env.Get().RawConfigFile); restoreErr != nil {
+						return restoreErr
+					}
+					d.setRunning(true)
+					_ = os.Remove(backupPath)
+				} else {
+					d.setRunning(false)
+				}
+			} else {
+				d.setRunning(false)
+			}
 		}
 		return err
 	}
@@ -365,6 +385,44 @@ func (d *Daemon) applyRunOptions(ctx context.Context, state *config.RuntimeState
 	d.state = state
 	d.mu.Unlock()
 	return nil
+}
+
+func (d *Daemon) setRunning(running bool) {
+	d.mu.Lock()
+	d.running = running
+	d.mu.Unlock()
+}
+
+func backupConfig(path string) (string, error) {
+	if path == "" {
+		return "", nil
+	}
+	if _, err := os.Stat(path); err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	backup := path + ".bak"
+	input, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(backup, input, 0644); err != nil {
+		return "", err
+	}
+	return backup, nil
+}
+
+func restoreConfig(backupPath, targetPath string) error {
+	if backupPath == "" || targetPath == "" {
+		return nil
+	}
+	data, err := os.ReadFile(backupPath)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(targetPath, data, 0644)
 }
 
 func (d *Daemon) handleUpdate(ctx context.Context) ipc.CommandResult {
@@ -377,14 +435,18 @@ func (d *Daemon) handleUpdate(ctx context.Context) ipc.CommandResult {
 
 func (d *Daemon) handleStop() ipc.CommandResult {
 	d.mu.Lock()
-	defer d.mu.Unlock()
-	if !d.running {
+	running := d.running
+	cancel := d.cancelFunc
+	d.mu.Unlock()
+
+	if cancel == nil {
+		if running {
+			return ipc.CommandResult{Status: "error", Error: "daemon not running"}
+		}
 		return ipc.CommandResult{Status: "error", Error: "daemon not running"}
 	}
 	// 取消 daemon context 会触发所有子服务退出
-	if d.cancelFunc != nil {
-		d.cancelFunc()
-	}
+	cancel()
 	return ipc.CommandResult{Status: "ok"}
 }
 
@@ -417,7 +479,7 @@ func (d *Daemon) currentState() (*config.RuntimeState, error) {
 
 func (d *Daemon) handleNodeList(payload map[string]any) ipc.CommandResult {
 	if !d.isRunning() {
-		return ipc.CommandResult{Status: "error", Error: "daemon not running"}
+		return ipc.CommandResult{Status: "error", Error: "sing-box not running"}
 	}
 	apiAddr, err := d.resolveAPIAddr(payload)
 	if err != nil {
@@ -433,7 +495,7 @@ func (d *Daemon) handleNodeList(payload map[string]any) ipc.CommandResult {
 
 func (d *Daemon) handleNodeUse(payload map[string]any) ipc.CommandResult {
 	if !d.isRunning() {
-		return ipc.CommandResult{Status: "error", Error: "daemon not running"}
+		return ipc.CommandResult{Status: "error", Error: "sing-box not running"}
 	}
 	group, ok := payload["group"].(string)
 	if !ok || group == "" {

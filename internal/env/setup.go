@@ -9,7 +9,7 @@ import (
 // homeFlag: 命令行传入的 --home 参数
 // 逻辑：
 // 1. 指定了 homeFlag -> 用之
-// 2. 未指定 -> 优先级：活跃实例 > 第一个注册目录 > 默认 ~/.minibox
+// 2. 未指定 -> 优先级：系统 daemon 关联的配置 > 活跃实例 > 第一个注册目录 > 默认 ~/.minibox
 // 3. 无论如何 -> 注册该环境
 func Setup(homeFlag string) error {
 	resolvedHome := ""
@@ -18,21 +18,13 @@ func Setup(homeFlag string) error {
 	if homeFlag != "" {
 		resolvedHome = homeFlag
 	} else {
-		// 2. 自动探测：优先活跃实例，其次第一个注册目录
-		if active := FindActive(); active != "" {
-			// 找到活跃实例，使用它
-			resolvedHome = active
+		// 2. 自动探测：优先系统 daemon 关联的配置
+		if runtimeHome := FindRuntimeConfigHome(); runtimeHome != "" {
+			resolvedHome = runtimeHome
 		} else {
-			// 没有活跃实例，检查注册表
-			list := GetList()
-			if len(list) > 0 {
-				// 使用第一个注册的目录（最近使用的）
-				resolvedHome = list[0]
-			} else {
-				// 注册表为空，使用默认值
-				userHome, _ := os.UserHomeDir()
-				resolvedHome = filepath.Join(userHome, ".minibox")
-			}
+			// 使用默认值
+			userHome, _ := os.UserHomeDir()
+			resolvedHome = filepath.Join(userHome, ".minibox")
 		}
 	}
 
@@ -42,7 +34,5 @@ func Setup(homeFlag string) error {
 		return err
 	}
 
-	// 4. 注册到注册表 (确保下次能发现)
-	// Register 会将 resolvedHome 添加到 ~/.config/minibox/registry.json
-	return Register(resolvedHome)
+	return nil
 }

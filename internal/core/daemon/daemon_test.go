@@ -167,6 +167,7 @@ func setupEnv(t *testing.T) {
 	t.Helper()
 	env.ResetForTest()
 	dir := t.TempDir()
+	env.SetRuntimeDir(dir)
 	if err := env.Init(dir); err != nil {
 		t.Fatalf("env.Init failed: %v", err)
 	}

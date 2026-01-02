@@ -1,11 +1,11 @@
 package monitor
 
 import (
-	"sync"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/kyson/minibox/internal/adapter/logger"
+	"github.com/kyson/minibox/internal/core/client"
 )
 
 // ============================================================================
@@ -21,12 +21,15 @@ func (m *Model) handleConnected(msg connectedMsg) (Model, tea.Cmd) {
 	m.wsConn = msg.conn
 	m.connState.OnConnected()
 	m.lastError = nil
+	m.reconnectWait = false
+	m.statusInFlight = false
 
 	// 开始读取流量 + 拉取数据
 	return *m, tea.Batch(
 		cmdReadTraffic(m.wsConn),
 		cmdFetchProxies(m.apiClient),
 		cmdFetchStatus(m.apiClient),
+		cmdStatusTick(m.statusInterval),
 	)
 }
 
@@ -34,6 +37,7 @@ func (m *Model) handleConnected(msg connectedMsg) (Model, tea.Cmd) {
 func (m *Model) handleDisconnected(msg disconnectedMsg) (Model, tea.Cmd) {
 	m.lastError = msg.err
 	m.connState.OnDisconnected() // 自动进入 Connecting 状态
+	m.statusInFlight = false
 
 	// 关闭旧连接
 	if m.wsConn != nil {
@@ -46,12 +50,16 @@ func (m *Model) handleDisconnected(msg disconnectedMsg) (Model, tea.Cmd) {
 	if m.isUpdating() {
 		delay = 2 * time.Second
 	}
-
+	if m.reconnectWait {
+		return *m, nil
+	}
+	m.reconnectWait = true
 	return *m, cmdReconnectAfter(delay)
 }
 
 // handleReconnectTick 处理重连计时器
 func (m *Model) handleReconnectTick() (Model, tea.Cmd) {
+	m.reconnectWait = false
 	// 如果正在更新，继续等待
 	if m.isUpdating() {
 		return *m, cmdReconnectAfter(500 * time.Millisecond)
@@ -74,8 +82,20 @@ func (m *Model) handleTraffic(msg trafficMsg) (Model, tea.Cmd) {
 
 // handleStatus 处理状态信息
 func (m *Model) handleStatus(msg statusMsg) (Model, tea.Cmd) {
+	m.statusInFlight = false
+	if msg.APIBase != "" && msg.APIBase != m.apiBase {
+		m.apiBase = msg.APIBase
+		m.apiClient = client.New(msg.APIBase)
+		if m.wsConn != nil {
+			m.wsConn.Close()
+			m.wsConn = nil
+		}
+		m.connState.OnDisconnected()
+		m.reconnectWait = false
+		return *m, cmdConnect(m.apiBase)
+	}
 	if msg.Err != nil {
-		return *m, cmdStatusTick(m.apiClient)
+		return *m, cmdStatusTick(m.statusInterval)
 	}
 
 	m.proxyMode = msg.ProxyMode
@@ -85,7 +105,19 @@ func (m *Model) handleStatus(msg statusMsg) (Model, tea.Cmd) {
 	m.traffic.TotalUp = msg.TotalUp
 	m.traffic.TotalDown = msg.TotalDown
 
-	return *m, cmdStatusTick(m.apiClient)
+	return *m, cmdStatusTick(m.statusInterval)
+}
+
+// handleStatusTick 触发状态轮询
+func (m *Model) handleStatusTick() (Model, tea.Cmd) {
+	if !m.connState.State.IsConnected() {
+		return *m, nil
+	}
+	if m.statusInFlight {
+		return *m, cmdStatusTick(m.statusInterval)
+	}
+	m.statusInFlight = true
+	return *m, cmdFetchStatus(m.apiClient)
 }
 
 // handleProxies 处理代理列表
@@ -133,11 +165,10 @@ func (m *Model) handleModeChanged(msg modeChangedMsg) (Model, tea.Cmd) {
 
 	if msg.Err == nil {
 		m.proxyMode = msg.NewMode
+		return m.restartConnection(500 * time.Millisecond)
 	}
-
-	// mode 切换会导致 sing-box 重启，连接会自动断开并重连
-	// 不需要手动触发重连，handleDisconnected 会处理
-	return *m, cmdFetchStatus(m.apiClient)
+	m.lastError = msg.Err
+	return m.restartConnection(500 * time.Millisecond)
 }
 
 // handleRouteChanged 处理 route 切换结果
@@ -147,9 +178,10 @@ func (m *Model) handleRouteChanged(msg routeChangedMsg) (Model, tea.Cmd) {
 
 	if msg.Err == nil {
 		m.routeMode = msg.NewRoute
+		return m.restartConnection(500 * time.Millisecond)
 	}
-
-	return *m, cmdFetchStatus(m.apiClient)
+	m.lastError = msg.Err
+	return m.restartConnection(500 * time.Millisecond)
 }
 
 // handleNodeChanged 处理 node 切换结果（不需要锁）
@@ -322,29 +354,31 @@ func (m *Model) handleKeyRoute() (Model, tea.Cmd) {
 }
 
 // =============================================================================
-// 更新状态管理（使用互斥锁保护）
+// 更新状态管理
 // =============================================================================
-
-var updateMutex sync.Mutex
-var updating bool
-
 // isUpdating 检查是否正在更新 mode/route
 func (m *Model) isUpdating() bool {
-	updateMutex.Lock()
-	defer updateMutex.Unlock()
-	return updating
+	return m.updating
 }
 
 // setUpdating 设置更新标志
 func (m *Model) setUpdating() {
-	updateMutex.Lock()
-	defer updateMutex.Unlock()
-	updating = true
+	m.updating = true
 }
 
 // clearUpdating 清除更新标志
 func (m *Model) clearUpdating() {
-	updateMutex.Lock()
-	defer updateMutex.Unlock()
-	updating = false
+	m.updating = false
+}
+
+func (m *Model) restartConnection(delay time.Duration) (Model, tea.Cmd) {
+	if m.wsConn != nil {
+		m.wsConn.Close()
+		m.wsConn = nil
+	}
+	m.connState.OnDisconnected()
+	m.lastError = nil
+	m.statusInFlight = false
+	m.reconnectWait = false
+	return *m, cmdReconnectAfter(delay)
 }

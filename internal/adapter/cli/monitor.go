@@ -21,7 +21,7 @@ func newMonitorCommand() *cobra.Command {
 					return fmt.Errorf("failed to fetch daemon status: %w", err)
 				}
 				if running, _ := resp.Data["running"].(bool); !running {
-					return fmt.Errorf("minibox is not running")
+					return fmt.Errorf("sing-box is not running")
 				}
 				listenAddr, _ := resp.Data["listen_addr"].(string)
 				apiPort, ok := asInt(resp.Data["api_port"])

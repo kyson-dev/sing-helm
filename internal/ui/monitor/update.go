@@ -45,6 +45,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		newM, cmd := m.handleStatus(msg)
 		return newM, cmd
 
+	case statusTickMsg:
+		newM, cmd := m.handleStatusTick()
+		return newM, cmd
+
 	case proxiesMsg:
 		newM, cmd := m.handleProxies(msg)
 		return newM, cmd

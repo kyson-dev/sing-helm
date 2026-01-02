@@ -16,10 +16,10 @@ func GetLockPath(homeDir string) string {
 	return filepath.Join(homeDir, "minibox.lock")
 }
 
-// AcquireLock 获取指定主目录的文件锁，非阻塞
+// AcquireLock 获取指定运行时目录的文件锁，非阻塞
 // 如果已经被锁定，返回 error
-func AcquireLock(homeDir string) (*DaemonLock, error) {
-	path := GetLockPath(homeDir)
+func AcquireLock(runtimeDir string) (*DaemonLock, error) {
+	path := GetLockPath(runtimeDir)
 	// 确保目录存在
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return nil, err
@@ -42,22 +42,35 @@ func AcquireLock(homeDir string) (*DaemonLock, error) {
 	}, nil
 }
 
-// CheckLock 检查指定主目录的锁是否被占用
+// CheckLock 检查指定运行时目录的锁是否被占用
 // 如果锁被占用，返回 nil (daemon running)
 // 如果锁未被占用，返回 error (daemon not running)
-func CheckLock(homeDir string) error {
-	path := GetLockPath(homeDir)
+func CheckLock(runtimeDir string) error {
+	path := GetLockPath(runtimeDir)
 	f, err := os.OpenFile(path, os.O_RDWR, 0644)
 	if os.IsNotExist(err) {
 		return errors.New("daemon not running (lock file missing)")
 	}
+	readOnly := false
 	if err != nil {
-		return err
+		if os.IsPermission(err) {
+			f, err = os.Open(path)
+			if err != nil {
+				return err
+			}
+			readOnly = true
+		} else {
+			return err
+		}
 	}
 	defer f.Close()
 
 	// 尝试获取锁
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+	lockType := syscall.LOCK_EX
+	if readOnly {
+		lockType = syscall.LOCK_SH
+	}
+	if err := syscall.Flock(int(f.Fd()), lockType|syscall.LOCK_NB); err != nil {
 		// 获取锁失败，说明正在运行
 		return nil
 	}

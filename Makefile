@@ -26,7 +26,7 @@ LDFLAGS := -s -w \
 # 4. TRIMPATH: 移除二进制文件中的绝对路径信息 (保护隐私，且让构建可复现)
 FLAGS := -tags "$(TAGS)" -trimpath -ldflags "$(LDFLAGS)"
 
-.PHONY: all test test-verbose test-short test-coverage build lint clean
+.PHONY: all test test-verbose test-short test-coverage build lint clean links
 
 all: lint test build
 
@@ -73,6 +73,10 @@ build-dev:
 	@echo "  ./bin/minibox run                    # Use default home (~/.minibox)"
 	@echo "  ./bin/minibox run --home ./bin/dev   # Use custom directory"
 	@echo ""
+	@echo "Install (macOS):"
+	@echo "  sudo install -m 0755 bin/minibox /usr/local/bin/minibox"
+	@echo "  sudo minibox autostart on"
+	@echo ""
 	@echo "Environment is auto-detected or can be specified with --home flag"
 
 # --- 交叉编译 (Cross Compilation) ---
@@ -97,3 +101,11 @@ lint:
 clean:
 	rm -rf $(BUILD_DIR)
 	rm -f coverage.out coverage.html
+
+# Create handy symlinks to runtime/home/log paths for local inspection
+links:
+	@mkdir -p $(BUILD_DIR)
+	@ln -snf "$${MINIBOX_RUNTIME_DIR:-/var/run/minibox}" $(BUILD_DIR)/runtime
+	@ln -snf "$${HOME}/.minibox" $(BUILD_DIR)/home
+	@ln -snf /var/log/minibox $(BUILD_DIR)/logs
+	@echo "Links created in $(BUILD_DIR)/: runtime, home, logs"

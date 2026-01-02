@@ -80,7 +80,7 @@ func (m *RouteModule) generateDefaultRoute() (*option.RouteOptions, error) {
 			// 2. NTP 直连
 			{"protocol": []string{"ntp"}, "outbound": "direct"},
 			// 3. 阻止 443 端口 UDP (强制 TCP 稳定性)
-			{"port": []int{443}, "protocol": []string{"udp"}, "action": "reject"},
+			//{"port": []int{443}, "protocol": []string{"udp"}, "action": "reject"},
 			// 4. 私有 IP 直连
 			{"ip_is_private": true, "outbound": "direct"},
 			// 5. 常用 CN DNS 直连

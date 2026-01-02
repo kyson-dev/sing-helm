@@ -37,7 +37,9 @@ func newStartCommand() *cobra.Command {
 			if LogFile == "" {
 				LogFile = env.Get().LogFile
 			}
-			runArgs = append(runArgs, "--log", LogFile)
+			if LogFile != "" {
+				runArgs = append(runArgs, "--log", LogFile)
+			}
 			runArgs = append(runArgs, "run")
 
 			// 添加 mode 参数
@@ -54,11 +56,14 @@ func newStartCommand() *cobra.Command {
 			// 关键：将子进程的 stdout/stderr 重定向到 /dev/null
 			// 这样子进程的 isTerminal() 会返回 false，日志会写入文件
 			// 注意：设置为 nil 会继承父进程的 stdout，所以必须显式打开 /dev/null
-			devNull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
-			if err == nil {
-				command.Stdout = devNull
-				command.Stderr = devNull
-				defer devNull.Close()
+			// 如果没有可用的日志文件，则保留 stdout/stderr 以便看到错误提示
+			if LogFile != "" {
+				devNull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+				if err == nil {
+					command.Stdout = devNull
+					command.Stderr = devNull
+					defer devNull.Close()
+				}
 			}
 			command.Stdin = nil
 
@@ -67,15 +72,31 @@ func newStartCommand() *cobra.Command {
 				return fmt.Errorf("failed to start daemon: %w", err)
 			}
 
-			// 5. 等待一小会儿，确保子进程没有立即崩溃 (比如配置错误)
-			time.Sleep(1 * time.Second)
-			if command.ProcessState != nil && command.ProcessState.Exited() {
-				return fmt.Errorf("daemon process exited unexpectedly; check logs")
+			// 5. 等待一小会儿，确保 daemon 可用
+			timeout := time.After(2 * time.Second)
+			ticker := time.NewTicker(150 * time.Millisecond)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-timeout:
+					return fmt.Errorf("daemon failed to start; check permissions or run with sudo")
+				case <-ticker.C:
+					resp, err := dispatchToDaemon(cmd.Context(), "status", nil)
+					if err == nil {
+						if running, _ := resp.Data["running"].(bool); running {
+							fmt.Printf("Minibox started [PID: %d]\n", command.Process.Pid)
+							if logFile != "" {
+								fmt.Printf("Log file: %s\n", logFile)
+							} else {
+								fmt.Println("Log file: (not set)")
+							}
+							return nil
+						}
+					}
+				}
 			}
 
-			fmt.Printf("Minibox started [PID: %d]\n", command.Process.Pid)
-			fmt.Printf("Log file: %s\n", logFile)
-			return nil
+			// unreachable
 		},
 	}
 

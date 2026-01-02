@@ -16,14 +16,12 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	// 创建独立的测试 registry 目录
-	registryDir := filepath.Join(os.TempDir(), "minibox-registry-test")
-	os.RemoveAll(registryDir) // 清理旧的测试数据
-	os.MkdirAll(registryDir, 0755)
-
-	env.SetRegistryDir(registryDir)
-	defer env.ResetRegistryDir()    // 确保测试结束后恢复
-	defer os.RemoveAll(registryDir) // 清理测试目录
+	runtimeDir := filepath.Join(os.TempDir(), "minibox-runtime-test")
+	os.RemoveAll(runtimeDir)
+	os.MkdirAll(runtimeDir, 0755)
+	env.SetRuntimeDir(runtimeDir)
+	defer env.ResetRuntimeDir()
+	defer os.RemoveAll(runtimeDir)
 
 	os.Setenv("MINIBOX_TEST_SKIP_SERVICE", "1")
 	os.Setenv("MINIBOX_TEST_MIXED_PORT", "10808")
@@ -139,6 +137,7 @@ func TestCLI_RunCommand(t *testing.T) {
 			tmpHome := filepath.Join("/tmp", fmt.Sprintf("minibox-test-%d-%d", time.Now().UnixNano(), os.Getpid()))
 			os.MkdirAll(tmpHome, 0755)
 			defer os.RemoveAll(tmpHome)
+			env.SetRuntimeDir(tmpHome)
 
 			// 如果提供了 configPath (临时文件路径)，将其复制/重命名为 profile.json 放到 tmpHome 下
 			// 如果是 "non_existent"，则不创建

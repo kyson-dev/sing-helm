@@ -2,7 +2,9 @@ package monitor
 
 import (
 	"context"
+	"net"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -46,11 +48,15 @@ func cmdReadTraffic(conn *websocket.Conn) tea.Cmd {
 		if conn == nil {
 			return disconnectedMsg{err: nil}
 		}
+		_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 		var stats struct {
 			Up   int64 `json:"up"`
 			Down int64 `json:"down"`
 		}
 		if err := conn.ReadJSON(&stats); err != nil {
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+				return disconnectedMsg{err: err}
+			}
 			return disconnectedMsg{err: err}
 		}
 		return trafficMsg{Up: stats.Up, Down: stats.Down}
@@ -66,19 +72,26 @@ func cmdFetchStatus(c *client.Client) tea.Cmd {
 	return func() tea.Msg {
 		// 从 sing-box API 获取连接信息
 		conns, err := c.GetConnections()
-		if err != nil {
-			return statusMsg{Err: err}
-		}
-
-		// 从 daemon 获取配置模式
+		// 从 daemon 获取配置模式 + API 地址
 		proxyMode := "unknown"
 		routeMode := "unknown"
+		apiBase := ""
 		if status, err := controller.FetchStatus(context.Background()); err == nil {
 			if status.ProxyMode != "" {
 				proxyMode = status.ProxyMode
 			}
 			if status.RouteMode != "" {
 				routeMode = status.RouteMode
+			}
+			apiBase = apiBaseFromStatus(status)
+		}
+
+		if err != nil {
+			return statusMsg{
+				ProxyMode: proxyMode,
+				RouteMode: routeMode,
+				APIBase:   apiBase,
+				Err:       err,
 			}
 		}
 
@@ -89,6 +102,7 @@ func cmdFetchStatus(c *client.Client) tea.Cmd {
 			Memory:      conns.Memory,
 			TotalUp:     conns.UploadTotal,
 			TotalDown:   conns.DownloadTotal,
+			APIBase:     apiBase,
 		}
 	}
 }
@@ -116,9 +130,9 @@ func cmdTestLatency(c *client.Client, name string) tea.Cmd {
 }
 
 // cmdStatusTick 状态定时刷新
-func cmdStatusTick(c *client.Client) tea.Cmd {
-	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
-		return cmdFetchStatus(c)()
+func cmdStatusTick(delay time.Duration) tea.Cmd {
+	return tea.Tick(delay, func(t time.Time) tea.Msg {
+		return statusTickMsg{}
 	})
 }
 
@@ -134,7 +148,7 @@ func cmdSwitchMode(current string) tea.Cmd {
 		var next string
 		switch strings.ToLower(current) {
 		case "system":
-			next = "default" // 暂时跳过 TUN，简化逻辑
+			next = "tun" 
 		case "tun":
 			next = "default"
 		case "default":
@@ -146,14 +160,15 @@ func cmdSwitchMode(current string) tea.Cmd {
 		// 调用 daemon 切换
 		_, err := controller.SwitchProxyMode(next)
 		if err != nil {
+			return modeChangedMsg{NewMode: current, Err: err}
 			// TUN 权限错误时自动跳过
-			if strings.Contains(err.Error(), "permission") && next == "tun" {
-				next = "default"
-				_, err = controller.SwitchProxyMode(next)
-			}
-			if err != nil {
-				return modeChangedMsg{NewMode: current, Err: err}
-			}
+			// if strings.Contains(err.Error(), "permission") && next == "tun" {
+			// 	next = "default"
+			// 	_, err = controller.SwitchProxyMode(next)
+			// }
+			// if err != nil {
+			// 	return modeChangedMsg{NewMode: current, Err: err}
+			// }
 		}
 
 		return modeChangedMsg{NewMode: next, Err: nil}
@@ -217,4 +232,15 @@ func extractGroups(proxies map[string]client.ProxyData) []string {
 	})
 
 	return groups
+}
+
+func apiBaseFromStatus(status *controller.Status) string {
+	if status == nil || status.APIPort == 0 {
+		return ""
+	}
+	addr := status.ListenAddr
+	if addr == "" {
+		addr = "127.0.0.1"
+	}
+	return addr + ":" + strconv.Itoa(status.APIPort)
 }

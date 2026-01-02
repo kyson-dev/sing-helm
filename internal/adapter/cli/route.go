@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -34,6 +35,9 @@ Note: This will restart sing-box to apply the new mode.`,
 			mode := args[0]
 			resp, err := dispatchToDaemon(cmd.Context(), "route", map[string]any{"route": mode})
 			if err != nil {
+				if strings.Contains(err.Error(), "sing-box not running") {
+					return fmt.Errorf("sing-box is not running")
+				}
 				return err
 			}
 

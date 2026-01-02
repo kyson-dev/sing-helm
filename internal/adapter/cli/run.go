@@ -83,12 +83,20 @@ func runAsDaemon(ctx context.Context, payload map[string]any) error {
 
 		// 现在（正确）
 		sender := ipc.NewUnixSender(env.Get().SocketFile)
-		_, err := sender.Send(context.Background(), ipc.CommandMessage{
+		resp, err := sender.Send(context.Background(), ipc.CommandMessage{
 			Name:    "run",
 			Payload: payload,
 		})
 		if err != nil {
 			logger.Error("Failed to send run command", "error", err)
+			return
+		}
+		if resp.Status != "" && resp.Status != "ok" {
+			if resp.Error != "" {
+				logger.Error("Run command failed", "error", resp.Error)
+			} else {
+				logger.Error("Run command failed", "status", resp.Status)
+			}
 			return
 		}
 		logger.Info("Run command sent successfully")

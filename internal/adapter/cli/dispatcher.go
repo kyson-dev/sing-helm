@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/kyson/minibox/internal/env"
@@ -18,7 +19,14 @@ var ErrDaemonUnavailable = errDaemonUnavailable
 var commandSenderFactory = defaultCommandSenderFactory
 
 func defaultCommandSenderFactory() ipc.CommandSender {
-	return ipc.NewUnixSender(env.Get().SocketFile)
+	socket := env.Get().SocketFile
+	if !pathExists(socket) {
+		legacy := filepath.Join(env.Get().HomeDir, "ipc.sock")
+		if legacy != socket && pathExists(legacy) {
+			return ipc.NewUnixSender(legacy)
+		}
+	}
+	return ipc.NewUnixSender(socket)
 }
 
 // SetCommandSenderFactory lets tests replace the command sender.
@@ -72,4 +80,9 @@ func isDaemonUnavailable(err error) bool {
 		return true
 	}
 	return false
+}
+
+func pathExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }

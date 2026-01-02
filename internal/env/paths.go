@@ -9,6 +9,7 @@ import (
 // Paths 定义了应用所有的关键路径
 type Paths struct {
 	HomeDir       string // 主目录
+	RuntimeDir    string // 运行时目录 (socket/lock/log/state)
 	ConfigFile    string // profile.json (用户配置)
 	RawConfigFile string // raw.json (生成的完整配置)
 	LogFile       string // minibox.log
@@ -53,23 +54,35 @@ func Init(home string) error {
 			return
 		}
 
-		current = GetPath(home)
+		runtimeDir := ResolveRuntimeDir()
+		runtimeDir, err = filepath.Abs(runtimeDir)
+		if err != nil {
+			return
+		}
+
+		logDir := ResolveLogDir(runtimeDir)
+		current = GetPath(home, runtimeDir, logDir)
 	})
 	return err
 }
 
 // GetPath 根据主目录生成路径配置 (纯函数)
-func GetPath(home string) Paths {
+func GetPath(home string, runtimeDir string, logDir string) Paths {
+	logFile := ""
+	if logDir != "" {
+		logFile = filepath.Join(logDir, "minibox.log")
+	}
 	return Paths{
 		HomeDir:       home,
+		RuntimeDir:    runtimeDir,
 		ConfigFile:    filepath.Join(home, "profile.json"),
-		RawConfigFile: filepath.Join(home, "raw.json"),
-		LogFile:       filepath.Join(home, "minibox.log"),
-		StateFile:     filepath.Join(home, "state.json"),
-		LookFile:      GetLockPath(home), // 使用 lock.go 中的单一事实来源
-		SocketFile:    filepath.Join(home, "ipc.sock"),
-		AssetDir:      filepath.Join(home, "assets"),
-		CacheFile:     filepath.Join(home, "cache.db"),
+		RawConfigFile: filepath.Join(runtimeDir, "raw.json"),
+		LogFile:       logFile,
+		StateFile:     filepath.Join(runtimeDir, "state.json"),
+		LookFile:      GetLockPath(runtimeDir), // 使用 lock.go 中的单一事实来源
+		SocketFile:    filepath.Join(runtimeDir, "ipc.sock"),
+		AssetDir:      filepath.Join(runtimeDir, "assets"),
+		CacheFile:     filepath.Join(runtimeDir, "cache.db"),
 	}
 }
 
@@ -78,4 +91,5 @@ func GetPath(home string) Paths {
 func ResetForTest() {
 	current = Paths{}
 	once = sync.Once{}
+	ResetRuntimeDir()
 }

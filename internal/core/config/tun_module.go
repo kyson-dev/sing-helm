@@ -40,7 +40,7 @@ func (m *TUNModule) Apply(opts *option.Options, ctx *BuildContext) error {
 		"strict_route":               true,
 		"stack":                      stack,
 		"inet4_address":              "172.19.0.1/30",
-		"inet6_address":              "fd00::1/126",
+		//"inet6_address":              "fd00::1/126",
 		"sniff":                      true,
 		"sniff_override_destination": false,
 	}
@@ -66,31 +66,38 @@ func (m *TUNDNSModule) Apply(opts *option.Options, ctx *BuildContext) error {
 	dnsMap := map[string]any{
 		"servers": []map[string]any{
 			{
-				"tag":              "proxy_dns",
-				"address":          "https://dns.google/dns-query",
-				"address_resolver": "local_dns",
-				"detour":           "proxy",
-			},
-			{
-				"tag":     "local_dns",
-				"address": "223.5.5.5",
-				// 不设置 detour，默认直连
-			},
-			{
-				"tag":     "block_dns",
-				"address": "rcode://success",
-			},
+                "tag": "local_dns",
+                "type": "https",
+                "server": "dns.alidns.com",
+                "domain_resolver": "resolver_dns",
+            },
+            {
+                "tag": "proxy_dns",
+                "type": "https",
+                "server": "dns.google",
+                "domain_resolver": "resolver_dns",
+                "detour": "proxy",
+            },
+            {
+                "tag": "resolver_dns",
+                "type": "udp",
+                "server": "223.5.5.5",
+            },
 		},
 		"rules": []map[string]any{
 			{
-				"outbound": "any",
-				"server":   "proxy_dns",
-			},
+                "rule_set": "geosite-cn",
+                "action": "route",
+                "server": "local_dns",
+            },
+            {
+                "rule_set": "geosite-google",
+                "action": "route",
+                "server": "proxy_dns",
+            },
 		},
-		"strategy":          "prefer_ipv4",
-		"disable_cache":     false,
-		"disable_expire":    false,
-		"independent_cache": false,
+		"final":             "proxy_dns",
+		"strategy":          "ipv4_only",
 	}
 
 	data, err := singboxjson.Marshal(dnsMap)

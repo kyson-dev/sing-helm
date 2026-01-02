@@ -1,6 +1,8 @@
 package monitor
 
 import (
+	"time"
+
 	"github.com/gorilla/websocket"
 	"github.com/kyson/minibox/internal/core/client"
 )
@@ -20,6 +22,12 @@ type Model struct {
 	apiBase   string                 // API 地址
 	apiClient *client.Client         // HTTP 客户端
 	lastError error                  // 最近的错误
+	updating  bool                   // mode/route 更新中（防止重复请求）
+
+	// 状态轮询控制
+	statusInFlight bool
+	statusInterval time.Duration
+	reconnectWait  bool
 
 	// =========================================================================
 	// 第二层：业务数据
@@ -69,6 +77,7 @@ func NewModel(apiHost string) Model {
 		apiBase:   apiHost,
 		apiClient: client.New(apiHost),
 		connState: ConnectionStateMachine{State: ConnStateConnecting},
+		statusInterval: time.Second,
 
 		// 业务数据初始化
 		proxyMode: "unknown",
@@ -95,7 +104,7 @@ func (m *Model) ConnState() ConnState {
 
 // IsUpdating 是否正在更新 mode/route（使用全局锁）
 func (m *Model) IsUpdating() bool {
-	return m.isUpdating()
+	return m.updating
 }
 
 // ProxyMode 获取代理模式

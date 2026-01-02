@@ -37,7 +37,7 @@ func NewRootCommand() *cobra.Command {
 	// bind global flags
 	cmd.PersistentFlags().BoolVarP(&GlobalDebug, "debug", "d", false, "Enable debug mode")
 	cmd.PersistentFlags().StringVar(&homeDir, "home", "", "Custom working directory (default: ~/.minibox)")
-	cmd.PersistentFlags().StringVar(&LogFile, "log", "", "Custom log file (default: ~/.minibox/log)")
+	cmd.PersistentFlags().StringVar(&LogFile, "log", "", "Custom log file (default: system runtime path)")
 
 	// register sub commands
 	cmd.AddCommand(newVersionCommand(),
@@ -55,6 +55,7 @@ func NewRootCommand() *cobra.Command {
 		newStartCommand(),
 		newStopCommand(),
 		newLogCommand(),
+		newAutostartCommand(),
 	)
 
 	return cmd

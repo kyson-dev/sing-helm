@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	unixSocketPerm = 0600
+	unixSocketPerm = 0666 // 允许所有用户读写，以便普通用户可以连接 root 启动的 daemon
 )
 
 // ServerOptions control Serve behavior.

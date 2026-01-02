@@ -45,8 +45,12 @@ type statusMsg struct {
 	Memory      uint64
 	TotalUp     int64
 	TotalDown   int64
+	APIBase     string
 	Err         error
 }
+
+// statusTickMsg 触发状态轮询
+type statusTickMsg struct{}
 
 // proxiesMsg 代理节点列表
 type proxiesMsg struct {
