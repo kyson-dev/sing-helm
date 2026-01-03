@@ -76,6 +76,8 @@ func newStartCommand() *cobra.Command {
 			timeout := time.After(2 * time.Second)
 			ticker := time.NewTicker(150 * time.Millisecond)
 			defer ticker.Stop()
+			sawStatus := false
+			lastRunning := false
 			for {
 				select {
 				case <-timeout:
@@ -83,10 +85,14 @@ func newStartCommand() *cobra.Command {
 					if logFile != "" {
 						logHint = fmt.Sprintf(" (log: %s)", logFile)
 					}
+					if sawStatus && !lastRunning {
+						return fmt.Errorf("sing-box is not running; check logs for details")
+					}
 					return fmt.Errorf("daemon failed to start; check logs%s or run with sudo", logHint)
 				case <-ticker.C:
 					resp, err := dispatchToDaemon(cmd.Context(), "status", nil)
 					if err == nil {
+						sawStatus = true
 						if running, _ := resp.Data["running"].(bool); running {
 							fmt.Printf("Minibox started [PID: %d]\n", command.Process.Pid)
 							if logFile != "" {
@@ -96,7 +102,7 @@ func newStartCommand() *cobra.Command {
 							}
 							return nil
 						}
-						return fmt.Errorf("sing-box is not running; check logs for details")
+						lastRunning = false
 					}
 				}
 			}

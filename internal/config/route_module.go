@@ -64,14 +64,28 @@ func (m *RouteModule) generateDefaultRoute() (*option.RouteOptions, error) {
 				"type":            "remote",
 				"format":          "binary",
 				"url":             "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-cn.srs",
-				"download_detour": "direct",
+				"download_detour": "proxy",
 			},
 			{
 				"tag":             "geoip-cn",
 				"type":            "remote",
 				"format":          "binary",
 				"url":             "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-cn.srs",
-				"download_detour": "direct",
+				"download_detour": "proxy",
+			},
+			{
+				"tag":             "geosite-apple",
+				"type":            "remote",
+				"format":          "binary",
+				"url":             "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-apple.srs",
+				"download_detour": "proxy",
+			},
+			{
+				"tag":             "geosite-ads",
+				"type":            "remote",
+				"format":          "binary",
+				"url":             "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-category-ads-all.srs",
+				"download_detour": "proxy",
 			},
 		},
 		"rules": []map[string]any{
@@ -79,21 +93,15 @@ func (m *RouteModule) generateDefaultRoute() (*option.RouteOptions, error) {
 			{"protocol": []string{"dns"}, "action": "hijack-dns"},
 			// 2. NTP 直连
 			{"protocol": []string{"ntp"}, "outbound": "direct"},
-			// 3. 阻止 443 端口 UDP (强制 TCP 稳定性)
-			//{"port": []int{443}, "protocol": []string{"udp"}, "action": "reject"},
 			// 4. 私有 IP 直连
 			{"ip_is_private": true, "outbound": "direct"},
-			// 5. 常用 CN DNS 直连
-			{
-				"domain":        []string{"alidns.com", "dot.pub"},
-				"domain_suffix": []string{"dnspod.com", "dns.alidns.com"},
-				"outbound":      "direct",
-			},
-			{"ip_cidr": []string{"223.5.5.5/32", "119.29.29.29/32", "180.76.76.76/32", "114.114.114.114/32"}, "outbound": "direct"},
-			// 6. Google代理
-			{"domain": []string{"googleapis.cn", "google.cn"}, "rule_set": []string{"geosite-google"}, "outbound": "proxy"},
-			// 7. CN 直连
+			// 7. Apple 直连
+			{"rule_set": []string{"geosite-apple"}, "outbound": "direct"},
+			// 6. CN 直连
 			{"rule_set": []string{"geosite-cn", "geoip-cn"}, "outbound": "direct"},
+			// 8. Google 代理
+			{"domain": []string{"googleapis.cn", "google.cn"}, "outbound": "proxy"},
+			{"rule_set": []string{"geosite-google"}, "outbound": "proxy"},
 		},
 		"final":                 "proxy",
 		"auto_detect_interface": true,
