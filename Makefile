@@ -19,9 +19,9 @@ TAGS := with_quic,with_wireguard,with_utls,with_real_ip,with_clash_api,with_gvis
 # -w: 省略 DWARF 调试信息 -> 减小体积
 # -X: 注入变量值 (把 Makefile 里的 VERSION 塞进 Go 代码里)
 LDFLAGS := -s -w \
-	-X 'github.com/kyson/minibox/internal/core/version.Tag=$(VERSION)' \
-	-X 'github.com/kyson/minibox/internal/core/version.Commit=$(COMMIT)' \
-	-X 'github.com/kyson/minibox/internal/core/version.Date=$(DATE)'
+	-X 'github.com/kyson/minibox/internal/version.Tag=$(VERSION)' \
+	-X 'github.com/kyson/minibox/internal/version.Commit=$(COMMIT)' \
+	-X 'github.com/kyson/minibox/internal/version.Date=$(DATE)'
 
 # 4. TRIMPATH: 移除二进制文件中的绝对路径信息 (保护隐私，且让构建可复现)
 FLAGS := -tags "$(TAGS)" -trimpath -ldflags "$(LDFLAGS)"

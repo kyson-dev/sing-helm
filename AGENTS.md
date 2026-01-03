@@ -16,7 +16,7 @@
 
 ## Coding Style & Naming Conventions
 - Follow Go idioms: keep code `gofmt`-ed, prefer short, descriptive names, and document exported APIs.
-- Binary and package names mirror their directories (`cmd/minibox`, `internal/core`).
+- Binary and package names mirror their directories (`cmd/minibox`, `internal/daemon`).
 - Rely on `golangci-lint` for formatting/naming catches following the repo tooling.
 
 ## Testing Guidelines
