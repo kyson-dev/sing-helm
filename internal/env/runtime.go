@@ -125,7 +125,7 @@ func SaveRuntimeMeta(runtimeDir string, meta RuntimeMeta) error {
 	if err := os.MkdirAll(runtimeDir, 0755); err != nil {
 		return err
 	}
-	data, err := json.Marshal(meta)
+	data, err := json.MarshalIndent(meta, "", "  ")
 	if err != nil {
 		return err
 	}

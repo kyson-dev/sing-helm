@@ -17,7 +17,10 @@ func GetStatePath() string {
 }
 
 func SaveState(s *RuntimeState) error {
-	data, _ := json.Marshal(s)
+	data, err := json.MarshalIndent(s, "", "  ")
+	if err != nil {
+		return err
+	}
 	return os.WriteFile(GetStatePath(), data, 0644)
 }
 

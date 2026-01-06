@@ -23,14 +23,14 @@ func Export(opts *option.Options, target Target) ([]byte, error) {
 		return nil, fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	// No transforms needed if no target specified
-	if strings.TrimSpace(target.Version) == "" && strings.TrimSpace(target.Platform) == "" {
-		return data, nil
-	}
-
 	var root map[string]any
 	if err := json.Unmarshal(data, &root); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
+	}
+
+	// No transforms needed if no target specified
+	if strings.TrimSpace(target.Version) == "" && strings.TrimSpace(target.Platform) == "" {
+		return json.MarshalIndent(root, "", "  ")
 	}
 
 	// Apply version-specific compatibility transforms
@@ -45,7 +45,7 @@ func Export(opts *option.Options, target Target) ([]byte, error) {
 		applyPlatformCompat(root, target.Platform)
 	}
 
-	return json.Marshal(root)
+	return json.MarshalIndent(root, "", "  ")
 }
 
 // applyVersionCompat applies version-specific compatibility transforms

@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -103,6 +104,16 @@ func (b *ConfigBuilder) SaveToFile(path string) error {
 	data, err := singboxjson.Marshal(opts)
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	// Re-marshal for pretty print
+	var pretty interface{}
+	if err := json.Unmarshal(data, &pretty); err != nil {
+		return fmt.Errorf("failed to unmarshal for pretty print: %w", err)
+	}
+	data, err = json.MarshalIndent(pretty, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal indent: %w", err)
 	}
 
 	if err := os.WriteFile(path, data, 0644); err != nil {
