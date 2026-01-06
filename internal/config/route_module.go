@@ -88,10 +88,19 @@ func (m *RouteModule) generateDefaultRoute() (*option.RouteOptions, error) {
 				"url":             "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-category-ads-all.srs",
 				"download_detour": "proxy",
 			},
+			{
+				"tag":             "anti-ad",
+				"type":            "remote",
+				"format":          "binary",
+				"url":             "https://raw.githubusercontent.com/privacy-protection-tools/anti-ad.github.io/master/docs/anti-ad-sing-box.srs",
+				"download_detour": "proxy",
+			},
 		},
 		"rules": []map[string]any{
+			// 直连白名单
+			{"domain_suffix": []string{"wise.com", "schwab.com", "interactivebrokers.com"}, "outbound": "direct"},
 			// 广告屏蔽
-			{"rule_set": []string{"geosite-ads"}, "outbound": "block"},
+			{"rule_set": []string{"anti-ad", "geosite-ads"}, "outbound": "block"},
 			// 1. DNS 劫持
 			{"protocol": []string{"dns"}, "action": "hijack-dns"},
 			// 2. NTP 直连
@@ -102,9 +111,6 @@ func (m *RouteModule) generateDefaultRoute() (*option.RouteOptions, error) {
 			{"rule_set": []string{"geosite-apple"}, "outbound": "direct"},
 			// 6. CN 直连
 			{"rule_set": []string{"geosite-cn", "geoip-cn"}, "outbound": "direct"},
-			// 8. Google 代理
-			{"domain": []string{"googleapis.cn", "google.cn"}, "outbound": "proxy"},
-			{"rule_set": []string{"geosite-google"}, "outbound": "proxy"},
 		},
 		"final":                 "proxy",
 		"auto_detect_interface": true,

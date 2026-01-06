@@ -36,6 +36,15 @@ func BuildConfig(rawPath string, runops *runtime.RunOptions) error {
 	return nil
 }
 
+// BuildOptions builds a sing-box config without writing to disk.
+func BuildOptions(runops *runtime.RunOptions) (*option.Options, error) {
+	builder := NewConfigBuilder(nil, runops)
+	for _, m := range defaultModules(runops) {
+		builder.With(m)
+	}
+	return builder.Build()
+}
+
 // NewConfigBuilder 创建配置构建器（从已加载的配置）
 // 参数:
 //   - base: 已加载的用户配置（可以为 nil）
