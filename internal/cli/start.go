@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/kyson/minibox/internal/env"
+	"github.com/kyson/minibox/internal/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -31,14 +32,11 @@ func newStartCommand() *cobra.Command {
 
 			// 传递 --home 给子进程，确保子进程使用相同的目录
 			runArgs := []string{"--home", paths.HomeDir}
-			if GlobalDebug {
+			if logger.IsDebug() {
 				runArgs = append(runArgs, "--debug")
 			}
-			if LogFile == "" {
-				LogFile = env.Get().LogFile
-			}
-			if LogFile != "" {
-				runArgs = append(runArgs, "--log", LogFile)
+			if logFile != "" {
+				runArgs = append(runArgs, "--log", logFile)
 			}
 			runArgs = append(runArgs, "run")
 
@@ -57,7 +55,7 @@ func newStartCommand() *cobra.Command {
 			// 这样子进程的 isTerminal() 会返回 false，日志会写入文件
 			// 注意：设置为 nil 会继承父进程的 stdout，所以必须显式打开 /dev/null
 			// 如果没有可用的日志文件，则保留 stdout/stderr 以便看到错误提示
-			if LogFile != "" {
+			if logFile != "" {
 				devNull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
 				if err == nil {
 					command.Stdout = devNull

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/kyson/minibox/internal/config"
 	"github.com/kyson/minibox/internal/logger"
-	//"github.com/kyson/minibox/internal/config"
 	box "github.com/sagernet/sing-box"
 	"github.com/sagernet/sing-box/include"
 	"github.com/sagernet/sing-box/option"
@@ -26,12 +26,12 @@ func (s *instance) Stop() {
 	if s.box != nil {
 		if err := s.box.Close(); err != nil {
 			logger.Error("Failed to close box instance", "error", err)
-			return 
+			return
 		}
 		logger.Info("Sing-box instance closed successfully")
 		s.box = nil
 	}
-}	
+}
 
 // ReloadFromFile 从配置文件重新加载 sing-box
 func (s *instance) ReloadFromFile(ctx context.Context, configPath string) error {
@@ -69,12 +69,11 @@ func isAlreadyClosedError(err error) bool {
 // StartFromFile 从配置文件启动 sing-box
 func (s *instance) StartFromFile(ctx context.Context, configPath string) error {
 	// 从文件加载配置
-	// opts, err := config.LoadOptionsWithContext(ctx, configPath)
-	// if err != nil {
-	// 	return fmt.Errorf("failed to load config: %w", err)
-	// }
-	// return s.Start(ctx, opts)
-	return nil
+	opts, err := config.LoadOptionsWithContext(ctx, configPath)
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+	return s.Start(ctx, opts)
 }
 
 // Start 启动 sing-box（接收 option.Options）

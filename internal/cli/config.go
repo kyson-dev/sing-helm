@@ -16,14 +16,29 @@ func newConfigCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
 		Short: "Manage configuration files",
-		RunE:  runConfigList,
+		Long: `Manage configuration files.
+
+Available subcommands:
+  list     - List base and subscription configs
+  add      - Add a subscription config
+  edit     - Edit base config or a subscription file
+  refresh  - Refresh subscription cache`,
+		// 不设置 RunE，让 cobra 在没有子命令时显示帮助
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return cmd.Help()
+		},
 	}
+
+	// 启用命令建议（当输入错误时会提示相似的命令）
+	cmd.SuggestionsMinimumDistance = 2
 
 	cmd.AddCommand(
 		newConfigListCommand(),
 		newConfigAddCommand(),
 		newConfigEditCommand(),
 		newConfigRefreshCommand(),
+		newConfigDeleteCommand(),
 	)
 
 	return cmd
@@ -137,6 +152,31 @@ func newConfigRefreshCommand() *cobra.Command {
 	}
 }
 
+func newConfigDeleteCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "delete [name|all]",
+		Short: "Delete a subscription config and cache",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			paths := env.Get()
+			// 确保目录存在（虽然我们要删除东西，但如果目录都不存在也就没什么好删的，不过为了路径构建不出错）
+			if err := subscription.EnsureDirs(paths.SubConfigDir, paths.SubCacheDir); err != nil {
+				return err
+			}
+
+			if strings.EqualFold(args[0], "all") {
+				return deleteAllSubscriptions(cmd, paths.SubConfigDir, paths.SubCacheDir)
+			}
+
+			name := strings.TrimSpace(args[0])
+			if name == "" {
+				return fmt.Errorf("name cannot be empty")
+			}
+			return deleteOneSubscription(cmd, name, paths.SubConfigDir, paths.SubCacheDir)
+		},
+	}
+}
+
 func runConfigList(cmd *cobra.Command, _ []string) error {
 	paths := env.Get()
 	out := cmd.OutOrStdout()
@@ -229,6 +269,54 @@ func refreshSource(cmd *cobra.Command, source subscription.Source, cacheDir stri
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "Refreshed %s: %d nodes\n", source.Name, len(cache.Nodes))
 	fmt.Fprintln(cmd.OutOrStdout(), "Restart sing-box to apply changes.")
+	return nil
+}
+
+func deleteAllSubscriptions(cmd *cobra.Command, dir, cacheDir string) error {
+	sources, err := subscription.LoadSources(dir)
+	if err != nil {
+		return fmt.Errorf("failed to load sources: %w", err)
+	}
+
+	if len(sources) == 0 {
+		fmt.Fprintln(cmd.OutOrStdout(), "No subscriptions found.")
+		return nil
+	}
+
+	var failed []string
+	for _, source := range sources {
+		if err := deleteOneSubscription(cmd, source.Name, dir, cacheDir); err != nil {
+			failed = append(failed, source.Name)
+			fmt.Fprintf(cmd.ErrOrStderr(), "Failed to delete %s: %v\n", source.Name, err)
+		}
+	}
+
+	if len(failed) > 0 {
+		return fmt.Errorf("delete failed for: %s", strings.Join(failed, ", "))
+	}
+	return nil
+}
+
+func deleteOneSubscription(cmd *cobra.Command, name, dir, cacheDir string) error {
+	configPath := subscription.SourceFilePath(dir, name)
+	cachePath := subscription.CacheFilePath(cacheDir, name)
+
+	// Check if exists
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		return fmt.Errorf("subscription not found: %s", name)
+	}
+
+	// Remove config
+	if err := os.Remove(configPath); err != nil {
+		return fmt.Errorf("failed to remove config file: %w", err)
+	}
+
+	// Remove cache (ignore error if not exists)
+	if err := os.Remove(cachePath); err != nil && !os.IsNotExist(err) {
+		fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to remove cache file for %s: %v\n", name, err)
+	}
+
+	fmt.Fprintf(cmd.OutOrStdout(), "Deleted subscription: %s\n", name)
 	return nil
 }
 

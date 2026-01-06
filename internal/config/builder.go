@@ -6,26 +6,26 @@ import (
 	"os"
 
 	"github.com/kyson/minibox/internal/logger"
+	"github.com/kyson/minibox/internal/runtime"
 	"github.com/sagernet/sing-box/include"
 	"github.com/sagernet/sing-box/option"
 	singboxjson "github.com/sagernet/sing/common/json"
-	"github.com/kyson/minibox/internal/runtime"
 )
 
 // ConfigBuilder 配置构建器
 // 支持链式调用添加模块，灵活组装配置
 type ConfigBuilder struct {
-	base    *option.Options // 用户配置作为基础
-	opts    *runtime.RunOptions     // 运行时参数
-	modules []ConfigModule  // 配置模块列表
-	ctx     *BuildContext   // 构建上下文
+	base    *option.Options     // 用户配置作为基础
+	opts    *runtime.RunOptions // 运行时参数
+	modules []ConfigModule      // 配置模块列表
+	ctx     *BuildContext       // 构建上下文
 }
 
 // BuildConfig loads the profile, applies runtime modules, and saves raw config.
 func BuildConfig(rawPath string, runops *runtime.RunOptions) error {
 	// 使用新的 API，UserOutboundModule 会自动加载配置文件
-	builder := NewConfigBuilderFromFile(runops)
-	for _, m := range DefaultModules(runops) {
+	builder := NewConfigBuilder(nil, runops)
+	for _, m := range defaultModules(runops) {
 		builder.With(m)
 	}
 
@@ -35,7 +35,6 @@ func BuildConfig(rawPath string, runops *runtime.RunOptions) error {
 
 	return nil
 }
-
 
 // NewConfigBuilder 创建配置构建器（从已加载的配置）
 // 参数:
@@ -56,25 +55,6 @@ func NewConfigBuilder(base *option.Options, opts *runtime.RunOptions) *ConfigBui
 		opts:    opts,
 		modules: []ConfigModule{},
 		ctx:     NewBuildContext(opts),
-	}
-}
-
-// NewConfigBuilderFromFile 创建配置构建器（从配置文件路径）
-// 参数:
-//   - profilePath: 用户配置文件路径（如 profile.json）
-//   - opts: 运行时参数
-//
-// UserOutboundModule 会负责加载配置文件
-func NewConfigBuilderFromFile(opts *runtime.RunOptions) *ConfigBuilder {
-	if opts == nil {
-		defaultOpts := runtime.DefaultRunOptions()
-		opts = &defaultOpts
-	}
-	return &ConfigBuilder{
-		base:    &option.Options{}, // 空配置，由 UserOutboundModule 加载
-		opts:    opts,
-		modules: []ConfigModule{},
-		ctx:     NewBuildContextWithProfile(opts),
 	}
 }
 
@@ -142,7 +122,7 @@ func (b *ConfigBuilder) cloneBase() (*option.Options, error) {
 }
 
 // DefaultModules 根据 RunOptions 返回默认模块组合
-func DefaultModules(opts *runtime.RunOptions) []ConfigModule {
+func defaultModules(opts *runtime.RunOptions) []ConfigModule {
 	modules := []ConfigModule{
 		&UserOutboundModule{},
 		&SubscriptionModule{},

@@ -26,10 +26,3 @@ func NewBuildContext(opts *runtime.RunOptions) *BuildContext {
 		RunOptions: opts,
 	}
 }
-
-// NewBuildContextWithProfile 创建带配置文件路径的构建上下文
-func NewBuildContextWithProfile(opts *runtime.RunOptions) *BuildContext {
-	return &BuildContext{
-		RunOptions:  opts,
-	}
-}

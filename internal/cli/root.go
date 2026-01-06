@@ -3,17 +3,15 @@ package cli
 import (
 	"fmt"
 
-	"github.com/kyson/minibox/internal/logger"
 	"github.com/kyson/minibox/internal/env"
+	"github.com/kyson/minibox/internal/logger"
 	"github.com/spf13/cobra"
 )
 
-// 这里演示"依赖注入"式的构建
-var GlobalDebug bool
-var LogFile string
-
 func NewRootCommand() *cobra.Command {
 	var homeDir string
+	var globalDebug bool
+	var logFile string
 	cmd := &cobra.Command{
 		Use:   "minibox",
 		Short: "Small and beautiful sing-box client",
@@ -25,23 +23,25 @@ func NewRootCommand() *cobra.Command {
 				return fmt.Errorf("environment setup failed: %w", err)
 			}
 
-			if LogFile == "" {
-				logger.Setup(logger.Config{Debug: GlobalDebug})
+			if logFile == "" {
+				logger.Setup(logger.Config{Debug: globalDebug})
 			} else {
-				logger.Setup(logger.Config{Debug: GlobalDebug, FilePath: LogFile})
+				logger.Setup(logger.Config{Debug: globalDebug, FilePath: logFile})
 			}
 			return nil
 		},
 	}
 
+	// 启用命令建议（当输入错误时会提示相似的命令）
+	cmd.SuggestionsMinimumDistance = 2
+
 	// bind global flags
-	cmd.PersistentFlags().BoolVarP(&GlobalDebug, "debug", "d", false, "Enable debug mode")
+	cmd.PersistentFlags().BoolVarP(&globalDebug, "debug", "d", false, "Enable debug mode")
 	cmd.PersistentFlags().StringVar(&homeDir, "home", "", "Custom working directory (default: ~/.minibox)")
-	cmd.PersistentFlags().StringVar(&LogFile, "log", "", "Custom log file (default: system runtime path)")
+	cmd.PersistentFlags().StringVar(&logFile, "log", "", "Custom log file (default: system runtime path)")
 
 	// register sub commands
 	cmd.AddCommand(newVersionCommand(),
-		newCheckCommand(),
 		newConfigCommand(),
 		newRunCommand(),
 		newUpdateCommand(),

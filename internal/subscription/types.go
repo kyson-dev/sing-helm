@@ -31,6 +31,7 @@ const (
 	FormatAuto    = "auto"
 	FormatSingBox = "singbox"
 	FormatClash   = "clash"
+	FormatBase64  = "base64"
 )
 
 func NormalizeFormat(format string) string {

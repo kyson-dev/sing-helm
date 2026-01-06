@@ -15,6 +15,7 @@ import (
 
 var (
 	instance *slog.Logger
+	config   Config
 	once     sync.Once
 )
 
@@ -26,6 +27,7 @@ type Config struct {
 // Set up logger level
 func Setup(cfg Config) {
 	once.Do(func() {
+		config = cfg // 保存配置以便后续查询
 		var writer io.Writer = os.Stdout
 
 		// 如果指定了文件路径，则使用 MultiWriter (同时写文件和屏幕)
@@ -99,4 +101,9 @@ func Error(msg string, args ...any) {
 // Debug logs at Debug level with correct source location
 func Debug(msg string, args ...any) {
 	log_minibox(slog.LevelDebug, msg, args...)
+}
+
+// IsDebug returns whether debug mode is enabled
+func IsDebug() bool {
+	return config.Debug
 }
