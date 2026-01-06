@@ -29,13 +29,13 @@ func (m *RouteModule) Apply(opts *option.Options, ctx *BuildContext) error {
 	switch m.RouteMode {
 	case RouteModeGlobal:
 		// 全局代理：清空所有路由规则，直接走 proxy
+		// 保留 RuleSet 以供 DNS 规则使用
 		opts.Route.Rules = nil
-		opts.Route.RuleSet = nil
 		opts.Route.Final = "proxy"
 	case RouteModeDirect:
 		// 全局直连：清空所有路由规则，直接走 direct
+		// 保留 RuleSet 以供 DNS 规则使用
 		opts.Route.Rules = nil
-		opts.Route.RuleSet = nil
 		opts.Route.Final = "direct"
 	case RouteModeRule, "":
 		// rule 模式保持用户配置的路由规则
@@ -89,6 +89,8 @@ func (m *RouteModule) generateDefaultRoute() (*option.RouteOptions, error) {
 			},
 		},
 		"rules": []map[string]any{
+			// 广告屏蔽
+			{"rule_set": []string{"geosite-ads"}, "outbound": "block"},
 			// 1. DNS 劫持
 			{"protocol": []string{"dns"}, "action": "hijack-dns"},
 			// 2. NTP 直连

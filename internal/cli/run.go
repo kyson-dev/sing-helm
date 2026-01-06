@@ -82,6 +82,7 @@ func runAsDaemon(ctx context.Context, payload map[string]any) error {
 		time.Sleep(200 * time.Millisecond)
 
 		// 现在（正确）
+		//TODO: 这里可以改进为等待 IPC 服务器真正启动，然后通过统一的dispatchToDaemon发送命令
 		sender := ipc.NewUnixSender(env.Get().SocketFile)
 		resp, err := sender.Send(context.Background(), ipc.CommandMessage{
 			Name:    "run",
