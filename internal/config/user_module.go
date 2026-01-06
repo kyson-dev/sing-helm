@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"context"
 	"os"
 
@@ -21,10 +22,17 @@ func (m *UserOutboundModule) Apply(opts *option.Options, ctx *BuildContext) erro
 	// 如果没有提供 ProfilePath，说明用户配置已经在 opts 中了（向后兼容）
 	paths := env.Get()
 
-
 	content, err := os.ReadFile(paths.ConfigFile)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
 		return err
+	}
+
+	// 如果文件为空或只包含空白字符，直接返回（允许用户不配置任何内容）
+	if len(bytes.TrimSpace(content)) == 0 {
+		return nil
 	}
 
 	var opts_user option.Options
