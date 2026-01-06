@@ -1,8 +1,9 @@
 package cli
 
 import (
-	"github.com/kyson/minibox/internal/logger"
 	"github.com/kyson/minibox/internal/config"
+	"github.com/kyson/minibox/internal/logger"
+	"github.com/kyson/minibox/internal/runtime"
 	"github.com/spf13/cobra"
 )
 
@@ -26,20 +27,16 @@ func newCheckCommand() *cobra.Command {
 func runLocalCheck(configPath string) error {
 	logger.Info("Check configuration file.....", "path", configPath)
 
-	base, err := config.LoadProfile(configPath)
-	if err != nil {
-		logger.Error("Config check failed", "error", err)
-		return err
-	}
-
-	runops := config.DefaultRunOptions()
+	runops := runtime.DefaultRunOptions()
 	if runops.MixedPort == 0 {
-		runops.MixedPort = config.DefaultCheckMixedPort
+		runops.MixedPort = 10808
 	}
 	if runops.APIPort == 0 {
-		runops.APIPort = config.DefaultCheckAPIPort
+		runops.APIPort = 18089
 	}
-	builder := config.NewConfigBuilder(base, &runops)
+
+	// 使用新的 API，UserOutboundModule 会自动加载配置文件
+	builder := config.NewConfigBuilderFromFile(&runops)
 	for _, m := range config.DefaultModules(&runops) {
 		builder.With(m)
 	}

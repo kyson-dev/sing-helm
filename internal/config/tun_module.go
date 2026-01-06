@@ -33,13 +33,13 @@ func (m *TUNModule) Apply(opts *option.Options, ctx *BuildContext) error {
 	// 创建 TUN 入站配置
 	tunInbound := option.Inbound{}
 	tunMap := map[string]any{
-		"type":                       "tun",
-		"tag":                        "tun-in",
-		"mtu":                        mtu,
-		"auto_route":                 true,
-		"strict_route":               true,
+		"type":         "tun",
+		"tag":          "tun-in",
+		"mtu":          mtu,
+		"auto_route":   true,
+		"strict_route": true,
 		//"stack":                      stack,
-		"inet4_address":              "172.19.0.1/30",
+		"inet4_address": "172.19.0.1/30",
 		//"inet6_address":              "fd00::1/126",
 		"sniff":                      true,
 		"sniff_override_destination": true,
@@ -66,38 +66,38 @@ func (m *TUNDNSModule) Apply(opts *option.Options, ctx *BuildContext) error {
 	dnsMap := map[string]any{
 		"servers": []map[string]any{
 			{
-                "tag": "local_dns",
-                "type": "https",
-                "server": "dns.alidns.com",
-                "domain_resolver": "resolver_dns",
-            },
-            {
-                "tag": "proxy_dns",
-                "type": "https",
-                "server": "dns.google",
-                "domain_resolver": "resolver_dns",
-                "detour": "proxy",
-            },
-            {
-                "tag": "resolver_dns",
-                "type": "udp",
-                "server": "223.5.5.5",
-            },
+				"tag":             "local_dns",
+				"type":            "https",
+				"server":          "dns.alidns.com",
+				"domain_resolver": "resolver_dns",
+			},
+			{
+				"tag":             "proxy_dns",
+				"type":            "https",
+				"server":          "dns.google",
+				"domain_resolver": "resolver_dns",
+				"detour":          "proxy",
+			},
+			{
+				"tag":    "resolver_dns",
+				"type":   "udp",
+				"server": "223.5.5.5",
+			},
 		},
 		"rules": []map[string]any{
 			{
-                "rule_set": "geosite-cn",
-                "action": "route",
-                "server": "local_dns",
-            },
-            {
-                "rule_set": "geosite-google",
-                "action": "route",
-                "server": "proxy_dns",
-            },
+				"rule_set": "geosite-cn",
+				"action":   "route",
+				"server":   "local_dns",
+			},
+			{
+				"rule_set": "geosite-google",
+				"action":   "route",
+				"server":   "proxy_dns",
+			},
 		},
-		"final":             "proxy_dns",
-		"strategy":          "ipv4_only",
+		"final":    "proxy_dns",
+		"strategy": "ipv4_only",
 	}
 
 	data, err := singboxjson.Marshal(dnsMap)

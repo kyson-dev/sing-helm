@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/kyson/minibox/internal/logger"
-	"github.com/kyson/minibox/internal/config"
+	//"github.com/kyson/minibox/internal/config"
 	box "github.com/sagernet/sing-box"
 	"github.com/sagernet/sing-box/include"
 	"github.com/sagernet/sing-box/option"
@@ -69,11 +69,12 @@ func isAlreadyClosedError(err error) bool {
 // StartFromFile 从配置文件启动 sing-box
 func (s *instance) StartFromFile(ctx context.Context, configPath string) error {
 	// 从文件加载配置
-	opts, err := config.LoadOptionsWithContext(ctx, configPath)
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
-	return s.Start(ctx, opts)
+	// opts, err := config.LoadOptionsWithContext(ctx, configPath)
+	// if err != nil {
+	// 	return fmt.Errorf("failed to load config: %w", err)
+	// }
+	// return s.Start(ctx, opts)
+	return nil
 }
 
 // Start 启动 sing-box（接收 option.Options）

@@ -3,12 +3,13 @@ package config
 import (
 	"github.com/sagernet/sing-box/option"
 	singboxjson "github.com/sagernet/sing/common/json"
+	"github.com/kyson/minibox/internal/runtime"
 )
 
 // RouteModule 路由模块
 // 负责配置路由规则，支持 RouteMode
 type RouteModule struct {
-	RouteMode RouteMode
+	RouteMode runtime.RouteMode
 }
 
 func (m *RouteModule) Name() string {
@@ -27,17 +28,17 @@ func (m *RouteModule) Apply(opts *option.Options, ctx *BuildContext) error {
 
 	// 根据 RouteMode 调整路由
 	switch m.RouteMode {
-	case RouteModeGlobal:
+	case runtime.RouteModeGlobal:
 		// 全局代理：清空所有路由规则，直接走 proxy
 		// 保留 RuleSet 以供 DNS 规则使用
 		opts.Route.Rules = nil
 		opts.Route.Final = "proxy"
-	case RouteModeDirect:
+	case runtime.RouteModeDirect:
 		// 全局直连：清空所有路由规则，直接走 direct
 		// 保留 RuleSet 以供 DNS 规则使用
 		opts.Route.Rules = nil
 		opts.Route.Final = "direct"
-	case RouteModeRule, "":
+	case runtime.RouteModeRule, "":
 		// rule 模式保持用户配置的路由规则
 		if opts.Route.Final == "" {
 			opts.Route.Final = "proxy" // 默认 final 走代理

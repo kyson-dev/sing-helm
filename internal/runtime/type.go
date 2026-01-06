@@ -1,5 +1,4 @@
-package config
-
+package runtime
 import (
 	"fmt"
 )

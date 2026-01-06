@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/kyson/minibox/internal/logger"
 )
 
 // Paths 定义了应用所有的关键路径
@@ -12,6 +14,8 @@ type Paths struct {
 	RuntimeDir    string // 运行时目录 (socket/lock/log/state)
 	ConfigFile    string // profile.json (用户配置)
 	RawConfigFile string // raw.json (生成的完整配置)
+	SubConfigDir  string // subscriptions 目录
+	SubCacheDir   string // subscriptions cache 目录
 	LogFile       string // minibox.log
 	StateFile     string // state.json
 	LookFile      string // minibox.lock
@@ -60,11 +64,12 @@ func Init(home string) error {
 			return
 		}
 
-		logDir := ResolveLogDir(runtimeDir)
+		logDir := logger.ResolveLogDir(runtimeDir)
 		current = GetPath(home, runtimeDir, logDir)
 	})
 	return err
 }
+
 
 // GetPath 根据主目录生成路径配置 (纯函数)
 func GetPath(home string, runtimeDir string, logDir string) Paths {
@@ -77,6 +82,8 @@ func GetPath(home string, runtimeDir string, logDir string) Paths {
 		RuntimeDir:    runtimeDir,
 		ConfigFile:    filepath.Join(home, "profile.json"),
 		RawConfigFile: filepath.Join(runtimeDir, "raw.json"),
+		SubConfigDir:  filepath.Join(home, "subscriptions"),
+		SubCacheDir:   filepath.Join(home, "subscriptions", "cache"),
 		LogFile:       logFile,
 		StateFile:     filepath.Join(runtimeDir, "state.json"),
 		LookFile:      GetLockPath(runtimeDir), // 使用 lock.go 中的单一事实来源

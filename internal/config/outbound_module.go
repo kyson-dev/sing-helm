@@ -6,7 +6,7 @@ import (
 )
 
 // OutboundModule 出站模块
-// 负责补充 direct, block, proxy, auto 出站
+// 负责处理所有 outbounds（用户配置 + 订阅节点），并补充系统 outbounds
 type OutboundModule struct{}
 
 func (m *OutboundModule) Name() string {
@@ -14,23 +14,24 @@ func (m *OutboundModule) Name() string {
 }
 
 func (m *OutboundModule) Apply(opts *option.Options, ctx *BuildContext) error {
-	// 1. 过滤用户配置中的保留 tag
-	reservedTags := map[string]bool{
-		"direct": true,
-		"block":  true,
-		"proxy":  true,
-		"auto":   true,
-	}
-
+	// 1. 过滤保留 tag，并统计节点信息
 	filteredOutbounds := []option.Outbound{}
+	userNodeTags := []string{}
+	actualNodes := []string{}
+
 	for _, out := range opts.Outbounds {
-		if reservedTags[out.Tag] {
+		if IsReservedOutboundTag(out.Tag) {
 			logger.Info("Ignoring reserved outbound tag from user config", "tag", out.Tag)
 			continue
 		}
 		filteredOutbounds = append(filteredOutbounds, out)
+		if out.Tag != "" {
+			userNodeTags = append(userNodeTags, out.Tag)
+			if IsActualOutboundType(out.Type) {
+				actualNodes = append(actualNodes, out.Tag)
+			}
+		}
 	}
-	opts.Outbounds = filteredOutbounds
 
 	// 2. 添加 direct 出站
 	directOutbound := option.Outbound{}
@@ -39,7 +40,7 @@ func (m *OutboundModule) Apply(opts *option.Options, ctx *BuildContext) error {
 		"tag":  "direct",
 	}
 	applyMapToOutbound(&directOutbound, directOutboundMap)
-	opts.Outbounds = append(opts.Outbounds, directOutbound)
+	filteredOutbounds = append(filteredOutbounds, directOutbound)
 
 	// 3. 添加 block 出站
 	blockOutbound := option.Outbound{}
@@ -48,10 +49,10 @@ func (m *OutboundModule) Apply(opts *option.Options, ctx *BuildContext) error {
 		"tag":  "block",
 	}
 	applyMapToOutbound(&blockOutbound, blockOutboundMap)
-	opts.Outbounds = append(opts.Outbounds, blockOutbound)
+	filteredOutbounds = append(filteredOutbounds, blockOutbound)
 
 	// 4. 添加 proxy selector（包含所有实际节点 + auto）
-	proxyNodes := append([]string{"auto"}, ctx.ActualNodes...)
+	proxyNodes := append([]string{"auto"}, actualNodes...)
 	proxyOutbound := option.Outbound{}
 	proxyOutboundMap := map[string]any{
 		"type":      "selector",
@@ -60,17 +61,20 @@ func (m *OutboundModule) Apply(opts *option.Options, ctx *BuildContext) error {
 		"default":   "auto",
 	}
 	applyMapToOutbound(&proxyOutbound, proxyOutboundMap)
-	opts.Outbounds = append(opts.Outbounds, proxyOutbound)
+	filteredOutbounds = append(filteredOutbounds, proxyOutbound)
 
 	// 5. 添加 auto urltest（包含所有实际节点）
 	autoOutbound := option.Outbound{}
 	autoOutboundMap := map[string]any{
 		"type":      "urltest",
 		"tag":       "auto",
-		"outbounds": ctx.ActualNodes,
+		"outbounds": actualNodes,
 	}
 	applyMapToOutbound(&autoOutbound, autoOutboundMap)
-	opts.Outbounds = append(opts.Outbounds, autoOutbound)
+	filteredOutbounds = append(filteredOutbounds, autoOutbound)
+
+	// 6. 更新最终的 outbounds
+	opts.Outbounds = filteredOutbounds
 
 	return nil
 }

@@ -9,24 +9,46 @@ import (
 	"github.com/sagernet/sing-box/include"
 	"github.com/sagernet/sing-box/option"
 	singboxjson "github.com/sagernet/sing/common/json"
+	"github.com/kyson/minibox/internal/runtime"
 )
 
 // ConfigBuilder 配置构建器
 // 支持链式调用添加模块，灵活组装配置
 type ConfigBuilder struct {
 	base    *option.Options // 用户配置作为基础
-	opts    *RunOptions     // 运行时参数
+	opts    *runtime.RunOptions     // 运行时参数
 	modules []ConfigModule  // 配置模块列表
 	ctx     *BuildContext   // 构建上下文
 }
 
-// NewConfigBuilder 创建配置构建器
-func NewConfigBuilder(base *option.Options, opts *RunOptions) *ConfigBuilder {
+// BuildConfig loads the profile, applies runtime modules, and saves raw config.
+func BuildConfig(rawPath string, runops *runtime.RunOptions) error {
+	// 使用新的 API，UserOutboundModule 会自动加载配置文件
+	builder := NewConfigBuilderFromFile(runops)
+	for _, m := range DefaultModules(runops) {
+		builder.With(m)
+	}
+
+	if err := builder.SaveToFile(rawPath); err != nil {
+		return fmt.Errorf("failed to save raw config: %w", err)
+	}
+
+	return nil
+}
+
+
+// NewConfigBuilder 创建配置构建器（从已加载的配置）
+// 参数:
+//   - base: 已加载的用户配置（可以为 nil）
+//   - opts: 运行时参数
+//
+// 注意: 这是向后兼容的方法，推荐使用 NewConfigBuilderFromFile
+func NewConfigBuilder(base *option.Options, opts *runtime.RunOptions) *ConfigBuilder {
 	if base == nil {
 		base = &option.Options{}
 	}
 	if opts == nil {
-		defaultOpts := DefaultRunOptions()
+		defaultOpts := runtime.DefaultRunOptions()
 		opts = &defaultOpts
 	}
 	return &ConfigBuilder{
@@ -34,6 +56,25 @@ func NewConfigBuilder(base *option.Options, opts *RunOptions) *ConfigBuilder {
 		opts:    opts,
 		modules: []ConfigModule{},
 		ctx:     NewBuildContext(opts),
+	}
+}
+
+// NewConfigBuilderFromFile 创建配置构建器（从配置文件路径）
+// 参数:
+//   - profilePath: 用户配置文件路径（如 profile.json）
+//   - opts: 运行时参数
+//
+// UserOutboundModule 会负责加载配置文件
+func NewConfigBuilderFromFile(opts *runtime.RunOptions) *ConfigBuilder {
+	if opts == nil {
+		defaultOpts := runtime.DefaultRunOptions()
+		opts = &defaultOpts
+	}
+	return &ConfigBuilder{
+		base:    &option.Options{}, // 空配置，由 UserOutboundModule 加载
+		opts:    opts,
+		modules: []ConfigModule{},
+		ctx:     NewBuildContextWithProfile(opts),
 	}
 }
 
@@ -51,10 +92,7 @@ func (b *ConfigBuilder) Build() (*option.Options, error) {
 		return nil, fmt.Errorf("failed to clone base config: %w", err)
 	}
 
-	// 2. 预处理：提取用户节点信息
-	b.extractNodeTags(result)
-
-	// 3. 依次应用各模块
+	// 2. 依次应用各模块
 	for _, m := range b.modules {
 		logger.Debug("Applying config module", "name", m.Name())
 		if err := m.Apply(result, b.ctx); err != nil {
@@ -103,54 +141,28 @@ func (b *ConfigBuilder) cloneBase() (*option.Options, error) {
 	return &result, nil
 }
 
-// extractNodeTags 从用户配置中提取节点信息
-func (b *ConfigBuilder) extractNodeTags(opts *option.Options) {
-	reservedTags := map[string]bool{
-		"direct": true,
-		"block":  true,
-		"proxy":  true,
-		"auto":   true,
-	}
-
-	for _, out := range opts.Outbounds {
-		tag := out.Tag
-		if reservedTags[tag] {
-			continue
-		}
-
-		b.ctx.UserNodeTags = append(b.ctx.UserNodeTags, tag)
-
-		// 判断是否为实际代理节点（非 selector/urltest）
-		outMap := map[string]any{}
-		data, _ := singboxjson.Marshal(out)
-		singboxjson.Unmarshal(data, &outMap)
-		outType, _ := outMap["type"].(string)
-		if outType != "selector" && outType != "urltest" {
-			b.ctx.ActualNodes = append(b.ctx.ActualNodes, tag)
-		}
-	}
-}
-
 // DefaultModules 根据 RunOptions 返回默认模块组合
-func DefaultModules(opts *RunOptions) []ConfigModule {
+func DefaultModules(opts *runtime.RunOptions) []ConfigModule {
 	modules := []ConfigModule{
+		&UserOutboundModule{},
+		&SubscriptionModule{},
 		&OutboundModule{},
 	}
 
 	// 根据 ProxyMode 选择入站模块
 	switch opts.ProxyMode {
-	case ProxyModeTUN:
+	case runtime.ProxyModeTUN:
 		modules = append(modules,
 			&TUNModule{},
 			&TUNDNSModule{},
 		)
-	case ProxyModeSystem:
+	case runtime.ProxyModeSystem:
 		modules = append(modules, &MixedModule{
 			SetSystemProxy: true,
 			ListenAddr:     opts.ListenAddr,
 			Port:           opts.MixedPort,
 		})
-	case ProxyModeDefault:
+	case runtime.ProxyModeDefault:
 		modules = append(modules, &MixedModule{
 			SetSystemProxy: false,
 			ListenAddr:     opts.ListenAddr,

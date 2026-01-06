@@ -32,7 +32,7 @@ type Daemon struct {
 	lock           *env.DaemonLock
 	running        bool
 	reloading      bool // 防止并发 reload
-	state          *config.RuntimeState
+	state          *runtime.RuntimeState
 }
 
 // NewDaemon builds a daemon controller.
@@ -120,7 +120,7 @@ func (d *Daemon) cleanup() {
 	}
 	if state != nil {
 		state.PID = 0
-		if err := config.SaveState(state); err != nil {
+		if err := runtime.SaveState(state); err != nil {
 			logger.Error("Failed to save runtime state", "error", err)
 		}
 	}
@@ -185,7 +185,7 @@ func (d *Daemon) handleRun(ctx context.Context, payload map[string]any) ipc.Comm
 
 	// 1. 构建配置
 	logger.Info("Building configuration", "mode", runops.ProxyMode, "route", runops.RouteMode)
-	if err := runtime.BuildConfig(env.Get().ConfigFile, env.Get().RawConfigFile, &runops); err != nil {
+	if err := config.BuildConfig( env.Get().RawConfigFile, &runops); err != nil {
 		return ipc.CommandResult{Status: "error", Error: fmt.Errorf("failed to build config: %w", err).Error()}
 	}
 
@@ -202,7 +202,7 @@ func (d *Daemon) handleRun(ctx context.Context, payload map[string]any) ipc.Comm
 	d.mu.Lock()
 	d.service = svc
 	if d.state == nil {
-		d.state = &config.RuntimeState{}
+		d.state = &runtime.RuntimeState{}
 	}
 	d.state.RunOptions = runops
 	d.mu.Unlock()
@@ -215,8 +215,8 @@ func (d *Daemon) handleRun(ctx context.Context, payload map[string]any) ipc.Comm
 }
 
 // parseRunOptions 解析 run 命令的参数
-func (d *Daemon) parseRunOptions(payload map[string]any) (config.RunOptions, error) {
-	runops := config.DefaultRunOptions()
+func (d *Daemon) parseRunOptions(payload map[string]any) (runtime.RunOptions, error) {
+	runops := runtime.DefaultRunOptions()
 	d.mu.Lock()
 	state := d.state
 	d.mu.Unlock()
@@ -230,14 +230,14 @@ func (d *Daemon) parseRunOptions(payload map[string]any) (config.RunOptions, err
 		return runops, nil
 	}
 	if mode, ok := payload["mode"].(string); ok && mode != "" {
-		proxyMode, err := config.ParseProxyMode(mode)
+		proxyMode, err := runtime.ParseProxyMode(mode)
 		if err != nil {
 			return runops, err
 		}
 		runops.ProxyMode = proxyMode
 	}
 	if route, ok := payload["route"].(string); ok && route != "" {
-		routeMode, err := config.ParseRouteMode(route)
+		routeMode, err := runtime.ParseRouteMode(route)
 		if err != nil {
 			return runops, err
 		}
@@ -292,7 +292,7 @@ func (d *Daemon) handleMode(ctx context.Context, payload map[string]any) ipc.Com
 	if !ok || modeStr == "" {
 		return ipc.CommandResult{Status: "error", Error: "missing mode"}
 	}
-	proxyMode, err := config.ParseProxyMode(modeStr)
+	proxyMode, err := runtime.ParseProxyMode(modeStr)
 	if err != nil {
 		return ipc.CommandResult{Status: "error", Error: err.Error()}
 	}
@@ -300,7 +300,7 @@ func (d *Daemon) handleMode(ctx context.Context, payload map[string]any) ipc.Com
 	if err != nil {
 		return ipc.CommandResult{Status: "error", Error: err.Error()}
 	}
-	if (proxyMode == config.ProxyModeTUN || state.RunOptions.ProxyMode == config.ProxyModeTUN) && os.Geteuid() != 0 {
+	if (proxyMode == runtime.ProxyModeTUN || state.RunOptions.ProxyMode == runtime.ProxyModeTUN) && os.Geteuid() != 0 {
 		return ipc.CommandResult{Status: "error", Error: "operating with TUN mode requires root permission"}
 	}
 	if state.RunOptions.ProxyMode == proxyMode {
@@ -321,7 +321,7 @@ func (d *Daemon) handleRoute(ctx context.Context, payload map[string]any) ipc.Co
 	if !ok || routeStr == "" {
 		return ipc.CommandResult{Status: "error", Error: "missing route"}
 	}
-	routeMode, err := config.ParseRouteMode(routeStr)
+	routeMode, err := runtime.ParseRouteMode(routeStr)
 	if err != nil {
 		return ipc.CommandResult{Status: "error", Error: err.Error()}
 	}
@@ -339,7 +339,7 @@ func (d *Daemon) handleRoute(ctx context.Context, payload map[string]any) ipc.Co
 	return ipc.CommandResult{Status: "ok", Data: map[string]any{"route_mode": string(routeMode)}}
 }
 
-func (d *Daemon) applyRunOptions(ctx context.Context, state *config.RuntimeState) error {
+func (d *Daemon) applyRunOptions(ctx context.Context, state *runtime.RuntimeState) error {
 	// 检查并设置 reloading 标志，防止并发 reload
 	d.mu.Lock()
 	if d.reloading {
@@ -355,7 +355,7 @@ func (d *Daemon) applyRunOptions(ctx context.Context, state *config.RuntimeState
 	}()
 
 	backupPath, _ := backupConfig(env.Get().RawConfigFile)
-	if err := runtime.BuildConfig(env.Get().ConfigFile, env.Get().RawConfigFile, &state.RunOptions); err != nil {
+	if err := config.BuildConfig(env.Get().RawConfigFile, &state.RunOptions); err != nil {
 		return err
 	}
 	if d.service == nil {
@@ -465,7 +465,7 @@ func (d *Daemon) newService() ServiceRunner {
 	return service.NewInstance()
 }
 
-func (d *Daemon) currentState() (*config.RuntimeState, error) {
+func (d *Daemon) currentState() (*runtime.RuntimeState, error) {
 	d.mu.Lock()
 	state := d.state
 	d.mu.Unlock()
@@ -582,7 +582,7 @@ func (d *Daemon) isRunning() bool {
 
 func (d *Daemon) loadState() {
 
-	state, err := config.LoadState()
+	state, err := runtime.LoadState()
 	if err != nil {
 		if os.IsNotExist(err) {
 			return
