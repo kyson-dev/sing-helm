@@ -23,6 +23,7 @@ func Export(opts *option.Options, target Target) ([]byte, error) {
 		return nil, fmt.Errorf("failed to marshal config: %w", err)
 	}
 
+	// No transforms needed if no target specified
 	if strings.TrimSpace(target.Version) == "" && strings.TrimSpace(target.Platform) == "" {
 		return data, nil
 	}
@@ -32,18 +33,14 @@ func Export(opts *option.Options, target Target) ([]byte, error) {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
+	// Apply version-specific compatibility transforms
 	if strings.TrimSpace(target.Version) != "" {
-		less, err := versionLess(target.Version, "1.12.0")
-		if err != nil {
+		if err := applyVersionCompat(root, target.Version); err != nil {
 			return nil, err
 		}
-		if less {
-			downgradeDNSServers(root)
-			downgradeRuleSets(root)
-			downgradeTunInbounds(root)
-			downgradeSelectorOutbounds(root)
-		}
 	}
+
+	// Apply platform-specific compatibility transforms
 	if strings.TrimSpace(target.Platform) != "" {
 		applyPlatformCompat(root, target.Platform)
 	}
@@ -51,6 +48,26 @@ func Export(opts *option.Options, target Target) ([]byte, error) {
 	return json.Marshal(root)
 }
 
+// applyVersionCompat applies version-specific compatibility transforms
+func applyVersionCompat(root map[string]any, version string) error {
+	less, err := versionLess(version, "1.12.0")
+	if err != nil {
+		return err
+	}
+
+	if less {
+		// v1.11.x compatibility transforms
+		downgradeDNSServers(root)
+		downgradeDNSDetour(root) // Add detour: direct for DNS servers
+		downgradeRuleSets(root)
+		downgradeTunInbounds(root)
+		downgradeSelectorOutbounds(root)
+	}
+
+	return nil
+}
+
+// downgradeDNSServers converts v1.12+ DNS server format to v1.11.x format
 func downgradeDNSServers(root map[string]any) {
 	dns, ok := root["dns"].(map[string]any)
 	if !ok {
@@ -66,6 +83,7 @@ func downgradeDNSServers(root map[string]any) {
 		if !ok {
 			continue
 		}
+		// Skip if already has legacy 'address' field
 		if _, ok := server["address"]; ok {
 			continue
 		}
@@ -75,11 +93,13 @@ func downgradeDNSServers(root map[string]any) {
 		port := intFromAny(server["server_port"])
 		path, _ := server["path"].(string)
 
+		// Build legacy address
 		address := buildLegacyDNSAddress(typ, host, port, path)
 		if address != "" {
 			server["address"] = address
 		}
 
+		// Rename domain_* to address_*
 		if resolver, ok := server["domain_resolver"]; ok {
 			server["address_resolver"] = resolver
 		}
@@ -87,6 +107,7 @@ func downgradeDNSServers(root map[string]any) {
 			server["address_strategy"] = strategy
 		}
 
+		// Remove v1.12+ fields
 		delete(server, "type")
 		delete(server, "server")
 		delete(server, "server_port")
@@ -98,6 +119,38 @@ func downgradeDNSServers(root map[string]any) {
 	}
 }
 
+// downgradeDNSDetour adds "detour": "direct" to DNS servers for v1.11.x
+// This is critical for proper DNS resolution on iOS v1.11.4
+func downgradeDNSDetour(root map[string]any) {
+	dns, ok := root["dns"].(map[string]any)
+	if !ok {
+		return
+	}
+	servers, ok := dns["servers"].([]any)
+	if !ok {
+		return
+	}
+
+	for _, entry := range servers {
+		server, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		tag, _ := server["tag"].(string)
+
+		// Add detour: direct for local_dns and resolver_dns
+		// These need direct connection to avoid DNS resolution loops
+		if tag == "local_dns" || tag == "resolver_dns" {
+			// Only add if not already present
+			if _, hasDetour := server["detour"]; !hasDetour {
+				server["detour"] = "direct"
+			}
+		}
+	}
+}
+
+// downgradeRuleSets ensures rule_set format field is present for v1.11.x
 func downgradeRuleSets(root map[string]any) {
 	route, ok := root["route"].(map[string]any)
 	if !ok {
@@ -132,6 +185,7 @@ func downgradeRuleSets(root map[string]any) {
 	}
 }
 
+// downgradeTunInbounds converts tun inbound address field for v1.11.x
 func downgradeTunInbounds(root map[string]any) {
 	inbounds, ok := root["inbounds"].([]any)
 	if !ok {
@@ -155,6 +209,7 @@ func downgradeTunInbounds(root map[string]any) {
 	}
 }
 
+// downgradeSelectorOutbounds removes v1.12+ fields from selector/urltest outbounds
 func downgradeSelectorOutbounds(root map[string]any) {
 	outbounds, ok := root["outbounds"].([]any)
 	if !ok {
@@ -175,6 +230,7 @@ func downgradeSelectorOutbounds(root map[string]any) {
 	}
 }
 
+// applyPlatformCompat applies platform-specific compatibility transforms
 func applyPlatformCompat(root map[string]any, platform string) {
 	switch strings.ToLower(strings.TrimSpace(platform)) {
 	case "ios":
@@ -183,6 +239,7 @@ func applyPlatformCompat(root map[string]any, platform string) {
 	}
 }
 
+// buildLegacyDNSAddress constructs legacy DNS address string from components
 func buildLegacyDNSAddress(typ, host string, port int, path string) string {
 	if host == "" {
 		switch typ {

@@ -56,6 +56,7 @@ func NewRootCommand() *cobra.Command {
 		newStopCommand(),
 		newLogCommand(),
 		newAutostartCommand(),
+		newServeCommand(),
 	)
 
 	return cmd

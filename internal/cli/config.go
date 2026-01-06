@@ -39,7 +39,6 @@ Available subcommands:
 		newConfigEditCommand(),
 		newConfigRefreshCommand(),
 		newConfigDeleteCommand(),
-		newConfigExportCommand(),
 	)
 
 	return cmd
