@@ -70,7 +70,6 @@ func (m *TUNDNSModule) Apply(opts *option.Options, ctx *BuildContext) error {
 				"type":            "https",
 				"server":          "dns.alidns.com",
 				"domain_resolver": "resolver_dns",
-				//"detour": "direct",
 			},
 			{
 				"tag":             "proxy_dns",
@@ -83,25 +82,20 @@ func (m *TUNDNSModule) Apply(opts *option.Options, ctx *BuildContext) error {
 				"tag":    "resolver_dns",
 				"type":   "udp",
 				"server": "223.5.5.5",
-				//"detour": "direct",
 			},
 		},
 		"rules": []map[string]any{
 			{
-				"rule_set": []string{"anti-ad", "geosite-ads"},
+				"rule_set": []string{"geosite-ads", "anti-ad"},
 				"action":   "reject",
 			},
 			{
-				"domain_suffix": []string{"wise.com", "schwab.com", "interactivebrokers.com","soulapp.cn", "soul.cn"},
+				"domain_suffix": []string{"wise.com", "schwab.com", "interactivebrokers.com", "cloudflare.com"},
 				"action":        "route",
 				"server":        "local_dns",
 			},
 			{
-				"rule_set": []string{"geosite-cn", "geosite-tld-cn", "geoip-cn",
-				"geosite-geolocation-cn", "geosite-bilibili",
-				"geosite-category-media-cn", "geosite-category-entertainment-cn", "geosite-category-social-media-cn",
-				"geosite-tencent", "geosite-iqiyi", "geosite-youku", "geosite-baidu", "geosite-netease", "geosite-douyin",
-			    "geosite-category-cdn-cn", "geosite-wangsu", "geosite-kingsoft", "geosite-qiniu"},
+				"rule_set": []string{"geosite-cn", "geoip-cn"},
 				"action":   "route",
 				"server":   "local_dns",
 			},
