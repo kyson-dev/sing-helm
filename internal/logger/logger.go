@@ -37,7 +37,7 @@ func Setup(cfg Config) {
 			fileLogger := &lumberjack.Logger{
 				Filename:   cfg.FilePath,
 				MaxSize:    10,   // 每个日志文件最大 10MB
-				MaxBackups: 3,    // 保留最近 3 个文件
+				MaxBackups: 1,    // 保留最近 3 个文件
 				MaxAge:     28,   // 保留 28 天
 				Compress:   true, // 压缩旧日志
 			}

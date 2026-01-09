@@ -10,7 +10,9 @@ import (
 func ResolveLogDir(runtimeDir string) string {
 	candidate := ""
 	switch runtime.GOOS {
-	case "linux", "darwin":
+	case "linux":
+		candidate = filepath.Join("/var", "log", "sing-helm")
+	case "darwin":
 		candidate = filepath.Join("/var", "log", "sing-helm")
 	case "windows":
 		base := os.Getenv("ProgramData")

@@ -23,8 +23,13 @@ func Setup(homeFlag string) error {
 			resolvedHome = runtimeHome
 		} else {
 			// 使用默认值
-			userHome, _ := os.UserHomeDir()
-			resolvedHome = filepath.Join(userHome, ".sing-helm")
+			// 如果是 sudo 运行，尝试获取原始用户的 home
+			if sudoUser := os.Getenv("SUDO_USER"); sudoUser != "" {
+				resolvedHome = filepath.Join("/Users", sudoUser, ".sing-helm")
+			} else {
+				userHome, _ := os.UserHomeDir()
+				resolvedHome = filepath.Join(userHome, ".sing-helm")
+			}
 		}
 	}
 

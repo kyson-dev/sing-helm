@@ -26,7 +26,9 @@ func ResolveRuntimeDir() string {
 		}
 		return filepath.Join("/var/run", "sing-helm")
 	case "darwin":
-		return filepath.Join("/var/run", "sing-helm")
+		// Use /usr/local/var/run instead of /var/run because /var/run is tmpfs on macOS
+		// and gets cleared on reboot
+		return filepath.Join("/usr/local/var/run", "sing-helm")
 	case "windows":
 		base := os.Getenv("ProgramData")
 		if base == "" {

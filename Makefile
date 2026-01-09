@@ -106,7 +106,7 @@ clean:
 # Create handy symlinks to runtime/home/log paths for local inspection
 links:
 	@mkdir -p $(BUILD_DIR)
-	@ln -snf "$${SINGHELM_RUNTIME_DIR:-/var/run/sing-helm}" $(BUILD_DIR)/runtime
+	@ln -snf "$${SINGHELM_RUNTIME_DIR:-/usr/local/var/run/sing-helm}" $(BUILD_DIR)/runtime
 	@ln -snf "$${HOME}/.sing-helm" $(BUILD_DIR)/home
 	@ln -snf /var/log/sing-helm $(BUILD_DIR)/logs
 	@echo "Links created in $(BUILD_DIR)/: runtime, home, logs"
