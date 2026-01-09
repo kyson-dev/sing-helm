@@ -1,7 +1,7 @@
 package config
 
 import (
-	"github.com/kyson/sing-helm/internal/pkg/netutil"
+	"github.com/kysonzou/sing-helm/internal/pkg/netutil"
 	"github.com/sagernet/sing-box/option"
 )
 

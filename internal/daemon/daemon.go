@@ -7,14 +7,14 @@ import (
 	"os"
 	"sync"
 
-	"github.com/kyson/sing-helm/internal/logger"
-	"github.com/kyson/sing-helm/internal/client"
-	"github.com/kyson/sing-helm/internal/config"
-	"github.com/kyson/sing-helm/internal/runtime"
-	"github.com/kyson/sing-helm/internal/service"
-	"github.com/kyson/sing-helm/internal/updater"
-	"github.com/kyson/sing-helm/internal/env"
-	"github.com/kyson/sing-helm/internal/ipc"
+	"github.com/kysonzou/sing-helm/internal/logger"
+	"github.com/kysonzou/sing-helm/internal/client"
+	"github.com/kysonzou/sing-helm/internal/config"
+	"github.com/kysonzou/sing-helm/internal/runtime"
+	"github.com/kysonzou/sing-helm/internal/service"
+	"github.com/kysonzou/sing-helm/internal/updater"
+	"github.com/kysonzou/sing-helm/internal/env"
+	"github.com/kysonzou/sing-helm/internal/ipc"
 )
 
 // Daemon handles long-running sing-box operations and responds to IPC commands.

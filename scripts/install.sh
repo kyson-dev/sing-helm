@@ -2,9 +2,9 @@
 set -e
 
 # SingHelm Installation Script
-# Usage: curl -sSL https://raw.githubusercontent.com/kyson/sing-helm/main/scripts/install.sh | bash
+# Usage: curl -sSL https://raw.githubusercontent.com/kysonzou/sing-helm/main/scripts/install.sh | bash
 
-REPO="kyson/sing-helm"
+REPO="kysonzou/sing-helm"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 BINARY_NAME="sing-helm"
 

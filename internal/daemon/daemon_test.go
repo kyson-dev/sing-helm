@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kyson/sing-helm/internal/daemon"
-	"github.com/kyson/sing-helm/internal/env"
-	"github.com/kyson/sing-helm/internal/ipc"
+	"github.com/kysonzou/sing-helm/internal/daemon"
+	"github.com/kysonzou/sing-helm/internal/env"
+	"github.com/kysonzou/sing-helm/internal/ipc"
 )
 
 type fakeService struct {

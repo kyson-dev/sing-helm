@@ -3,7 +3,7 @@ package cli
 import (
 	"fmt"
 
-	"github.com/kyson/sing-helm/internal/logger"
+	"github.com/kysonzou/sing-helm/internal/logger"
 	"github.com/nxadm/tail"
 	"github.com/spf13/cobra"
 )

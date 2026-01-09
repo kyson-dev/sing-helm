@@ -6,8 +6,8 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/kyson/sing-helm/internal/env"
-	"github.com/kyson/sing-helm/internal/logger"
+	"github.com/kysonzou/sing-helm/internal/env"
+	"github.com/kysonzou/sing-helm/internal/logger"
 	"github.com/spf13/cobra"
 )
 

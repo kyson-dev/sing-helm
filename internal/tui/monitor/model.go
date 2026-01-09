@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/kyson/sing-helm/internal/client"
+	"github.com/kysonzou/sing-helm/internal/client"
 )
 
 // ============================================================================

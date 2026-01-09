@@ -1,7 +1,7 @@
 package config
 
 import (
-	"github.com/kyson/sing-helm/internal/logger"
+	"github.com/kysonzou/sing-helm/internal/logger"
 	"github.com/sagernet/sing-box/option"
 )
 

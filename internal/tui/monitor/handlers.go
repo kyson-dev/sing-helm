@@ -4,8 +4,8 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/kyson/sing-helm/internal/logger"
-	"github.com/kyson/sing-helm/internal/client"
+	"github.com/kysonzou/sing-helm/internal/logger"
+	"github.com/kysonzou/sing-helm/internal/client"
 )
 
 // ============================================================================

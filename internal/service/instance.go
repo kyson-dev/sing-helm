@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/kyson/sing-helm/internal/config"
-	"github.com/kyson/sing-helm/internal/logger"
+	"github.com/kysonzou/sing-helm/internal/config"
+	"github.com/kysonzou/sing-helm/internal/logger"
 	box "github.com/sagernet/sing-box"
 	"github.com/sagernet/sing-box/include"
 	"github.com/sagernet/sing-box/option"

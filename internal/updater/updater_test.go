@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/kyson/sing-helm/internal/updater"
+	"github.com/kysonzou/sing-helm/internal/updater"
 	"github.com/stretchr/testify/assert"
 )
 

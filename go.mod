@@ -1,4 +1,4 @@
-module github.com/kyson/sing-helm
+module github.com/kysonzou/sing-helm
 
 go 1.25.5
 

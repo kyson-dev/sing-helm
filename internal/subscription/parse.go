@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/kyson/sing-helm/internal/logger"
+	"github.com/kysonzou/sing-helm/internal/logger"
 	"gopkg.in/yaml.v3"
 )
 

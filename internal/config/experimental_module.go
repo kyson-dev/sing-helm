@@ -3,8 +3,8 @@ package config
 import (
 	"fmt"
 
-	"github.com/kyson/sing-helm/internal/env"
-	"github.com/kyson/sing-helm/internal/pkg/netutil"
+	"github.com/kysonzou/sing-helm/internal/env"
+	"github.com/kysonzou/sing-helm/internal/pkg/netutil"
 	"github.com/sagernet/sing-box/option"
 )
 
