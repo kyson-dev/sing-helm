@@ -67,13 +67,14 @@ jobs:
       # 创建 GitHub Release 并上传文件
       - name: Create Release
         uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/v')
         with:
           files: |
             bin/sing-helm-*
             bin/checksums.txt
-          draft: true # 创建为草稿，方便后续手动编辑 Release Note
-          prerelease: false # 如果是测试版标签(如 v0.1.0-alpha)可以改为 true
+          draft: false # 创建为草稿，方便手动编辑 Release Note 后再发布
+          prerelease: ${{ contains(github.ref, '-') }} # 自动检测：tag 包含 '-' 则为预发布版
+          generate_release_notes: true # 自动生成 Release Notes（基于 commits 和 PRs）
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
