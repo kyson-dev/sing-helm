@@ -2,7 +2,7 @@ package monitor
 
 import (
 	"github.com/gorilla/websocket"
-	"github.com/kysonzou/sing-helm/internal/client"
+	"github.com/kyson-dev/sing-helm/internal/client"
 )
 
 // ============================================================================

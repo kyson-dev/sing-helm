@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/kysonzou/sing-helm/internal/logger"
-	"github.com/kysonzou/sing-helm/internal/runtime"
+	"github.com/kyson-dev/sing-helm/internal/logger"
+	"github.com/kyson-dev/sing-helm/internal/runtime"
 	"github.com/sagernet/sing-box/include"
 	"github.com/sagernet/sing-box/option"
 	singboxjson "github.com/sagernet/sing/common/json"

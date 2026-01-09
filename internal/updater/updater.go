@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kysonzou/sing-helm/internal/logger"
+	"github.com/kyson-dev/sing-helm/internal/logger"
 )
 
 var (

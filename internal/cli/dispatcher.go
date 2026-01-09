@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kysonzou/sing-helm/internal/env"
-	"github.com/kysonzou/sing-helm/internal/ipc"
+	"github.com/kyson-dev/sing-helm/internal/env"
+	"github.com/kyson-dev/sing-helm/internal/ipc"
 )
 
 var errDaemonUnavailable = errors.New("daemon unavailable")

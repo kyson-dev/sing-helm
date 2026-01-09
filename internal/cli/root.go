@@ -3,8 +3,8 @@ package cli
 import (
 	"fmt"
 
-	"github.com/kysonzou/sing-helm/internal/env"
-	"github.com/kysonzou/sing-helm/internal/logger"
+	"github.com/kyson-dev/sing-helm/internal/env"
+	"github.com/kyson-dev/sing-helm/internal/logger"
 	"github.com/spf13/cobra"
 )
 

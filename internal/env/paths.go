@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/kysonzou/sing-helm/internal/logger"
+	"github.com/kyson-dev/sing-helm/internal/logger"
 )
 
 // Paths 定义了应用所有的关键路径

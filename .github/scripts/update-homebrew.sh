@@ -26,21 +26,21 @@ WORK_DIR=$(mktemp -d)
 echo "Working in ${WORK_DIR}..."
 
 # Clone homebrew tap repo
-git clone https://github.com/kysonzou/homebrew-sing-helm.git "${WORK_DIR}"
+git clone https://github.com/kyson-dev/homebrew-sing-helm.git "${WORK_DIR}"
 cd "${WORK_DIR}"
 
 # Generate new formula content
 cat > Formula/sing-helm.rb <<EOF
 class SingHelm < Formula
   desc "Lightweight sing-box configuration manager and proxy client"
-  homepage "https://github.com/kysonzou/sing-helm"
+  homepage "https://github.com/kyson-dev/sing-helm"
   version "${VERSION}"
   
   if Hardware::CPU.arm?
-    url "https://github.com/kysonzou/sing-helm/releases/download/v${VERSION}/sing-helm-darwin-arm64"
+    url "https://github.com/kyson-dev/sing-helm/releases/download/v${VERSION}/sing-helm-darwin-arm64"
     sha256 "${ARM64_SHA}"
   else
-    url "https://github.com/kysonzou/sing-helm/releases/download/v${VERSION}/sing-helm-darwin-amd64"
+    url "https://github.com/kyson-dev/sing-helm/releases/download/v${VERSION}/sing-helm-darwin-amd64"
     sha256 "${AMD64_SHA}"
   end
 
@@ -78,6 +78,6 @@ git config user.email "actions@github.com"
 # Commit and push
 git add Formula/sing-helm.rb
 git commit -m "Update sing-helm to v${VERSION}"
-git push "https://x-access-token:${GITHUB_TOKEN}@github.com/kysonzou/homebrew-sing-helm.git" main
+git push "https://x-access-token:${GITHUB_TOKEN}@github.com/kyson-dev/homebrew-sing-helm.git" main
 
 echo "✅ Homebrew formula updated successfully!"

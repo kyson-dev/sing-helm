@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/kysonzou/sing-helm/internal/cli"
+	"github.com/kyson-dev/sing-helm/internal/cli"
 	_ "github.com/sagernet/sing-box/include"
 )
 

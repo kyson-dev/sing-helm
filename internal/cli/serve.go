@@ -10,10 +10,10 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/kysonzou/sing-helm/internal/config"
-	"github.com/kysonzou/sing-helm/internal/logger"
-	"github.com/kysonzou/sing-helm/internal/runtime"
-	"github.com/kysonzou/sing-helm/internal/tools/exporter"
+	"github.com/kyson-dev/sing-helm/internal/config"
+	"github.com/kyson-dev/sing-helm/internal/logger"
+	"github.com/kyson-dev/sing-helm/internal/runtime"
+	"github.com/kyson-dev/sing-helm/internal/tools/exporter"
 	"github.com/spf13/cobra"
 )
 

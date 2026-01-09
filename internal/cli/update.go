@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/kysonzou/sing-helm/internal/logger"
-	"github.com/kysonzou/sing-helm/internal/updater"
-	"github.com/kysonzou/sing-helm/internal/env"
+	"github.com/kyson-dev/sing-helm/internal/logger"
+	"github.com/kyson-dev/sing-helm/internal/updater"
+	"github.com/kyson-dev/sing-helm/internal/env"
 	"github.com/spf13/cobra"
 )
 

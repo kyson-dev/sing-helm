@@ -10,8 +10,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gorilla/websocket"
-	"github.com/kysonzou/sing-helm/internal/client"
-	"github.com/kysonzou/sing-helm/internal/controller"
+	"github.com/kyson-dev/sing-helm/internal/client"
+	"github.com/kyson-dev/sing-helm/internal/controller"
 )
 
 // ============================================================================

@@ -5,7 +5,7 @@ import (
 	"context"
 	"os"
 
-	"github.com/kysonzou/sing-helm/internal/env"
+	"github.com/kyson-dev/sing-helm/internal/env"
 	"github.com/sagernet/sing-box/include"
 	"github.com/sagernet/sing-box/option"
 	singboxjson "github.com/sagernet/sing/common/json"
