@@ -66,7 +66,8 @@ end
 EOF
 
 # Check if there are changes
-if git diff --quiet Formula/sing-helm.rb; then
+git add Formula/sing-helm.rb
+if git diff --cached --quiet; then
     echo "No changes detected in formula."
     exit 0
 fi
