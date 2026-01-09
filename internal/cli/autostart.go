@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	systemdUnitPath   = "/etc/systemd/system/minibox.service"
-	launchdPlistPath  = "/Library/LaunchDaemons/com.kyson.minibox.plist"
-	launchdPlistLabel = "com.kyson.minibox"
+	systemdUnitPath   = "/etc/systemd/system/sing-helm.service"
+	launchdPlistPath  = "/Library/LaunchDaemons/com.kyson.sing-helm.plist"
+	launchdPlistLabel = "com.kyson.sing-helm"
 )
 
 func newAutostartCommand() *cobra.Command {
@@ -99,7 +99,7 @@ func newAutostartStatusCommand() *cobra.Command {
 }
 
 func showSystemdStatus(cmd *cobra.Command) error {
-	out, err := cmdOutput("systemctl", "is-enabled", "minibox.service")
+	out, err := cmdOutput("systemctl", "is-enabled", "sing-helm.service")
 	if err != nil {
 		return err
 	}
@@ -131,14 +131,14 @@ func enableSystemd() error {
 	if err := runCmd("systemctl", "daemon-reload"); err != nil {
 		return err
 	}
-	if err := runCmd("systemctl", "enable", "minibox.service"); err != nil {
+	if err := runCmd("systemctl", "enable", "sing-helm.service"); err != nil {
 		return err
 	}
-	return runCmd("systemctl", "restart", "minibox.service")
+	return runCmd("systemctl", "restart", "sing-helm.service")
 }
 
 func disableSystemd() error {
-	if err := runCmd("systemctl", "disable", "--now", "minibox.service"); err != nil {
+	if err := runCmd("systemctl", "disable", "--now", "sing-helm.service"); err != nil {
 		return err
 	}
 	return nil
@@ -205,18 +205,18 @@ func fileExists(path string) bool {
 }
 
 const systemdUnitContent = `[Unit]
-Description=Minibox daemon
+Description=SingHelm daemon
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/minibox run
+ExecStart=/usr/local/bin/sing-helm run
 Restart=on-failure
 RestartSec=2
-RuntimeDirectory=minibox
+RuntimeDirectory=sing-helm
 RuntimeDirectoryMode=0755
-LogsDirectory=minibox
+LogsDirectory=sing-helm
 LogsDirectoryMode=0755
 UMask=022
 
@@ -232,7 +232,7 @@ const launchdPlistContent = `<?xml version="1.0" encoding="UTF-8"?>
 	<string>` + launchdPlistLabel + `</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>/usr/local/bin/minibox</string>
+		<string>/usr/local/bin/sing-helm</string>
 		<string>run</string>
 	</array>
 	<key>RunAtLoad</key>

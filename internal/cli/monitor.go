@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/kyson/minibox/internal/logger"
-	"github.com/kyson/minibox/internal/tui/monitor"
+	"github.com/kyson/sing-helm/internal/logger"
+	"github.com/kyson/sing-helm/internal/tui/monitor"
 	"github.com/spf13/cobra"
 )
 

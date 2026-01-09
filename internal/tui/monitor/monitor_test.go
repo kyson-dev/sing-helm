@@ -67,7 +67,7 @@ func TestView_Rendering(t *testing.T) {
 	// 验证关键文本是否存在
 	assert.Contains(t, viewOutput, "1.0 KB/s", "Should format upload speed correctly")
 	assert.Contains(t, viewOutput, "1.0 MB/s", "Should format download speed correctly")
-	assert.Contains(t, viewOutput, "Minibox Monitor", "Should show title")
+	assert.Contains(t, viewOutput, "SingHelm Monitor", "Should show title")
 
 	// 验证 connected 状态显示
 	assert.Contains(t, viewOutput, "Connected", "Should show connected status")

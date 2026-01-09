@@ -7,7 +7,7 @@ import (
 	"runtime"
 )
 
-const runtimeDirEnv = "MINIBOX_RUNTIME_DIR"
+const runtimeDirEnv = "SINGHELM_RUNTIME_DIR"
 
 var runtimeDirOverride string
 
@@ -22,19 +22,19 @@ func ResolveRuntimeDir() string {
 	switch runtime.GOOS {
 	case "linux":
 		if dirExists("/run") {
-			return filepath.Join("/run", "minibox")
+			return filepath.Join("/run", "sing-helm")
 		}
-		return filepath.Join("/var/run", "minibox")
+		return filepath.Join("/var/run", "sing-helm")
 	case "darwin":
-		return filepath.Join("/var/run", "minibox")
+		return filepath.Join("/var/run", "sing-helm")
 	case "windows":
 		base := os.Getenv("ProgramData")
 		if base == "" {
 			base = os.TempDir()
 		}
-		return filepath.Join(base, "minibox")
+		return filepath.Join(base, "sing-helm")
 	default:
-		return filepath.Join(os.TempDir(), "minibox")
+		return filepath.Join(os.TempDir(), "sing-helm")
 	}
 }
 

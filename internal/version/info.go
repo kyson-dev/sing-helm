@@ -11,5 +11,5 @@ var (
 type Info struct{}
 
 func (i *Info) String() string {
-	return fmt.Sprintf("minibox %s (%s) built at %s", Tag, Commit, Date)
+	return fmt.Sprintf("sing-helm %s (%s) built at %s", Tag, Commit, Date)
 }

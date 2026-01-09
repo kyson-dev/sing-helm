@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"os"
 
-	"github.com/kyson/minibox/internal/env"
+	"github.com/kyson/sing-helm/internal/env"
 )
 
 type RuntimeState struct {

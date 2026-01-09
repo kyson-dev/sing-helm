@@ -1,5 +1,5 @@
 # --- 项目元数据 ---
-APP := minibox
+APP := sing-helm
 BUILD_DIR := bin
 # 获取 Git commit hash 和 tag，用于注入版本号
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -19,9 +19,9 @@ TAGS := with_quic,with_wireguard,with_utls,with_real_ip,with_clash_api,with_gvis
 # -w: 省略 DWARF 调试信息 -> 减小体积
 # -X: 注入变量值 (把 Makefile 里的 VERSION 塞进 Go 代码里)
 LDFLAGS := -s -w \
-	-X 'github.com/kyson/minibox/internal/version.Tag=$(VERSION)' \
-	-X 'github.com/kyson/minibox/internal/version.Commit=$(COMMIT)' \
-	-X 'github.com/kyson/minibox/internal/version.Date=$(DATE)'
+	-X 'github.com/kyson/sing-helm/internal/version.Tag=$(VERSION)' \
+	-X 'github.com/kyson/sing-helm/internal/version.Commit=$(COMMIT)' \
+	-X 'github.com/kyson/sing-helm/internal/version.Date=$(DATE)'
 
 # 4. TRIMPATH: 移除二进制文件中的绝对路径信息 (保护隐私，且让构建可复现)
 FLAGS := -tags "$(TAGS)" -trimpath -ldflags "$(LDFLAGS)"
@@ -70,28 +70,29 @@ build-dev:
 	@echo "Build success! Size: $$(du -h $(BUILD_DIR)/$(APP) | cut -f1)"
 	@echo ""
 	@echo "Usage:"
-	@echo "  ./bin/minibox run                    # Use default home (~/.minibox)"
-	@echo "  ./bin/minibox run --home ./bin/dev   # Use custom directory"
+	@echo "  ./bin/sing-helm run                    # Use default home (~/.sing-helm)"
+	@echo "  ./bin/sing-helm run --home ./bin/dev   # Use custom directory"
 	@echo ""
 	@echo "Install (macOS):"
-	@echo "  sudo install -m 0755 bin/minibox /usr/local/bin/minibox"
-	@echo "  sudo minibox autostart on"
+	@echo "  sudo install -m 0755 bin/sing-helm /usr/local/bin/sing-helm"
+	@echo "  sudo sing-helm autostart on"
 	@echo ""
 	@echo "Environment is auto-detected or can be specified with --home flag"
 
 # --- 交叉编译 (Cross Compilation) ---
 # Go 的一大杀器：一条命令打出 Windows, Linux, macOS 包
 build-all:
-# 	@echo "Building for Linux (amd64)..."
-# 	GOOS=linux GOARCH=amd64 $(ENV) go build $(FLAGS) -o $(BUILD_DIR)/$(APP)-linux-amd64 ./cmd/$(APP)
+	@echo "Building for Linux (amd64)..."
+	GOOS=linux GOARCH=amd64 $(ENV) go build $(FLAGS) -o $(BUILD_DIR)/$(APP)-linux-amd64 ./cmd/$(APP)
 	
-# 	@echo "Building for Windows (amd64)..."
-# 	GOOS=windows GOARCH=amd64 $(ENV) go build $(FLAGS) -o $(BUILD_DIR)/$(APP)-windows-amd64.exe ./cmd/$(APP)
+	@echo "Building for macOS (amd64/Intel)..."
+	GOOS=darwin GOARCH=amd64 $(ENV) go build $(FLAGS) -o $(BUILD_DIR)/$(APP)-darwin-amd64 ./cmd/$(APP)
 	
-	@echo "Building for macOS (arm64/M1)..."
+	@echo "Building for macOS (arm64/Apple Silicon)..."
 	GOOS=darwin GOARCH=arm64 $(ENV) go build $(FLAGS) -o $(BUILD_DIR)/$(APP)-darwin-arm64 ./cmd/$(APP)
 	
 	@echo "All builds finished in $(BUILD_DIR)/"
+	@ls -lh $(BUILD_DIR)/$(APP)-*
 
 
 # golangci-lint 聚合型静态分析工具, 几十个 linter 的统一调度器
@@ -105,7 +106,7 @@ clean:
 # Create handy symlinks to runtime/home/log paths for local inspection
 links:
 	@mkdir -p $(BUILD_DIR)
-	@ln -snf "$${MINIBOX_RUNTIME_DIR:-/var/run/minibox}" $(BUILD_DIR)/runtime
-	@ln -snf "$${HOME}/.minibox" $(BUILD_DIR)/home
-	@ln -snf /var/log/minibox $(BUILD_DIR)/logs
+	@ln -snf "$${SINGHELM_RUNTIME_DIR:-/var/run/sing-helm}" $(BUILD_DIR)/runtime
+	@ln -snf "$${HOME}/.sing-helm" $(BUILD_DIR)/home
+	@ln -snf /var/log/sing-helm $(BUILD_DIR)/logs
 	@echo "Links created in $(BUILD_DIR)/: runtime, home, logs"

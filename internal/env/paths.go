@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/kyson/minibox/internal/logger"
+	"github.com/kyson/sing-helm/internal/logger"
 )
 
 // Paths 定义了应用所有的关键路径
@@ -16,9 +16,9 @@ type Paths struct {
 	RawConfigFile string // raw.json (生成的完整配置)
 	SubConfigDir  string // subscriptions 目录
 	SubCacheDir   string // subscriptions cache 目录
-	LogFile       string // minibox.log
+	LogFile       string // sing-helm.log
 	StateFile     string // state.json
-	LookFile      string // minibox.lock
+	LookFile      string // sing-helm.lock
 	SocketFile    string // 仅 Linux 用，或存放 API 地址的文件
 	AssetDir      string // 存放 geoip.db/geosite.db
 	CacheFile     string // cache.db (sing-box 缓存)
@@ -36,7 +36,7 @@ func Get() Paths {
 
 // Init 初始化环境
 // home: 必须是已解析的绝对路径或相对路径，如果为空则报错（或者使用默认？）
-// 为了保持兼容性，我们可以让 Init("") 依旧使用默认 ~/.minibox，
+// 为了保持兼容性，我们可以让 Init("") 依旧使用默认 ~/.sing-helm，
 // 但真正的智能选择逻辑交给 setup.go
 func Init(home string) error {
 	var err error
@@ -44,7 +44,7 @@ func Init(home string) error {
 		if home == "" {
 			// 兜底默认值
 			userHome, _ := os.UserHomeDir()
-			home = filepath.Join(userHome, ".minibox")
+			home = filepath.Join(userHome, ".sing-helm")
 		}
 
 		// 转换成绝对路径
@@ -75,7 +75,7 @@ func Init(home string) error {
 func GetPath(home string, runtimeDir string, logDir string) Paths {
 	logFile := ""
 	if logDir != "" {
-		logFile = filepath.Join(logDir, "minibox.log")
+		logFile = filepath.Join(logDir, "sing-helm.log")
 	}
 	return Paths{
 		HomeDir:       home,

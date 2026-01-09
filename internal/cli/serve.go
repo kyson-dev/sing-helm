@@ -10,10 +10,10 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/kyson/minibox/internal/config"
-	"github.com/kyson/minibox/internal/logger"
-	"github.com/kyson/minibox/internal/runtime"
-	"github.com/kyson/minibox/internal/tools/exporter"
+	"github.com/kyson/sing-helm/internal/config"
+	"github.com/kyson/sing-helm/internal/logger"
+	"github.com/kyson/sing-helm/internal/runtime"
+	"github.com/kyson/sing-helm/internal/tools/exporter"
 	"github.com/spf13/cobra"
 )
 
@@ -66,7 +66,7 @@ func newServeCommand() *cobra.Command {
 
 			url := fmt.Sprintf("http://%s:%d/config", bestIP.String(), port)
 
-			fmt.Printf("\n🚀 Minibox LAN Server Running on :%d\n", port)
+			fmt.Printf("\n🚀 SingHelm LAN Server Running on :%d\n", port)
 			fmt.Printf("Primary Subscription URL: %s\n", url)
 
 			if len(allIPs) > 1 {

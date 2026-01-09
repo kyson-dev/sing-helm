@@ -1,4 +1,4 @@
-module github.com/kyson/minibox
+module github.com/kyson/sing-helm
 
 go 1.25.5
 

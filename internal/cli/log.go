@@ -3,7 +3,7 @@ package cli
 import (
 	"fmt"
 
-	"github.com/kyson/minibox/internal/logger"
+	"github.com/kyson/sing-helm/internal/logger"
 	"github.com/nxadm/tail"
 	"github.com/spf13/cobra"
 )

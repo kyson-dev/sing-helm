@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/kyson/minibox/internal/logger"
-	"github.com/kyson/minibox/internal/env"
-	"github.com/kyson/minibox/internal/ipc"
+	"github.com/kyson/sing-helm/internal/logger"
+	"github.com/kyson/sing-helm/internal/env"
+	"github.com/kyson/sing-helm/internal/ipc"
 )
 
 // SwitchProxyMode 切换代理模式

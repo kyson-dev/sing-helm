@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/kyson/minibox/internal/logger"
-	"github.com/kyson/minibox/internal/updater"
-	"github.com/kyson/minibox/internal/env"
+	"github.com/kyson/sing-helm/internal/logger"
+	"github.com/kyson/sing-helm/internal/updater"
+	"github.com/kyson/sing-helm/internal/env"
 	"github.com/spf13/cobra"
 )
 

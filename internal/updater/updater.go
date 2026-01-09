@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kyson/minibox/internal/logger"
+	"github.com/kyson/sing-helm/internal/logger"
 )
 
 var (

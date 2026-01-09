@@ -47,7 +47,7 @@ func fetchURL(ctx context.Context, url string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "minibox/1.0")
+	req.Header.Set("User-Agent", "sing-helm/1.0")
 
 	client := &http.Client{
 		Timeout: 20 * time.Second,

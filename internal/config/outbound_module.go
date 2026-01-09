@@ -1,7 +1,7 @@
 package config
 
 import (
-	"github.com/kyson/minibox/internal/logger"
+	"github.com/kyson/sing-helm/internal/logger"
 	"github.com/sagernet/sing-box/option"
 )
 
@@ -51,27 +51,48 @@ func (m *OutboundModule) Apply(opts *option.Options, ctx *BuildContext) error {
 	applyMapToOutbound(&blockOutbound, blockOutboundMap)
 	filteredOutbounds = append(filteredOutbounds, blockOutbound)
 
-	// 4. 添加 proxy selector（包含所有实际节点 + auto）
-	proxyNodes := append([]string{"auto"}, actualNodes...)
-	proxyOutbound := option.Outbound{}
-	proxyOutboundMap := map[string]any{
-		"type":      "selector",
-		"tag":       "proxy",
-		"outbounds": proxyNodes,
-		"default":   "auto",
-	}
-	applyMapToOutbound(&proxyOutbound, proxyOutboundMap)
-	filteredOutbounds = append(filteredOutbounds, proxyOutbound)
+	// 4 & 5. 添加 proxy selector 和 auto urltest
+	if len(actualNodes) > 0 {
+		// 有节点时的逻辑：
+		// - auto: urltest [all nodes]
+		// - proxy: selector [auto, ...all nodes]
 
-	// 5. 添加 auto urltest（包含所有实际节点）
-	autoOutbound := option.Outbound{}
-	autoOutboundMap := map[string]any{
-		"type":      "urltest",
-		"tag":       "auto",
-		"outbounds": actualNodes,
+		// 4. 添加 proxy selector
+		proxyNodes := append([]string{"auto"}, actualNodes...)
+		proxyOutbound := option.Outbound{}
+		proxyOutboundMap := map[string]any{
+			"type":      "selector",
+			"tag":       "proxy",
+			"outbounds": proxyNodes,
+			"default":   "auto",
+		}
+		applyMapToOutbound(&proxyOutbound, proxyOutboundMap)
+		filteredOutbounds = append(filteredOutbounds, proxyOutbound)
+
+		// 5. 添加 auto urltest
+		autoOutbound := option.Outbound{}
+		autoOutboundMap := map[string]any{
+			"type":      "urltest",
+			"tag":       "auto",
+			"outbounds": actualNodes,
+		}
+		applyMapToOutbound(&autoOutbound, autoOutboundMap)
+		filteredOutbounds = append(filteredOutbounds, autoOutbound)
+	} else {
+		// 无节点时的逻辑：
+		// - proxy: selector [direct] (降级为直连)
+		// - 不创建 auto 组 (因为没有节点可以测速)
+
+		proxyOutbound := option.Outbound{}
+		proxyOutboundMap := map[string]any{
+			"type":      "selector",
+			"tag":       "proxy",
+			"outbounds": []string{"direct"},
+			"default":   "direct",
+		}
+		applyMapToOutbound(&proxyOutbound, proxyOutboundMap)
+		filteredOutbounds = append(filteredOutbounds, proxyOutbound)
 	}
-	applyMapToOutbound(&autoOutbound, autoOutboundMap)
-	filteredOutbounds = append(filteredOutbounds, autoOutbound)
 
 	// 6. 更新最终的 outbounds
 	opts.Outbounds = filteredOutbounds

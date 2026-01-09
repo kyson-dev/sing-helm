@@ -9,7 +9,7 @@ import (
 // homeFlag: 命令行传入的 --home 参数
 // 逻辑：
 // 1. 指定了 homeFlag -> 用之
-// 2. 未指定 -> 优先级：系统 daemon 关联的配置 > 活跃实例 > 第一个注册目录 > 默认 ~/.minibox
+// 2. 未指定 -> 优先级：系统 daemon 关联的配置 > 活跃实例 > 第一个注册目录 > 默认 ~/.sing-helm
 // 3. 无论如何 -> 注册该环境
 func Setup(homeFlag string) error {
 	resolvedHome := ""
@@ -24,7 +24,7 @@ func Setup(homeFlag string) error {
 		} else {
 			// 使用默认值
 			userHome, _ := os.UserHomeDir()
-			resolvedHome = filepath.Join(userHome, ".minibox")
+			resolvedHome = filepath.Join(userHome, ".sing-helm")
 		}
 	}
 

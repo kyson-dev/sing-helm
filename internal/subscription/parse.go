@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/kyson/minibox/internal/logger"
+	"github.com/kyson/sing-helm/internal/logger"
 	"gopkg.in/yaml.v3"
 )
 

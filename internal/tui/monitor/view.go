@@ -106,7 +106,7 @@ func (m Model) View() string {
 func renderConnecting() string {
 	return mainBoxStyle.Render(
 		lipgloss.JoinVertical(lipgloss.Center,
-			titleStyle.Render(" Minibox Monitor "),
+			titleStyle.Render(" SingHelm Monitor "),
 			"",
 			colorCyan.Render("⟳ Connecting to Sing-box API..."),
 			"",
@@ -119,7 +119,7 @@ func renderConnecting() string {
 func renderReconnecting() string {
 	return mainBoxStyle.Render(
 		lipgloss.JoinVertical(lipgloss.Center,
-			titleStyle.Render(" Minibox Monitor "),
+			titleStyle.Render(" SingHelm Monitor "),
 			"",
 			colorYellow.Render("🔄 Reconnecting..."),
 			"",
@@ -132,7 +132,7 @@ func renderReconnecting() string {
 
 // renderHeader 标题栏（带状态指示器）
 func renderHeader(m Model) string {
-	title := " 📡 Minibox Monitor "
+	title := " 📡 SingHelm Monitor "
 	status := renderStatusIndicator(m)
 
 	titlePart := titleStyle.Render(title)

@@ -70,9 +70,8 @@ func get() *slog.Logger {
 	return instance
 }
 
-// log 是内部辅助函数，用于正确显示调用位置
-// skip 参数指定要跳过的调用栈层数
-func log_minibox(level slog.Level, msg string, args ...any) {
+// logInternal is internal helper
+func logInternal(level slog.Level, msg string, args ...any) {
 	l := get()
 	if !l.Enabled(context.Background(), level) {
 		return
@@ -90,17 +89,17 @@ func log_minibox(level slog.Level, msg string, args ...any) {
 
 // Info logs at Info level with correct source location
 func Info(msg string, args ...any) {
-	log_minibox(slog.LevelInfo, msg, args...)
+	logInternal(slog.LevelInfo, msg, args...)
 }
 
 // Error logs at Error level with correct source location
 func Error(msg string, args ...any) {
-	log_minibox(slog.LevelError, msg, args...)
+	logInternal(slog.LevelError, msg, args...)
 }
 
 // Debug logs at Debug level with correct source location
 func Debug(msg string, args ...any) {
-	log_minibox(slog.LevelDebug, msg, args...)
+	logInternal(slog.LevelDebug, msg, args...)
 }
 
 // IsDebug returns whether debug mode is enabled

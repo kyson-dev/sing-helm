@@ -13,7 +13,7 @@ type DaemonLock struct {
 }
 
 func GetLockPath(homeDir string) string {
-	return filepath.Join(homeDir, "minibox.lock")
+	return filepath.Join(homeDir, "sing-helm.lock")
 }
 
 // AcquireLock 获取指定运行时目录的文件锁，非阻塞

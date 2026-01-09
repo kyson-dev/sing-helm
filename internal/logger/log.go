@@ -11,15 +11,15 @@ func ResolveLogDir(runtimeDir string) string {
 	candidate := ""
 	switch runtime.GOOS {
 	case "linux", "darwin":
-		candidate = filepath.Join("/var", "log", "minibox")
+		candidate = filepath.Join("/var", "log", "sing-helm")
 	case "windows":
 		base := os.Getenv("ProgramData")
 		if base == "" {
 			base = os.TempDir()
 		}
-		candidate = filepath.Join(base, "minibox", "logs")
+		candidate = filepath.Join(base, "sing-helm", "logs")
 	default:
-		candidate = filepath.Join(os.TempDir(), "minibox", "logs")
+		candidate = filepath.Join(os.TempDir(), "sing-helm", "logs")
 	}
 
 	if ensureWritableDir(candidate) {
@@ -38,7 +38,7 @@ func ensureWritableDir(dir string) bool {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return false
 	}
-	f, err := os.CreateTemp(dir, "minibox-perm-")
+	f, err := os.CreateTemp(dir, "sing-helm-perm-")
 	if err != nil {
 		return false
 	}

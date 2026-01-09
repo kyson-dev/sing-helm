@@ -1,9 +1,9 @@
 package config
 
 import (
-	"github.com/kyson/minibox/internal/env"
-	"github.com/kyson/minibox/internal/logger"
-	"github.com/kyson/minibox/internal/subscription"
+	"github.com/kyson/sing-helm/internal/env"
+	"github.com/kyson/sing-helm/internal/logger"
+	"github.com/kyson/sing-helm/internal/subscription"
 	"github.com/sagernet/sing-box/option"
 )
 

@@ -6,8 +6,8 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/kyson/minibox/internal/env"
-	"github.com/kyson/minibox/internal/logger"
+	"github.com/kyson/sing-helm/internal/env"
+	"github.com/kyson/sing-helm/internal/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -16,11 +16,11 @@ func newStartCommand() *cobra.Command {
 	var dRule string
 	cmd := &cobra.Command{
 		Use:   "start",
-		Short: "Start minibox in background",
+		Short: "Start sing-helm in background",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if resp, err := dispatchToDaemon(cmd.Context(), "status", nil); err == nil {
 				if running, _ := resp.Data["running"].(bool); running {
-					return fmt.Errorf("minibox is already running")
+					return fmt.Errorf("sing-helm is already running")
 				}
 			}
 			// 2. 准备启动参数
@@ -92,7 +92,7 @@ func newStartCommand() *cobra.Command {
 					if err == nil {
 						sawStatus = true
 						if running, _ := resp.Data["running"].(bool); running {
-							fmt.Printf("Minibox started [PID: %d]\n", command.Process.Pid)
+							fmt.Printf("SingHelm started [PID: %d]\n", command.Process.Pid)
 							if logFile != "" {
 								fmt.Printf("Log file: %s\n", logFile)
 							} else {

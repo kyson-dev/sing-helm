@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kyson/minibox/internal/env"
-	"github.com/kyson/minibox/internal/subscription"
+	"github.com/kyson/sing-helm/internal/env"
+	"github.com/kyson/sing-helm/internal/subscription"
 	"github.com/spf13/cobra"
 )
 

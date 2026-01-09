@@ -6,8 +6,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/kyson/minibox/internal/logger"
-	"github.com/kyson/minibox/internal/client"
+	"github.com/kyson/sing-helm/internal/logger"
+	"github.com/kyson/sing-helm/internal/client"
 	"github.com/spf13/cobra"
 )
 
@@ -43,7 +43,7 @@ func newListCommand() *cobra.Command {
 			}
 			resp, err := dispatchToDaemon(cmd.Context(), "node.list", payload)
 			if err != nil {
-				return fmt.Errorf("failed to list proxies: %w (tip: is minibox running?)", err)
+				return fmt.Errorf("failed to list proxies: %w (tip: is sing-helm running?)", err)
 			}
 
 			proxies, err := decodeProxies(resp.Data["proxies"])
@@ -87,7 +87,7 @@ func newUseCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:     "use [group] [node]",
 		Short:   "Switch node for a selector group",
-		Example: "  minibox node use Proxy 'HongKong 01'",
+		Example: "  sing-helm node use Proxy 'HongKong 01'",
 		Args:    cobra.ExactArgs(2), // 必须传 2 个参数
 		RunE: func(cmd *cobra.Command, args []string) error {
 			group := args[0]

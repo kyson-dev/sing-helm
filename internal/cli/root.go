@@ -3,8 +3,8 @@ package cli
 import (
 	"fmt"
 
-	"github.com/kyson/minibox/internal/env"
-	"github.com/kyson/minibox/internal/logger"
+	"github.com/kyson/sing-helm/internal/env"
+	"github.com/kyson/sing-helm/internal/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -13,7 +13,7 @@ func NewRootCommand() *cobra.Command {
 	var globalDebug bool
 	var logFile string
 	cmd := &cobra.Command{
-		Use:   "minibox",
+		Use:   "sing-helm",
 		Short: "Small and beautiful sing-box client",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			home, _ := cmd.Flags().GetString("home")
@@ -37,7 +37,7 @@ func NewRootCommand() *cobra.Command {
 
 	// bind global flags
 	cmd.PersistentFlags().BoolVarP(&globalDebug, "debug", "d", false, "Enable debug mode")
-	cmd.PersistentFlags().StringVar(&homeDir, "home", "", "Custom working directory (default: ~/.minibox)")
+	cmd.PersistentFlags().StringVar(&homeDir, "home", "", "Custom working directory (default: ~/.sing-helm)")
 	cmd.PersistentFlags().StringVar(&logFile, "log", "", "Custom log file (default: system runtime path)")
 
 	// register sub commands

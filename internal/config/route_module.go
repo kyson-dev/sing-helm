@@ -1,7 +1,7 @@
 package config
 
 import (
-	"github.com/kyson/minibox/internal/runtime"
+	"github.com/kyson/sing-helm/internal/runtime"
 	"github.com/sagernet/sing-box/option"
 	singboxjson "github.com/sagernet/sing/common/json"
 )

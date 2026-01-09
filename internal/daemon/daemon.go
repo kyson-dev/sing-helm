@@ -7,14 +7,14 @@ import (
 	"os"
 	"sync"
 
-	"github.com/kyson/minibox/internal/logger"
-	"github.com/kyson/minibox/internal/client"
-	"github.com/kyson/minibox/internal/config"
-	"github.com/kyson/minibox/internal/runtime"
-	"github.com/kyson/minibox/internal/service"
-	"github.com/kyson/minibox/internal/updater"
-	"github.com/kyson/minibox/internal/env"
-	"github.com/kyson/minibox/internal/ipc"
+	"github.com/kyson/sing-helm/internal/logger"
+	"github.com/kyson/sing-helm/internal/client"
+	"github.com/kyson/sing-helm/internal/config"
+	"github.com/kyson/sing-helm/internal/runtime"
+	"github.com/kyson/sing-helm/internal/service"
+	"github.com/kyson/sing-helm/internal/updater"
+	"github.com/kyson/sing-helm/internal/env"
+	"github.com/kyson/sing-helm/internal/ipc"
 )
 
 // Daemon handles long-running sing-box operations and responds to IPC commands.
