@@ -13,16 +13,16 @@ import (
 
 // 颜色定义 - 使用柔和色调
 var (
-	colorGreen   = lipgloss.NewStyle().Foreground(lipgloss.Color("#50FA7B")) // 柔和绿
-	colorYellow  = lipgloss.NewStyle().Foreground(lipgloss.Color("#F1FA8C")) // 柔和黄
-	colorRed     = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6E6E")) // 柔和红
-	colorGray    = lipgloss.NewStyle().Foreground(lipgloss.Color("#6272A4")) // 灰紫
-	colorCyan    = lipgloss.NewStyle().Foreground(lipgloss.Color("#8BE9FD")) // 柔和青
-	colorMagenta = lipgloss.NewStyle().Foreground(lipgloss.Color("#BD93F9")) // 柔和紫
-	colorWhite   = lipgloss.NewStyle().Foreground(lipgloss.Color("#F8F8F2")) // 暖白
-	colorDim     = lipgloss.NewStyle().Foreground(lipgloss.Color("#44475A")) // 暗灰
-	colorUpload  = lipgloss.NewStyle().Foreground(lipgloss.Color("#8BE9FD")) // 上传用柔和青
-	colorDown    = lipgloss.NewStyle().Foreground(lipgloss.Color("#50FA7B")) // 下载用柔和绿
+	colorGreen   = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#008000", Dark: "#50FA7B"}) // 深绿/柔和绿
+	colorYellow  = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#B08800", Dark: "#F1FA8C"}) // 深黄/柔和黄
+	colorRed     = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#C00000", Dark: "#FF6E6E"}) // 深红/柔和红
+	colorGray    = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#555555", Dark: "#6272A4"}) // 深灰/灰紫
+	colorCyan    = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#005F87", Dark: "#8BE9FD"}) // 深青/柔和青
+	colorMagenta = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#8700AF", Dark: "#BD93F9"}) // 深紫/柔和紫
+	colorWhite   = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#333333", Dark: "#F8F8F2"}) // 深黑/暖白
+	colorDim     = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#888888", Dark: "#44475A"}) // 浅灰/暗灰
+	colorUpload  = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#005F87", Dark: "#8BE9FD"}) // 上传使用青色
+	colorDown    = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#008000", Dark: "#50FA7B"}) // 下载使用绿色
 )
 
 // 样式定义
@@ -45,7 +45,7 @@ var (
 			Width(28)
 
 	helpStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#626262"))
+			Foreground(lipgloss.AdaptiveColor{Light: "#555555", Dark: "#626262"})
 
 	keyStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#7D56F4")).
