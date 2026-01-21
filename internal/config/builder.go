@@ -1,14 +1,12 @@
 package config
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 
 	"github.com/kyson-dev/sing-helm/internal/logger"
 	"github.com/kyson-dev/sing-helm/internal/runtime"
-	"github.com/sagernet/sing-box/include"
 	"github.com/sagernet/sing-box/option"
 	singboxjson "github.com/sagernet/sing/common/json"
 )
@@ -16,7 +14,6 @@ import (
 // ConfigBuilder 配置构建器
 // 支持链式调用添加模块，灵活组装配置
 type ConfigBuilder struct {
-	base    *option.Options     // 用户配置作为基础
 	opts    *runtime.RunOptions // 运行时参数
 	modules []ConfigModule      // 配置模块列表
 	ctx     *BuildContext       // 构建上下文
@@ -25,12 +22,12 @@ type ConfigBuilder struct {
 // BuildConfig loads the profile, applies runtime modules, and saves raw config.
 func BuildConfig(rawPath string, runops *runtime.RunOptions) error {
 	// 使用新的 API，UserOutboundModule 会自动加载配置文件
-	builder := NewConfigBuilder(nil, runops)
+	builder := newConfigBuilder(runops)
 	for _, m := range defaultModules(runops) {
-		builder.With(m)
+		builder.with(m)
 	}
 
-	if err := builder.SaveToFile(rawPath); err != nil {
+	if err := builder.saveToFile(rawPath); err != nil {
 		return fmt.Errorf("failed to save raw config: %w", err)
 	}
 
@@ -39,48 +36,40 @@ func BuildConfig(rawPath string, runops *runtime.RunOptions) error {
 
 // BuildOptions builds a sing-box config without writing to disk.
 func BuildOptions(runops *runtime.RunOptions) (*option.Options, error) {
-	builder := NewConfigBuilder(nil, runops)
+	builder := newConfigBuilder(runops)
 	for _, m := range defaultModules(runops) {
-		builder.With(m)
+		builder.with(m)
 	}
-	return builder.Build()
+	return builder.build()
 }
 
-// NewConfigBuilder 创建配置构建器（从已加载的配置）
+// newConfigBuilder 创建配置构建器（从已加载的配置）
 // 参数:
-//   - base: 已加载的用户配置（可以为 nil）
 //   - opts: 运行时参数
 //
 // 注意: 这是向后兼容的方法，推荐使用 NewConfigBuilderFromFile
-func NewConfigBuilder(base *option.Options, opts *runtime.RunOptions) *ConfigBuilder {
-	if base == nil {
-		base = &option.Options{}
-	}
+func newConfigBuilder(opts *runtime.RunOptions) *ConfigBuilder {
 	if opts == nil {
 		defaultOpts := runtime.DefaultRunOptions()
 		opts = &defaultOpts
 	}
 	return &ConfigBuilder{
-		base:    base,
 		opts:    opts,
 		modules: []ConfigModule{},
 		ctx:     NewBuildContext(opts),
 	}
 }
 
-// With 添加一个模块（链式调用）
-func (b *ConfigBuilder) With(m ConfigModule) *ConfigBuilder {
+// with 添加一个模块（链式调用）
+func (b *ConfigBuilder) with(m ConfigModule) *ConfigBuilder {
 	b.modules = append(b.modules, m)
 	return b
 }
 
-// Build 构建完整的 sing-box 配置
-func (b *ConfigBuilder) Build() (*option.Options, error) {
+// build 构建完整的 sing-box 配置
+func (b *ConfigBuilder) build() (*option.Options, error) {
 	// 1. 复制用户配置作为基础
-	result, err := b.cloneBase()
-	if err != nil {
-		return nil, fmt.Errorf("failed to clone base config: %w", err)
-	}
+	result := &option.Options{}
 
 	// 2. 依次应用各模块
 	for _, m := range b.modules {
@@ -93,9 +82,9 @@ func (b *ConfigBuilder) Build() (*option.Options, error) {
 	return result, nil
 }
 
-// SaveToFile 构建配置并保存到文件
-func (b *ConfigBuilder) SaveToFile(path string) error {
-	opts, err := b.Build()
+// saveToFile 构建配置并保存到文件
+func (b *ConfigBuilder) saveToFile(path string) error {
+	opts, err := b.build()
 	if err != nil {
 		return err
 	}
@@ -122,23 +111,6 @@ func (b *ConfigBuilder) SaveToFile(path string) error {
 
 	logger.Info("Config saved", "path", path)
 	return nil
-}
-
-// cloneBase 复制用户配置
-func (b *ConfigBuilder) cloneBase() (*option.Options, error) {
-	// 通过序列化/反序列化来深拷贝
-	data, err := singboxjson.Marshal(b.base)
-	if err != nil {
-		return nil, err
-	}
-
-	var result option.Options
-	ctx := include.Context(context.Background())
-	if err := singboxjson.UnmarshalContext(ctx, data, &result); err != nil {
-		return nil, err
-	}
-
-	return &result, nil
 }
 
 // DefaultModules 根据 RunOptions 返回默认模块组合

@@ -31,58 +31,46 @@ func (m *SubscriptionModule) Apply(opts *option.Options, ctx *BuildContext) erro
 		return nil
 	}
 
-	// 收集已使用的 tags（包括用户配置的 outbounds）
-	usedTags := map[string]bool{}
+	// 1. 收集已有的 tags
+	usedTags := make(map[string]bool)
 	for _, out := range opts.Outbounds {
-		if out.Tag == "" || IsReservedOutboundTag(out.Tag) {
-			continue
+		if out.Tag != "" {
+			usedTags[out.Tag] = true
 		}
-		usedTags[out.Tag] = true
 	}
 
-	tagBySource := map[string]map[string]string{}
-	assignedTags := make([]string, len(nodes))
-	for i, node := range nodes {
-		if node.Outbound == nil {
+	// 2. 按 Source 分组节点
+	nodesBySource := map[string][]RawOutbound{}
+	// 为了保持顺序（可选），可以维护一个 source 列表，但 map 遍历顺序随机
+	// 这里简单处理，因为不同 source 之间无依赖
+	for _, node := range nodes {
+		if node.Outbound == nil || node.Source == "" {
 			continue
 		}
-		tag := MakeUniqueOutboundTag(node.Name, node.Source, usedTags)
-		assignedTags[i] = tag
+		if _, ok := nodesBySource[node.Source]; !ok {
+			nodesBySource[node.Source] = make([]RawOutbound, 0)
+		}
+		// 复制 Outbound map 并设置 tag 为节点名
+		outboundCopy := make(map[string]any, len(node.Outbound)+1)
+		for k, v := range node.Outbound {
+			outboundCopy[k] = v
+		}
+		// 使用节点名作为 tag 的 base（Processor 会处理冲突）
 		if node.Name != "" {
-			if _, ok := tagBySource[node.Source]; !ok {
-				tagBySource[node.Source] = map[string]string{}
-			}
-			tagBySource[node.Source][node.Name] = tag
+			outboundCopy["tag"] = node.Name
 		}
+		nodesBySource[node.Source] = append(nodesBySource[node.Source], RawOutbound(outboundCopy))
 	}
 
-	// 将订阅节点追加到 opts.Outbounds
-	for i, node := range nodes {
-		if node.Outbound == nil {
+	// 3. 使用 Processor 处理每个分组
+	processor := NewOutboundProcessor(usedTags)
+	for source, rawOutbounds := range nodesBySource {
+		processed, err := processor.Process(rawOutbounds, source)
+		if err != nil {
+			logger.Error("Failed to process subscription outbounds", "source", source, "error", err)
 			continue
 		}
-		outMap := make(map[string]any, len(node.Outbound)+1)
-		for key, value := range node.Outbound {
-			outMap[key] = value
-		}
-		if detour, ok := outMap["detour"].(string); ok {
-			if mapped := tagBySource[node.Source][detour]; mapped != "" {
-				outMap["detour"] = mapped
-			}
-		}
-		tag := assignedTags[i]
-		if tag == "" {
-			tag = MakeUniqueOutboundTag(node.Name, node.Source, usedTags)
-		}
-		outMap["tag"] = tag
-
-		out := option.Outbound{}
-		if err := applyMapToOutbound(&out, outMap); err != nil {
-			logger.Error("Failed to apply outbound from subscription", "name", node.Name, "error", err)
-			continue
-		}
-
-		opts.Outbounds = append(opts.Outbounds, out)
+		opts.Outbounds = append(opts.Outbounds, processed...)
 	}
 
 	return nil
