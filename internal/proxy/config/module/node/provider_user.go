@@ -27,9 +27,14 @@ func (p *UserNodeProvider) GetNodes() ([]node.Node, error) {
 		return nil, fmt.Errorf("read profile error: %w", err)
 	}
 
+	if len(profileData) == 0 {
+		return nil, nil // Return empty if profile is a 0-byte file
+	}
+
 	var root map[string]any
 	if err := json.Unmarshal(profileData, &root); err != nil {
-		return nil, fmt.Errorf("unmarshal profile error: %w", err)
+		logger.Error("Failed to parse profile.json, skipping user nodes", "error", err)
+		return nil, nil
 	}
 
 	outboundsRaw, ok := root["outbounds"]
