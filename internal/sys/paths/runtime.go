@@ -1,7 +1,8 @@
-package env
+package paths
 
 import (
 	"encoding/json"
+	"github.com/kyson-dev/sing-helm/internal/sys/lock"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -95,7 +96,7 @@ func FindRuntimeConfigHome() string {
 	if runtimeDir == "" {
 		return ""
 	}
-	if err := CheckLock(runtimeDir); err != nil {
+	if err := lock.CheckLock(runtimeDir); err != nil {
 		return ""
 	}
 

@@ -1,9 +1,9 @@
 package module
 
 import (
+	"net"
 	"os"
 	"strconv"
-	"net"
 )
 
 // getPortOverride 返回测试期间指定的端口。
@@ -38,6 +38,3 @@ func getFreePort() (int, error) {
 	// 返回分配到的端口
 	return l.Addr().(*net.TCPAddr).Port, nil
 }
-
-
-

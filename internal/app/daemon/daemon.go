@@ -8,9 +8,10 @@ import (
 
 	"github.com/kyson-dev/sing-helm/internal/core/model"
 	"github.com/kyson-dev/sing-helm/internal/proxy/engine"
-	"github.com/kyson-dev/sing-helm/internal/sys/env"
 	"github.com/kyson-dev/sing-helm/internal/sys/ipc"
+	"github.com/kyson-dev/sing-helm/internal/sys/lock"
 	"github.com/kyson-dev/sing-helm/internal/sys/logger"
+	"github.com/kyson-dev/sing-helm/internal/sys/paths"
 )
 
 // ServiceRunner abstracts the sing-box engine lifecycle.
@@ -26,7 +27,7 @@ type Daemon struct {
 	cancelFunc     context.CancelFunc
 	service        ServiceRunner
 	serviceFactory func() ServiceRunner
-	lock           *env.DaemonLock
+	lock           *lock.DaemonLock
 	running        bool
 	reloading      bool
 	state          *model.RuntimeState
@@ -57,14 +58,14 @@ func (d *Daemon) SetServiceFactory(factory func() ServiceRunner) {
 // Serve starts the IPC server. Blocks until ctx is cancelled.
 func (d *Daemon) Serve(ctx context.Context) error {
 
-	lock, err := env.AcquireLock(env.Get().RuntimeDir)
+	lock, err := lock.AcquireLock(paths.Get().RuntimeDir)
 	if err != nil {
 		return fmt.Errorf("another instance is already running: %w", err)
 	}
 	d.lock = lock
 	d.loadState()
-	_ = env.SaveRuntimeMeta(env.Get().RuntimeDir, env.RuntimeMeta{
-		ConfigHome: env.Get().HomeDir,
+	_ = paths.SaveRuntimeMeta(paths.Get().RuntimeDir, paths.RuntimeMeta{
+		ConfigHome: paths.Get().HomeDir,
 	})
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -77,7 +78,7 @@ func (d *Daemon) Serve(ctx context.Context) error {
 
 	logger.Info("Daemon started, listening for IPC commands")
 
-	if err := ipc.Serve(ctx, env.Get().SocketFile, d, &ipc.ServerOptions{}); err != nil {
+	if err := ipc.Serve(ctx, paths.Get().SocketFile, d, &ipc.ServerOptions{}); err != nil {
 		return err
 	}
 	return nil

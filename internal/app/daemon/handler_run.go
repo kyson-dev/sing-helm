@@ -8,9 +8,9 @@ import (
 
 	"github.com/kyson-dev/sing-helm/internal/core/model"
 	"github.com/kyson-dev/sing-helm/internal/proxy/engine"
-	"github.com/kyson-dev/sing-helm/internal/sys/env"
 	"github.com/kyson-dev/sing-helm/internal/sys/ipc"
 	"github.com/kyson-dev/sing-helm/internal/sys/logger"
+	"github.com/kyson-dev/sing-helm/internal/sys/paths"
 )
 
 // handleRun 处理 IPC run 命令，启动 sing-box 服务
@@ -42,13 +42,13 @@ func (d *Daemon) handleRun(ctx context.Context, payload map[string]any) ipc.Comm
 
 	// 1. 构建配置
 	logger.Info("Building configuration", "mode", runops.ProxyMode, "route", runops.RouteMode)
-	if err := engine.BuildConfig(env.Get().RawConfigFile, &runops); err != nil {
+	if err := engine.BuildConfig(paths.Get().RawConfigFile, &runops); err != nil {
 		return ipc.CommandResult{Status: "error", Error: fmt.Errorf("failed to build config: %w", err).Error()}
 	}
 
 	// 2. 启动 sing-box 服务
 	svc := d.newService()
-	rawPath := env.Get().RawConfigFile
+	rawPath := paths.Get().RawConfigFile
 	logger.Info("Starting sing-box", "config", rawPath)
 	if err := svc.StartFromFile(ctx, rawPath); err != nil {
 		return ipc.CommandResult{Status: "error", Error: fmt.Errorf("failed to start sing-box: %w", err).Error()}
@@ -125,20 +125,20 @@ func (d *Daemon) applyRunOptions(ctx context.Context, state *model.RuntimeState)
 		d.mu.Unlock()
 	}()
 
-	backupPath, _ := backupConfig(env.Get().RawConfigFile)
-	if err := engine.BuildConfig(env.Get().RawConfigFile, &state.RunOptions); err != nil {
+	backupPath, _ := backupConfig(paths.Get().RawConfigFile)
+	if err := engine.BuildConfig(paths.Get().RawConfigFile, &state.RunOptions); err != nil {
 		return err
 	}
 	if d.service == nil {
 		err := errors.New("service not available")
 		return err
 	}
-	if err := d.service.ReloadFromFile(ctx, env.Get().RawConfigFile); err != nil {
+	if err := d.service.ReloadFromFile(ctx, paths.Get().RawConfigFile); err != nil {
 		var reloadErr *engine.ReloadError
 		if errors.As(err, &reloadErr) && reloadErr.Stage == engine.ReloadStageStart {
 			if backupPath != "" {
 				if retryErr := d.service.StartFromFile(ctx, backupPath); retryErr == nil {
-					if restoreErr := restoreConfig(backupPath, env.Get().RawConfigFile); restoreErr != nil {
+					if restoreErr := restoreConfig(backupPath, paths.Get().RawConfigFile); restoreErr != nil {
 						return restoreErr
 					}
 					d.setRunning(true)

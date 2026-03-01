@@ -3,8 +3,8 @@ package module
 import (
 	"github.com/kyson-dev/sing-helm/internal/proxy/engine/config"
 	"github.com/kyson-dev/sing-helm/internal/proxy/subscription"
-	"github.com/kyson-dev/sing-helm/internal/sys/env"
 	"github.com/kyson-dev/sing-helm/internal/sys/logger"
+	"github.com/kyson-dev/sing-helm/internal/sys/paths"
 	"github.com/sagernet/sing-box/option"
 )
 
@@ -16,7 +16,7 @@ func (m *SubscriptionModule) Name() string {
 }
 
 func (m *SubscriptionModule) Apply(opts *option.Options, ctx *config.BuildContext) error {
-	paths := env.Get()
+	paths := paths.Get()
 	sources, err := subscription.LoadSources(paths.SubConfigDir)
 	if err != nil {
 		logger.Error("Failed to load subscription sources", "error", err)

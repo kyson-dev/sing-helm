@@ -6,8 +6,8 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/kyson-dev/sing-helm/internal/sys/env"
 	"github.com/kyson-dev/sing-helm/internal/sys/logger"
+	"github.com/kyson-dev/sing-helm/internal/sys/paths"
 	"github.com/spf13/cobra"
 )
 
@@ -27,7 +27,7 @@ func newStartCommand() *cobra.Command {
 			exePath, _ := os.Executable()
 
 			// 使用 env 获取路径
-			paths := env.Get()
+			paths := paths.Get()
 			logFile := paths.LogFile
 
 			// 传递 --home 给子进程，确保子进程使用相同的目录

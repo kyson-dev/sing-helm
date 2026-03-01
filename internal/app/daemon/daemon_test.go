@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/kyson-dev/sing-helm/internal/app/daemon"
-	"github.com/kyson-dev/sing-helm/internal/sys/env"
 	"github.com/kyson-dev/sing-helm/internal/sys/ipc"
+	"github.com/kyson-dev/sing-helm/internal/sys/paths"
 )
 
 type fakeService struct {
@@ -165,13 +165,13 @@ func TestDaemonHandleCommands(t *testing.T) {
 
 func setupEnv(t *testing.T) {
 	t.Helper()
-	env.ResetForTest()
+	paths.ResetForTest()
 	dir := t.TempDir()
-	env.SetRuntimeDir(dir)
-	if err := env.Init(dir); err != nil {
-		t.Fatalf("env.Init failed: %v", err)
+	paths.SetRuntimeDir(dir)
+	if err := paths.Init(dir); err != nil {
+		t.Fatalf("paths.Init failed: %v", err)
 	}
-	if err := os.WriteFile(env.Get().ConfigFile, []byte(`{}`), 0644); err != nil {
+	if err := os.WriteFile(paths.Get().ConfigFile, []byte(`{}`), 0644); err != nil {
 		t.Fatalf("write profile.json: %v", err)
 	}
 }

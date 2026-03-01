@@ -1,6 +1,7 @@
-package env
+package paths
 
 import (
+	"github.com/kyson-dev/sing-helm/internal/sys/lock"
 	"os"
 	"path/filepath"
 	"sync"
@@ -88,7 +89,7 @@ func GetPath(home string, runtimeDir string, logDir string) Paths {
 		LogDir:        logDir,
 		LogFile:       logFile,
 		StateFile:     filepath.Join(runtimeDir, "state.json"),
-		LookFile:      GetLockPath(runtimeDir), // 使用 lock.go 中的单一事实来源
+		LookFile:      lock.GetLockPath(runtimeDir), // 使用 lock.go 中的单一事实来源
 		SocketFile:    filepath.Join(runtimeDir, "ipc.sock"),
 		AssetDir:      filepath.Join(runtimeDir, "assets"),
 		CacheFile:     filepath.Join(runtimeDir, "cache.db"),

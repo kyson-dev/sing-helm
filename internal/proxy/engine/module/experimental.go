@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/kyson-dev/sing-helm/internal/proxy/engine/config"
-	"github.com/kyson-dev/sing-helm/internal/sys/env"
+	"github.com/kyson-dev/sing-helm/internal/sys/paths"
 	"github.com/sagernet/sing-box/option"
 )
 
@@ -53,7 +53,7 @@ func (m *ExperimentalModule) Apply(opts *option.Options, ctx *config.BuildContex
 		},
 		CacheFile: &option.CacheFileOptions{
 			Enabled: true,
-			Path:    env.Get().CacheFile,
+			Path:    paths.Get().CacheFile,
 		},
 	}
 

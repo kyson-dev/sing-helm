@@ -60,5 +60,3 @@ func (m *MixedModule) Apply(opts *option.Options, ctx *config.BuildContext) erro
 
 	return nil
 }
-
-

@@ -3,8 +3,8 @@ package daemon
 import (
 	"context"
 
-	"github.com/kyson-dev/sing-helm/internal/sys/env"
 	"github.com/kyson-dev/sing-helm/internal/sys/ipc"
+	"github.com/kyson-dev/sing-helm/internal/sys/paths"
 )
 
 func (d *Daemon) handleStatus() ipc.CommandResult {
@@ -41,7 +41,7 @@ func (d *Daemon) handleHealth() ipc.CommandResult {
 }
 
 func (d *Daemon) handleLog() ipc.CommandResult {
-	logPath := env.Get().LogFile
+	logPath := paths.Get().LogFile
 	return ipc.CommandResult{Status: "ok", Data: map[string]any{"path": logPath}}
 }
 

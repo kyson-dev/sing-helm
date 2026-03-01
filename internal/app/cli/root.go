@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/kyson-dev/sing-helm/internal/app"
-	"github.com/kyson-dev/sing-helm/internal/sys/env"
 	"github.com/kyson-dev/sing-helm/internal/sys/logger"
+	"github.com/kyson-dev/sing-helm/internal/sys/paths"
 	"github.com/spf13/cobra"
 )
 
@@ -33,7 +33,7 @@ func NewRootCommand() *cobra.Command {
 			home, _ := cmd.Flags().GetString("home")
 
 			// 使用 setup 初始化环境，支持智能探测和注册
-			if err := env.Setup(home); err != nil {
+			if err := paths.Setup(home); err != nil {
 				return fmt.Errorf("environment setup failed: %w", err)
 			}
 
@@ -44,7 +44,7 @@ func NewRootCommand() *cobra.Command {
 			}
 
 			// Build the Application and attach to context
-			paths := env.Get()
+			paths := paths.Get()
 			application := app.New(paths, logger.GetInstance())
 			ctx := context.WithValue(cmd.Context(), appKey{}, application)
 			cmd.SetContext(ctx)

@@ -8,12 +8,12 @@ import (
 	"strings"
 
 	"github.com/kyson-dev/sing-helm/internal/proxy/subscription"
-	"github.com/kyson-dev/sing-helm/internal/sys/env"
+	"github.com/kyson-dev/sing-helm/internal/sys/paths"
 	"github.com/spf13/cobra"
 )
 
 func runConfigList(cmd *cobra.Command, _ []string) error {
-	paths := env.Get()
+	paths := paths.Get()
 	out := cmd.OutOrStdout()
 
 	fmt.Fprintf(out, "Base config: %s\n", paths.ConfigFile)

@@ -11,8 +11,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gorilla/websocket"
 	"github.com/kyson-dev/sing-helm/internal/proxy/clashapi"
-	"github.com/kyson-dev/sing-helm/internal/sys/env"
 	"github.com/kyson-dev/sing-helm/internal/sys/ipc"
+	"github.com/kyson-dev/sing-helm/internal/sys/paths"
 )
 
 // ============================================================================
@@ -249,7 +249,7 @@ func fetchDaemonStatus() (*daemonStatus, error) {
 }
 
 func sendDaemonCommand(name string, payload map[string]any) (ipc.CommandResult, error) {
-	sender := ipc.NewUnixSender(env.Get().SocketFile)
+	sender := ipc.NewUnixSender(paths.Get().SocketFile)
 	resp, err := sender.Send(context.Background(), ipc.CommandMessage{Name: name, Payload: payload})
 	if err != nil {
 		return ipc.CommandResult{}, fmt.Errorf("ipc send failed: %w", err)
