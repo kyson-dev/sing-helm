@@ -12,7 +12,6 @@ import (
 	"github.com/kyson-dev/sing-helm/internal/config"
 	"github.com/kyson-dev/sing-helm/internal/runtime"
 	"github.com/kyson-dev/sing-helm/internal/service"
-	"github.com/kyson-dev/sing-helm/internal/updater"
 	"github.com/kyson-dev/sing-helm/internal/env"
 	"github.com/kyson-dev/sing-helm/internal/ipc"
 )
@@ -131,8 +130,6 @@ func (d *Daemon) Handle(ctx context.Context, cmd ipc.CommandMessage) ipc.Command
 	switch cmd.Name {
 	case "run":
 		return d.handleRun(ctx, cmd.Payload)
-	case "update":
-		return d.handleUpdate(ctx)
 	case "stop":
 		return d.handleStop()
 	case "status":
@@ -425,14 +422,6 @@ func restoreConfig(backupPath, targetPath string) error {
 	return os.WriteFile(targetPath, data, 0644)
 }
 
-func (d *Daemon) handleUpdate(ctx context.Context) ipc.CommandResult {
-	logger.Info("Daemon running rule update")
-	if err := runUpdate(ctx); err != nil {
-		return ipc.CommandResult{Status: "error", Error: err.Error()}
-	}
-	return ipc.CommandResult{Status: "ok"}
-}
-
 func (d *Daemon) handleStop() ipc.CommandResult {
 	d.mu.Lock()
 	running := d.running
@@ -448,14 +437,6 @@ func (d *Daemon) handleStop() ipc.CommandResult {
 	// 取消 daemon context 会触发所有子服务退出
 	cancel()
 	return ipc.CommandResult{Status: "ok"}
-}
-
-func runUpdate(ctx context.Context) error {
-	dir := env.Get().AssetDir
-	if err := updater.Download(ctx, updater.GeoIPURL, dir, updater.GeoIPFilename, nil); err != nil {
-		return err
-	}
-	return updater.Download(ctx, updater.GeoSiteURL, dir, updater.GeoSiteFilename, nil)
 }
 
 func (d *Daemon) newService() ServiceRunner {
