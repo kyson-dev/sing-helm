@@ -1,11 +1,16 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/kyson-dev/sing-helm/internal/core/model"
 	"github.com/kyson-dev/sing-helm/internal/proxy/config/module"
+	nodeProvider "github.com/kyson-dev/sing-helm/internal/proxy/config/module/node"
+	"github.com/kyson-dev/sing-helm/internal/sys/logger"
 	"github.com/sagernet/sing-box/option"
+	singboxjson "github.com/sagernet/sing/common/json"
 )
 
 // BuildConfig loads the profile, applies runtime modules, and saves raw config.
@@ -15,8 +20,13 @@ func BuildConfig(rawPath string, runops *model.RunOptions) error {
 		builder.With(m)
 	}
 
-	if err := builder.SaveToFile(rawPath); err != nil {
-		return fmt.Errorf("failed to save raw config: %w", err)
+	opts, err := builder.Build()
+	if err != nil {
+		return fmt.Errorf("failed to build config: %w", err)
+	}
+
+	if err := SaveToFile(rawPath, opts); err != nil {
+		return fmt.Errorf("failed to save config: %w", err)
 	}
 
 	return nil
@@ -40,8 +50,8 @@ func DefaultModules(opts *model.RunOptions) []module.ConfigModule {
 
 	modules := []module.ConfigModule{
 		module.NewOutboundModule(
-			&module.UserNodeProvider{},
-			&module.SubscriptionNodeProvider{},
+			&nodeProvider.UserNodeProvider{},
+			&nodeProvider.SubscriptionNodeProvider{},
 		),
 	}
 
@@ -76,4 +86,30 @@ func DefaultModules(opts *model.RunOptions) []module.ConfigModule {
 	)
 
 	return modules
+}
+
+// SaveToFile 构建配置并保存到文件
+func SaveToFile(path string, opts *option.Options) error {
+	// 使用 sing-box 的 JSON 序列化
+	data, err := singboxjson.Marshal(opts)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	// Re-marshal for pretty print
+	var pretty interface{}
+	if err := json.Unmarshal(data, &pretty); err != nil {
+		return fmt.Errorf("failed to unmarshal for pretty print: %w", err)
+	}
+	data, err = json.MarshalIndent(pretty, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal indent: %w", err)
+	}
+
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	logger.Info("Config saved", "path", path)
+	return nil
 }

@@ -5,6 +5,7 @@ import (
 
 	"github.com/sagernet/sing-box/include"
 	"github.com/sagernet/sing-box/option"
+	moduleUtils "github.com/kyson-dev/sing-helm/internal/proxy/config/module/utils"
 	singboxjson "github.com/sagernet/sing/common/json"
 )
 
@@ -44,7 +45,7 @@ func (m *TUNModule) Apply(opts *option.Options, ctx *BuildContext) error {
 		"sniff":                      true,
 		"sniff_override_destination": true,
 	}
-	ApplyMapToInbound(&tunInbound, tunMap)
+	moduleUtils.ApplyMapToInbound(&tunInbound, tunMap)
 
 	// 添加到配置
 	opts.Inbounds = append(opts.Inbounds, tunInbound)
@@ -76,7 +77,7 @@ func (m *TUNDNSModule) Apply(opts *option.Options, ctx *BuildContext) error {
 				"type":            "https",
 				"server":          "dns.google",
 				"domain_resolver": "resolver_dns",
-				"detour":          TagProxy,
+				"detour":          moduleUtils.TagProxy,
 			},
 			{
 				"tag":    "resolver_dns",

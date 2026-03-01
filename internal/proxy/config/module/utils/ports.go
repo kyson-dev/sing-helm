@@ -6,9 +6,9 @@ import (
 	"strconv"
 )
 
-// getPortOverride 返回测试期间指定的端口。
+// GetPortOverride 返回测试期间指定的端口。
 // 如果对应环境变量有效（正整数），返回该端口并标记为存在。
-func getPortOverride(envKey string) (int, bool) {
+func GetPortOverride(envKey string) (int, bool) {
 	value := os.Getenv(envKey)
 	if value == "" {
 		return 0, false
@@ -22,7 +22,7 @@ func getPortOverride(envKey string) (int, bool) {
 }
 
 // GetFreePort 请求内核分配一个空闲端口
-func getFreePort() (int, error) {
+func GetFreePort() (int, error) {
 	// 监听端口 0，内核会自动分配一个空闲端口
 	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
 	if err != nil {

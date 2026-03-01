@@ -1,6 +1,7 @@
 package module
 
 import (
+	moduleUtils "github.com/kyson-dev/sing-helm/internal/proxy/config/module/utils"
 	"github.com/sagernet/sing-box/option"
 )
 
@@ -28,11 +29,11 @@ func (m *MixedModule) Apply(opts *option.Options, ctx *BuildContext) error {
 	// 确定端口
 	port := m.Port
 	if port == 0 {
-		if override, ok := getPortOverride(testMixedPortEnv); ok {
+		if override, ok := moduleUtils.GetPortOverride(testMixedPortEnv); ok {
 			port = override
 		} else {
 			var err error
-			port, err = getFreePort()
+			port, err = moduleUtils.GetFreePort()
 			if err != nil {
 				return err
 			}
@@ -52,7 +53,7 @@ func (m *MixedModule) Apply(opts *option.Options, ctx *BuildContext) error {
 		"listen_port":      port,
 		"set_system_proxy": m.SetSystemProxy,
 	}
-	ApplyMapToInbound(&mixedInbound, mixedMap)
+	moduleUtils.ApplyMapToInbound(&mixedInbound, mixedMap)
 
 	// 添加到配置
 	opts.Inbounds = append(opts.Inbounds, mixedInbound)

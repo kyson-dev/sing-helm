@@ -1,17 +1,18 @@
-package module
+package node
 
 import (
 	"fmt"
 	"strconv"
 	"strings"
+	moduleUtils "github.com/kyson-dev/sing-helm/internal/proxy/config/module/utils"
 )
 
 var reservedOutboundTags = map[string]bool{
-	TagDirect: true,
-	TagBlock:  true,
-	TagProxy:  true,
-	TagAuto:   true,
-	TagDNS:    true,
+	moduleUtils.TagDirect: true,
+	moduleUtils.TagBlock:  true,
+	moduleUtils.TagProxy:  true,
+	moduleUtils.TagAuto:   true,
+	moduleUtils.TagDNS:    true,
 }
 
 func IsReservedOutboundTag(tag string) bool {

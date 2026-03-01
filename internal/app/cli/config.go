@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kyson-dev/sing-helm/internal/proxy/config/parser"
 	"github.com/kyson-dev/sing-helm/internal/proxy/config/subscription"
 	"github.com/kyson-dev/sing-helm/internal/sys/paths"
 	"github.com/spf13/cobra"
@@ -98,7 +97,7 @@ func newConfigAddCommand() *cobra.Command {
 			source := subscription.Source{
 				Name:     name,
 				URL:      url,
-				Format:   parser.NormalizeFormat(format),
+				Format:   subscription.NormalizeFormat(format),
 				Priority: priority,
 				Enabled:  &enabled,
 				Dedupe:   &dedupe,

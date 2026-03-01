@@ -2,7 +2,6 @@ package subscription
 
 import (
 	"github.com/kyson-dev/sing-helm/internal/proxy/config/node"
-	"github.com/kyson-dev/sing-helm/internal/proxy/config/parser"
 )
 
 // Source describes a subscription config file.
@@ -27,9 +26,9 @@ func (s *Source) NormalizeDefaults(name string) {
 	if s.Name == "" {
 		s.Name = name
 	}
-	s.Format = parser.NormalizeFormat(s.Format)
+	s.Format = NormalizeFormat(s.Format)
 	if s.Format == "" {
-		s.Format = parser.FormatAuto
+		s.Format = FormatAuto
 	}
 	if s.Enabled == nil {
 		enabled := true

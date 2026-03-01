@@ -1,15 +1,12 @@
 package config
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
 
 	"github.com/kyson-dev/sing-helm/internal/proxy/config/module"
 	"github.com/kyson-dev/sing-helm/internal/core/model"
 	"github.com/kyson-dev/sing-helm/internal/sys/logger"
 	"github.com/sagernet/sing-box/option"
-	singboxjson "github.com/sagernet/sing/common/json"
 )
 
 // Builder 配置构建器
@@ -55,33 +52,4 @@ func (b *Builder) Build() (*option.Options, error) {
 	return result, nil
 }
 
-// SaveToFile 构建配置并保存到文件
-func (b *Builder) SaveToFile(path string) error {
-	opts, err := b.Build()
-	if err != nil {
-		return err
-	}
 
-	// 使用 sing-box 的 JSON 序列化
-	data, err := singboxjson.Marshal(opts)
-	if err != nil {
-		return fmt.Errorf("failed to marshal config: %w", err)
-	}
-
-	// Re-marshal for pretty print
-	var pretty interface{}
-	if err := json.Unmarshal(data, &pretty); err != nil {
-		return fmt.Errorf("failed to unmarshal for pretty print: %w", err)
-	}
-	data, err = json.MarshalIndent(pretty, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal indent: %w", err)
-	}
-
-	if err := os.WriteFile(path, data, 0644); err != nil {
-		return fmt.Errorf("failed to write config file: %w", err)
-	}
-
-	logger.Info("Config saved", "path", path)
-	return nil
-}

@@ -1,4 +1,4 @@
-package parser
+package subscription
 
 import (
 	"encoding/base64"
@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/kyson-dev/sing-helm/internal/proxy/config/node"
-	"github.com/kyson-dev/sing-helm/internal/proxy/config/parser/adapter"
+	"github.com/kyson-dev/sing-helm/internal/proxy/config/subscription/adapter"
 	"github.com/kyson-dev/sing-helm/internal/sys/logger"
 	"gopkg.in/yaml.v3"
 )

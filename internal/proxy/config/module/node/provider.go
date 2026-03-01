@@ -1,5 +1,4 @@
-package module
-
+package node
 import "github.com/kyson-dev/sing-helm/internal/proxy/config/node"
 
 // NodeProvider is an interface for modules that provide proxy nodes.

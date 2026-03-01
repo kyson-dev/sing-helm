@@ -2,6 +2,7 @@ package module
 
 import (
 	"fmt"
+	moduleUtils "github.com/kyson-dev/sing-helm/internal/proxy/config/module/utils"
 	"github.com/kyson-dev/sing-helm/internal/sys/paths"
 	"github.com/sagernet/sing-box/option"
 )
@@ -29,11 +30,11 @@ func (m *ExperimentalModule) Apply(opts *option.Options, ctx *BuildContext) erro
 	// 确定 API 端口
 	apiPort := m.APIPort
 	if apiPort == 0 {
-		if override, ok := getPortOverride(testAPIPortEnv); ok {
+		if override, ok := moduleUtils.GetPortOverride(testAPIPortEnv); ok {
 			apiPort = override
 		} else {
 			var err error
-			apiPort, err = getFreePort()
+			apiPort, err = moduleUtils.GetFreePort()
 			if err != nil {
 				return err
 			}

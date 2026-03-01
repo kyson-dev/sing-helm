@@ -1,10 +1,11 @@
-package module
+package node
 
 import (
 	"strings"
 
 	"github.com/kyson-dev/sing-helm/internal/proxy/config/node"
 	"github.com/sagernet/sing-box/option"
+	moduleUtils "github.com/kyson-dev/sing-helm/internal/proxy/config/module/utils"
 )
 
 // OutboundProcessor processes raw outbounds, manages tags, and prevents duplication globally.
@@ -90,7 +91,7 @@ func (p *OutboundProcessor) mapToOutbound(outType, tag string, raw map[string]an
 		}
 	}
 
-	ApplyMapToOutbound(&outbound, rawCopy)
+	moduleUtils.ApplyMapToOutbound(&outbound, rawCopy)
 	return outbound
 }
 

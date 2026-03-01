@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/kyson-dev/sing-helm/internal/proxy/config/parser"
 	"github.com/kyson-dev/sing-helm/internal/sys/logger"
 )
 
@@ -41,7 +40,7 @@ func Refresh(ctx context.Context, source Source, cacheDir string) error {
 		return fmt.Errorf("read body failed: %w", err)
 	}
 
-	nodes, err := parser.Parse(content, source.Format)
+	nodes, err := Parse(content, source.Format)
 	if err != nil {
 		return fmt.Errorf("parse subscription failed: %w", err)
 	}

@@ -1,4 +1,4 @@
-package module
+package node
 
 import (
 	"github.com/kyson-dev/sing-helm/internal/proxy/config/node"
