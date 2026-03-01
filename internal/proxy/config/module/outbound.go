@@ -1,14 +1,18 @@
 package module
 
 import (
-	"github.com/kyson-dev/sing-helm/internal/sys/logger"
 	"github.com/sagernet/sing-box/option"
 )
 
 // OutboundModule 出站模块
-// 负责处理所有 outbounds（用户配置 + 订阅节点），并补充系统 outbounds
+// 负责组装和构建 proxy, direct, block 以及各种出站节点群
 type OutboundModule struct {
-	Providers []NodeProvider
+	providers []NodeProvider
+}
+
+// NewOutboundModule creates a new outbound module with the given providers.
+func NewOutboundModule(providers ...NodeProvider) *OutboundModule {
+	return &OutboundModule{providers: providers}
 }
 
 func (m *OutboundModule) Name() string {
@@ -16,63 +20,24 @@ func (m *OutboundModule) Name() string {
 }
 
 func (m *OutboundModule) Apply(opts *option.Options, ctx *BuildContext) error {
-	// 1. 获取已有的 tags
-	usedTags := make(map[string]bool)
-	for _, out := range opts.Outbounds {
-		if out.Tag != "" {
-			usedTags[out.Tag] = true
-		}
-	}
+	processor := NewOutboundProcessor()
 
-	processor := NewOutboundProcessor(usedTags)
-
-	// 2. 收集所有节点
-	var nodes []Node
-	for _, p := range m.Providers {
-		pNodes, err := p.GetNodes()
+	// 1. 从所有 Provider 获取节点
+	for _, provider := range m.providers {
+		nodes, err := provider.GetNodes()
 		if err != nil {
-			logger.Error("Failed to get nodes from provider", "provider", p.Name(), "error", err)
-			continue
+			return err
 		}
-		nodes = append(nodes, pNodes...)
+		processor.AddNodes(nodes)
 	}
 
-	// 3. 按 Source 分组并放入 Processor
-	nodesBySource := map[string][]RawOutbound{}
-	for _, node := range nodes {
-		if _, ok := nodesBySource[node.Source]; !ok {
-			nodesBySource[node.Source] = make([]RawOutbound, 0)
-		}
-		outboundCopy := node.Outbound
-		if node.Name != "" {
-			outboundCopy["tag"] = node.Name
-		}
-		nodesBySource[node.Source] = append(nodesBySource[node.Source], RawOutbound(outboundCopy))
-	}
+	// 2. 获取去重且正确命名后的 proxy 出站节点
+	filteredOutbounds := make([]option.Outbound, 0)
+	filteredOutbounds = append(filteredOutbounds, processor.GetProcessedOutbounds()...)
 
-	// 4. 处理分组的节点并收集最终生成的所有 outbounds 和真实的节点 tag 列表
-	filteredOutbounds := []option.Outbound{}
-	actualNodes := []string{}
+	actualNodes := processor.GetActualTags()
 
-	for source, rawOutbounds := range nodesBySource {
-		processed, err := processor.Process(rawOutbounds, source)
-		if err != nil {
-			logger.Error("Failed to process outbounds", "source", source, "error", err)
-			continue
-		}
-		for _, out := range processed {
-			if IsReservedOutboundTag(out.Tag) {
-				logger.Info("Ignoring reserved outbound tag from provider config", "tag", out.Tag, "source", source)
-				continue
-			}
-			filteredOutbounds = append(filteredOutbounds, out)
-			// 注意，这里的 IsActualOutboundType 需要处理
-			if out.Type != "selector" && out.Type != "urltest" && out.Type != "direct" && out.Type != "block" && out.Type != "dns" {
-				actualNodes = append(actualNodes, out.Tag)
-			}
-		}
-	}
-
+	// 3. 构建内置出站
 	// 5. 添加 direct 出站
 	directOutbound := option.Outbound{}
 	directOutboundMap := map[string]any{
@@ -91,7 +56,7 @@ func (m *OutboundModule) Apply(opts *option.Options, ctx *BuildContext) error {
 	ApplyMapToOutbound(&blockOutbound, blockOutboundMap)
 	filteredOutbounds = append(filteredOutbounds, blockOutbound)
 
-	// 7 & 8. 添加 proxy selector 和 auto urltest
+	// 根据是否有实际节点决定如何配置 auto 和 proxy 策略组
 	if len(actualNodes) > 0 {
 		// 有节点时的逻辑：
 		// - auto: urltest [all nodes]
@@ -120,9 +85,7 @@ func (m *OutboundModule) Apply(opts *option.Options, ctx *BuildContext) error {
 		filteredOutbounds = append(filteredOutbounds, autoOutbound)
 	} else {
 		// 无节点时的逻辑：
-		// - proxy: selector [direct] (降级为直连)
-		// - 不创建 auto 组 (因为没有节点可以测速)
-
+		// - proxy: selector [direct]
 		proxyOutbound := option.Outbound{}
 		proxyOutboundMap := map[string]any{
 			"type":      "selector",
@@ -134,7 +97,7 @@ func (m *OutboundModule) Apply(opts *option.Options, ctx *BuildContext) error {
 		filteredOutbounds = append(filteredOutbounds, proxyOutbound)
 	}
 
-	// 9. 更新最终的 outbounds
+	// 4. 将合并后的出站回填
 	opts.Outbounds = append(opts.Outbounds, filteredOutbounds...)
 
 	return nil

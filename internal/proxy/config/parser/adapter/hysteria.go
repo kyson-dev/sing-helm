@@ -1,26 +1,28 @@
-package subscription
+package adapter
 
 import (
 	"fmt"
 	"net/url"
+
+	"github.com/kyson-dev/sing-helm/internal/proxy/config/node"
 )
 
 // HysteriaAdapter handles Hysteria protocol
 type HysteriaAdapter struct{}
 
 func init() {
-	RegisterAdapter("hysteria", &HysteriaAdapter{})
+	Register("hysteria", &HysteriaAdapter{})
 }
 
-func (a *HysteriaAdapter) FromClash(m map[string]any) (Node, error) {
-	server := readString(m, "server")
-	port := readInt(m, "port")
+func (a *HysteriaAdapter) FromClash(m map[string]any) (node.Node, error) {
+	server := ReadString(m, "server")
+	port := ReadInt(m, "port")
 	if server == "" || port == 0 {
-		return Node{}, fmt.Errorf("missing server or port")
+		return node.Node{}, fmt.Errorf("missing server or port")
 	}
 
-	auth := readString(m, "auth_str", "auth-str", "auth")
-	protocol := readString(m, "protocol")
+	auth := ReadString(m, "auth_str", "auth-str", "auth")
+	protocol := ReadString(m, "protocol")
 	if protocol == "" {
 		protocol = "udp"
 	}
@@ -35,25 +37,25 @@ func (a *HysteriaAdapter) FromClash(m map[string]any) (Node, error) {
 	if auth != "" {
 		outbound["auth_str"] = auth
 	}
-	if upMbps := readInt(m, "up", "up-mbps"); upMbps > 0 {
+	if upMbps := ReadInt(m, "up", "up-mbps"); upMbps > 0 {
 		outbound["up_mbps"] = upMbps
 	}
-	if downMbps := readInt(m, "down", "down-mbps"); downMbps > 0 {
+	if downMbps := ReadInt(m, "down", "down-mbps"); downMbps > 0 {
 		outbound["down_mbps"] = downMbps
 	}
 
 	ApplyTLSOptions(outbound, m)
 
-	return Node{
+	return node.Node{
 		Type:     "hysteria",
 		Outbound: outbound,
 	}, nil
 }
 
-func (a *HysteriaAdapter) FromURI(uriStr string) (Node, error) {
+func (a *HysteriaAdapter) FromURI(uriStr string) (node.Node, error) {
 	u, err := url.Parse("hysteria://" + uriStr)
 	if err != nil {
-		return Node{}, err
+		return node.Node{}, err
 	}
 
 	auth := u.User.Username()
@@ -63,10 +65,10 @@ func (a *HysteriaAdapter) FromURI(uriStr string) (Node, error) {
 	query := u.Query()
 
 	if server == "" || port == "" {
-		return Node{}, fmt.Errorf("missing required fields")
+		return node.Node{}, fmt.Errorf("missing required fields")
 	}
 
-	portNum, _ := parseInt(port)
+	portNum, _ := ParseInt(port)
 	outbound := map[string]any{
 		"type":        "hysteria",
 		"server":      server,
@@ -78,12 +80,12 @@ func (a *HysteriaAdapter) FromURI(uriStr string) (Node, error) {
 	}
 
 	if upMbps := query.Get("up"); upMbps != "" {
-		if up, _ := parseInt(upMbps); up > 0 {
+		if up, _ := ParseInt(upMbps); up > 0 {
 			outbound["up_mbps"] = up
 		}
 	}
 	if downMbps := query.Get("down"); downMbps != "" {
-		if down, _ := parseInt(downMbps); down > 0 {
+		if down, _ := ParseInt(downMbps); down > 0 {
 			outbound["down_mbps"] = down
 		}
 	}
@@ -97,7 +99,7 @@ func (a *HysteriaAdapter) FromURI(uriStr string) (Node, error) {
 	}
 	outbound["tls"] = tls
 
-	return Node{
+	return node.Node{
 		Name:     name,
 		Type:     "hysteria",
 		Outbound: outbound,
@@ -108,18 +110,18 @@ func (a *HysteriaAdapter) FromURI(uriStr string) (Node, error) {
 type Hysteria2Adapter struct{}
 
 func init() {
-	RegisterAdapter("hysteria2", &Hysteria2Adapter{})
-	RegisterAdapter("hy2", &Hysteria2Adapter{})
+	Register("hysteria2", &Hysteria2Adapter{})
+	Register("hy2", &Hysteria2Adapter{})
 }
 
-func (a *Hysteria2Adapter) FromClash(m map[string]any) (Node, error) {
-	server := readString(m, "server")
-	port := readInt(m, "port")
+func (a *Hysteria2Adapter) FromClash(m map[string]any) (node.Node, error) {
+	server := ReadString(m, "server")
+	port := ReadInt(m, "port")
 	if server == "" || port == 0 {
-		return Node{}, fmt.Errorf("missing server or port")
+		return node.Node{}, fmt.Errorf("missing server or port")
 	}
 
-	password := readString(m, "password")
+	password := ReadString(m, "password")
 	outbound := map[string]any{
 		"type":        "hysteria2",
 		"server":      server,
@@ -127,25 +129,25 @@ func (a *Hysteria2Adapter) FromClash(m map[string]any) (Node, error) {
 		"password":    password,
 	}
 
-	if upMbps := readInt(m, "up", "up-mbps"); upMbps > 0 {
+	if upMbps := ReadInt(m, "up", "up-mbps"); upMbps > 0 {
 		outbound["up_mbps"] = upMbps
 	}
-	if downMbps := readInt(m, "down", "down-mbps"); downMbps > 0 {
+	if downMbps := ReadInt(m, "down", "down-mbps"); downMbps > 0 {
 		outbound["down_mbps"] = downMbps
 	}
 
 	ApplyTLSOptions(outbound, m)
 
-	return Node{
+	return node.Node{
 		Type:     "hysteria2",
 		Outbound: outbound,
 	}, nil
 }
 
-func (a *Hysteria2Adapter) FromURI(uriStr string) (Node, error) {
+func (a *Hysteria2Adapter) FromURI(uriStr string) (node.Node, error) {
 	u, err := url.Parse("hysteria2://" + uriStr)
 	if err != nil {
-		return Node{}, err
+		return node.Node{}, err
 	}
 
 	password := u.User.Username()
@@ -155,10 +157,10 @@ func (a *Hysteria2Adapter) FromURI(uriStr string) (Node, error) {
 	query := u.Query()
 
 	if server == "" || port == "" {
-		return Node{}, fmt.Errorf("missing required fields")
+		return node.Node{}, fmt.Errorf("missing required fields")
 	}
 
-	portNum, _ := parseInt(port)
+	portNum, _ := ParseInt(port)
 	outbound := map[string]any{
 		"type":        "hysteria2",
 		"server":      server,
@@ -175,7 +177,7 @@ func (a *Hysteria2Adapter) FromURI(uriStr string) (Node, error) {
 	}
 	outbound["tls"] = tls
 
-	return Node{
+	return node.Node{
 		Name:     name,
 		Type:     "hysteria2",
 		Outbound: outbound,

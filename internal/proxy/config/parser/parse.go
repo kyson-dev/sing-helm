@@ -1,4 +1,4 @@
-package subscription
+package parser
 
 import (
 	"encoding/base64"
@@ -6,11 +6,34 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/kyson-dev/sing-helm/internal/proxy/config/node"
+	"github.com/kyson-dev/sing-helm/internal/proxy/config/parser/adapter"
 	"github.com/kyson-dev/sing-helm/internal/sys/logger"
 	"gopkg.in/yaml.v3"
 )
 
-func Parse(content []byte, format string) ([]Node, error) {
+const (
+	FormatAuto    = "auto"
+	FormatSingBox = "singbox"
+	FormatClash   = "clash"
+	FormatBase64  = "base64"
+)
+
+func NormalizeFormat(format string) string {
+	switch format {
+	case "", "auto", "json":
+		return FormatAuto
+	case "sing-box", "singbox":
+		return FormatSingBox
+	case "clash":
+		return FormatClash
+	default:
+		return format
+	}
+}
+
+// Parse parses subscription content into a standard Node list.
+func Parse(content []byte, format string) ([]node.Node, error) {
 	format = NormalizeFormat(strings.ToLower(strings.TrimSpace(format)))
 	switch format {
 	case FormatAuto:
@@ -35,7 +58,7 @@ func Parse(content []byte, format string) ([]Node, error) {
 	}
 }
 
-func parseSingBox(content []byte) ([]Node, error) {
+func parseSingBox(content []byte) ([]node.Node, error) {
 	var root map[string]any
 	if err := json.Unmarshal(content, &root); err != nil {
 		return nil, err
@@ -51,23 +74,23 @@ func parseSingBox(content []byte) ([]Node, error) {
 		return nil, fmt.Errorf("invalid outbounds format")
 	}
 
-	var nodes []Node
+	var nodes []node.Node
 	for i, raw := range list {
 		outMap, ok := raw.(map[string]any)
 		if !ok {
 			continue
 		}
-		outType := readString(outMap, "type")
-		if outType == "" || !IsActualOutboundType(outType) {
+		outType := adapter.ReadString(outMap, "type")
+		if outType == "" || !isActualOutboundType(outType) {
 			continue
 		}
-		name := readString(outMap, "tag")
+		name := adapter.ReadString(outMap, "tag")
 		if name == "" {
 			name = fmt.Sprintf("%s-%d", outType, i+1)
 		}
 		delete(outMap, "tag")
 
-		nodes = append(nodes, Node{
+		nodes = append(nodes, node.Node{
 			Name:     name,
 			Type:     outType,
 			Outbound: outMap,
@@ -80,7 +103,7 @@ func parseSingBox(content []byte) ([]Node, error) {
 	return nodes, nil
 }
 
-func parseClash(content []byte) ([]Node, error) {
+func parseClash(content []byte) ([]node.Node, error) {
 	var root map[string]any
 	if err := yaml.Unmarshal(content, &root); err != nil {
 		return nil, err
@@ -96,34 +119,34 @@ func parseClash(content []byte) ([]Node, error) {
 		return nil, fmt.Errorf("invalid proxies format")
 	}
 
-	var nodes []Node
+	var nodes []node.Node
 	for _, raw := range list {
-		proxyMap := asStringMap(raw)
+		proxyMap := adapter.AsStringMap(raw)
 		if proxyMap == nil {
 			continue
 		}
 
-		proxyType := strings.ToLower(readString(proxyMap, "type"))
-		a, err := GetAdapter(proxyType)
+		proxyType := strings.ToLower(adapter.ReadString(proxyMap, "type"))
+		a, err := adapter.Get(proxyType)
 		if err != nil {
 			logger.Debug("Skipping proxy node", "type", proxyType, "error", err.Error())
 			continue
 		}
 
-		node, err := a.FromClash(proxyMap)
+		n, err := a.FromClash(proxyMap)
 		if err != nil {
 			logger.Debug("Failed to parse clash node", "type", proxyType, "error", err.Error())
 			continue
 		}
 
-		name := readString(proxyMap, "name")
+		name := adapter.ReadString(proxyMap, "name")
 		if name != "" {
-			node.Name = name
-		} else if node.Name == "" {
-			node.Name = fmt.Sprintf("%s-%v:%v", node.Type, proxyMap["server"], proxyMap["port"])
+			n.Name = name
+		} else if n.Name == "" {
+			n.Name = fmt.Sprintf("%s-%v:%v", n.Type, proxyMap["server"], proxyMap["port"])
 		}
 
-		nodes = append(nodes, node)
+		nodes = append(nodes, n)
 	}
 
 	if len(nodes) == 0 {
@@ -132,14 +155,14 @@ func parseClash(content []byte) ([]Node, error) {
 	return nodes, nil
 }
 
-func parseBase64URI(content []byte) ([]Node, error) {
+func parseBase64URI(content []byte) ([]node.Node, error) {
 	decoded, err := base64.StdEncoding.DecodeString(string(content))
 	if err != nil {
 		decoded = content
 	}
 
 	lines := strings.Split(string(decoded), "\n")
-	var nodes []Node
+	var nodes []node.Node
 
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -153,23 +176,32 @@ func parseBase64URI(content []byte) ([]Node, error) {
 		}
 
 		scheme := strings.ToLower(line[:idx])
-		a, err := GetAdapter(scheme)
+		a, err := adapter.Get(scheme)
 		if err != nil {
 			logger.Debug("Skipping proxy node", "scheme", scheme, "error", err.Error())
 			continue
 		}
 
-		node, err := a.FromURI(line[idx+3:])
+		n, err := a.FromURI(line[idx+3:])
 		if err != nil {
 			logger.Debug("Failed to parse URI node", "scheme", scheme, "error", err.Error())
 			continue
 		}
 
-		nodes = append(nodes, node)
+		nodes = append(nodes, n)
 	}
 
 	if len(nodes) == 0 {
 		return nil, fmt.Errorf("no valid proxy URIs found")
 	}
 	return nodes, nil
+}
+
+func isActualOutboundType(outType string) bool {
+	switch outType {
+	case "selector", "urltest", "direct", "block", "dns":
+		return false
+	default:
+		return true
+	}
 }

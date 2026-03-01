@@ -3,8 +3,10 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/kyson-dev/sing-helm/internal/proxy/config/parser"
 	"github.com/kyson-dev/sing-helm/internal/proxy/config/subscription"
 	"github.com/kyson-dev/sing-helm/internal/sys/paths"
 	"github.com/spf13/cobra"
@@ -74,29 +76,40 @@ func newConfigAddCommand() *cobra.Command {
 				return fmt.Errorf("url cannot be empty")
 			}
 
-			paths := paths.Get()
-			if err := subscription.EnsureDirs(paths.SubConfigDir, paths.SubCacheDir); err != nil {
+			p := paths.Get()
+			if err := os.MkdirAll(p.SubConfigDir, 0755); err != nil {
+				return fmt.Errorf("failed to create config directory: %w", err)
+			}
+			if err := os.MkdirAll(p.SubCacheDir, 0755); err != nil {
+				return fmt.Errorf("failed to create cache directory: %w", err)
+			}
+
+			sources, err := subscription.LoadSources(p.SubConfigDir)
+			if err != nil && !os.IsNotExist(err) {
 				return err
+			}
+
+			for _, s := range sources {
+				if s.Name == name {
+					return fmt.Errorf("subscription already exists: %s", name)
+				}
 			}
 
 			source := subscription.Source{
 				Name:     name,
 				URL:      url,
-				Format:   format,
+				Format:   parser.NormalizeFormat(format),
 				Priority: priority,
 				Enabled:  &enabled,
 				Dedupe:   &dedupe,
 			}
+			sources = append(sources, source)
 
-			path := subscription.SourceFilePath(paths.SubConfigDir, name)
-			if _, err := os.Stat(path); err == nil {
-				return fmt.Errorf("subscription already exists: %s", name)
-			}
-			if err := subscription.SaveSourceFile(path, source); err != nil {
+			if err := subscription.SaveSources(p.SubConfigDir, sources); err != nil {
 				return err
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Saved: %s\n", path)
+			fmt.Fprintf(cmd.OutOrStdout(), "Saved: %s\n", filepath.Join(p.SubConfigDir, "sources.yaml"))
 			return nil
 		},
 	}
@@ -113,13 +126,16 @@ func newConfigEditCommand() *cobra.Command {
 		Short: "Edit base config or a subscription file",
 		Args:  cobra.RangeArgs(0, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			paths := paths.Get()
-			target := paths.ConfigFile
+			p := paths.Get()
+			target := p.ConfigFile
 			if len(args) == 1 {
-				if err := subscription.EnsureDirs(paths.SubConfigDir, paths.SubCacheDir); err != nil {
-					return err
+				if err := os.MkdirAll(p.SubConfigDir, 0755); err != nil {
+					return fmt.Errorf("failed to create config dir: %w", err)
 				}
-				target = subscription.SourceFilePath(paths.SubConfigDir, strings.TrimSpace(args[0]))
+				if err := os.MkdirAll(p.SubCacheDir, 0755); err != nil {
+					return fmt.Errorf("failed to create cache dir: %w", err)
+				}
+				target = filepath.Join(p.SubConfigDir, "sources.yaml")
 			}
 			return openInEditor(cmd, target)
 		},
@@ -132,20 +148,23 @@ func newConfigRefreshCommand() *cobra.Command {
 		Short: "Refresh subscription cache",
 		Args:  cobra.RangeArgs(0, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			paths := paths.Get()
-			if err := subscription.EnsureDirs(paths.SubConfigDir, paths.SubCacheDir); err != nil {
-				return err
+			p := paths.Get()
+			if err := os.MkdirAll(p.SubConfigDir, 0755); err != nil {
+				return fmt.Errorf("failed to create config dir: %w", err)
+			}
+			if err := os.MkdirAll(p.SubCacheDir, 0755); err != nil {
+				return fmt.Errorf("failed to create cache dir: %w", err)
 			}
 
 			if len(args) == 0 || strings.EqualFold(args[0], "all") {
-				return refreshAllSubscriptions(cmd, paths.SubConfigDir, paths.SubCacheDir)
+				return refreshAllSubscriptions(cmd, p.SubConfigDir, p.SubCacheDir)
 			}
 
 			name := strings.TrimSpace(args[0])
 			if name == "" {
 				return fmt.Errorf("name cannot be empty")
 			}
-			return refreshOneSubscription(cmd, name, paths.SubConfigDir, paths.SubCacheDir)
+			return refreshOneSubscription(cmd, name, p.SubConfigDir, p.SubCacheDir)
 		},
 	}
 }
@@ -156,21 +175,23 @@ func newConfigDeleteCommand() *cobra.Command {
 		Short: "Delete a subscription config and cache",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			paths := paths.Get()
-			// 确保目录存在（虽然我们要删除东西，但如果目录都不存在也就没什么好删的，不过为了路径构建不出错）
-			if err := subscription.EnsureDirs(paths.SubConfigDir, paths.SubCacheDir); err != nil {
-				return err
+			p := paths.Get()
+			if err := os.MkdirAll(p.SubConfigDir, 0755); err != nil {
+				return fmt.Errorf("failed to create config dir: %w", err)
+			}
+			if err := os.MkdirAll(p.SubCacheDir, 0755); err != nil {
+				return fmt.Errorf("failed to create cache dir: %w", err)
 			}
 
 			if strings.EqualFold(args[0], "all") {
-				return deleteAllSubscriptions(cmd, paths.SubConfigDir, paths.SubCacheDir)
+				return deleteAllSubscriptions(cmd, p.SubConfigDir, p.SubCacheDir)
 			}
 
 			name := strings.TrimSpace(args[0])
 			if name == "" {
 				return fmt.Errorf("name cannot be empty")
 			}
-			return deleteOneSubscription(cmd, name, paths.SubConfigDir, paths.SubCacheDir)
+			return deleteOneSubscription(cmd, name, p.SubConfigDir, p.SubCacheDir)
 		},
 	}
 }

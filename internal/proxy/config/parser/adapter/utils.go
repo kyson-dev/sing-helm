@@ -1,11 +1,11 @@
-package subscription
+package adapter
 
 import (
 	"fmt"
 	"strings"
 )
 
-func readString(m map[string]any, keys ...string) string {
+func ReadString(m map[string]any, keys ...string) string {
 	for _, key := range keys {
 		if key == "" {
 			continue
@@ -22,7 +22,7 @@ func readString(m map[string]any, keys ...string) string {
 	return ""
 }
 
-func readInt(m map[string]any, keys ...string) int {
+func ReadInt(m map[string]any, keys ...string) int {
 	for _, key := range keys {
 		if val, ok := m[key]; ok {
 			switch v := val.(type) {
@@ -39,7 +39,7 @@ func readInt(m map[string]any, keys ...string) int {
 			case float32:
 				return int(v)
 			case string:
-				if parsed, err := parseInt(v); err == nil {
+				if parsed, err := ParseInt(v); err == nil {
 					return parsed
 				}
 			}
@@ -48,7 +48,7 @@ func readInt(m map[string]any, keys ...string) int {
 	return 0
 }
 
-func readBool(m map[string]any, key string) bool {
+func ReadBool(m map[string]any, key string) bool {
 	val, ok := m[key]
 	if !ok {
 		return false
@@ -63,7 +63,7 @@ func readBool(m map[string]any, key string) bool {
 	}
 }
 
-func readStringList(m map[string]any, key string) []string {
+func ReadStringList(m map[string]any, key string) []string {
 	val, ok := m[key]
 	if !ok {
 		return nil
@@ -89,7 +89,7 @@ func readStringList(m map[string]any, key string) []string {
 	}
 }
 
-func asStringMap(val any) map[string]any {
+func AsStringMap(val any) map[string]any {
 	switch v := val.(type) {
 	case map[string]any:
 		return v
@@ -104,7 +104,7 @@ func asStringMap(val any) map[string]any {
 	}
 }
 
-func normalizeStringMap(input map[string]any) map[string]string {
+func NormalizeStringMap(input map[string]any) map[string]string {
 	if len(input) == 0 {
 		return nil
 	}
@@ -120,20 +120,20 @@ func normalizeStringMap(input map[string]any) map[string]string {
 	return out
 }
 
-func parseInt(value string) (int, error) {
+func ParseInt(value string) (int, error) {
 	var out int
 	_, err := fmt.Sscanf(strings.TrimSpace(value), "%d", &out)
 	return out, err
 }
 
 func ApplyTLSOptions(outbound map[string]any, m map[string]any) {
-	tlsEnabled := readBool(m, "tls")
-	sni := readString(m, "sni", "servername", "server_name")
-	skipVerify := readBool(m, "skip-cert-verify")
-	alpn := readStringList(m, "alpn")
-	clientFingerprint := readString(m, "client-fingerprint")
+	tlsEnabled := ReadBool(m, "tls")
+	sni := ReadString(m, "sni", "servername", "server_name")
+	skipVerify := ReadBool(m, "skip-cert-verify")
+	alpn := ReadStringList(m, "alpn")
+	clientFingerprint := ReadString(m, "client-fingerprint")
 
-	realityOpts := asStringMap(m["reality-opts"])
+	realityOpts := AsStringMap(m["reality-opts"])
 
 	if !tlsEnabled && sni == "" && len(alpn) == 0 && realityOpts == nil && clientFingerprint == "" {
 		return
@@ -158,10 +158,10 @@ func ApplyTLSOptions(outbound map[string]any, m map[string]any) {
 
 	if realityOpts != nil {
 		reality := map[string]any{"enabled": true}
-		if publicKey := readString(realityOpts, "public-key", "public_key"); publicKey != "" {
+		if publicKey := ReadString(realityOpts, "public-key", "public_key"); publicKey != "" {
 			reality["public_key"] = publicKey
 		}
-		if shortID := readString(realityOpts, "short-id", "short_id"); shortID != "" {
+		if shortID := ReadString(realityOpts, "short-id", "short_id"); shortID != "" {
 			reality["short_id"] = shortID
 		}
 		tls["reality"] = reality
@@ -171,26 +171,26 @@ func ApplyTLSOptions(outbound map[string]any, m map[string]any) {
 }
 
 func ApplyTransportOptions(outbound map[string]any, m map[string]any) {
-	network := strings.ToLower(readString(m, "network"))
+	network := strings.ToLower(ReadString(m, "network"))
 	switch network {
 	case "ws", "websocket":
-		wsOpts := asStringMap(m["ws-opts"])
+		wsOpts := AsStringMap(m["ws-opts"])
 		transport := map[string]any{"type": "ws"}
 		if wsOpts != nil {
-			if path := readString(wsOpts, "path"); path != "" {
+			if path := ReadString(wsOpts, "path"); path != "" {
 				transport["path"] = path
 			}
-			headers := asStringMap(wsOpts["headers"])
+			headers := AsStringMap(wsOpts["headers"])
 			if len(headers) > 0 {
-				transport["headers"] = normalizeStringMap(headers)
+				transport["headers"] = NormalizeStringMap(headers)
 			}
 		}
 		outbound["transport"] = transport
 	case "grpc":
-		grpcOpts := asStringMap(m["grpc-opts"])
+		grpcOpts := AsStringMap(m["grpc-opts"])
 		transport := map[string]any{"type": "grpc"}
 		if grpcOpts != nil {
-			if service := readString(grpcOpts, "grpc-service-name", "service-name"); service != "" {
+			if service := ReadString(grpcOpts, "grpc-service-name", "service-name"); service != "" {
 				transport["service_name"] = service
 			}
 		}

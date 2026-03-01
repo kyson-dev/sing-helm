@@ -6,126 +6,96 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
-func EnsureDirs(configDir, cacheDir string) error {
-	if err := os.MkdirAll(configDir, 0755); err != nil {
-		return err
-	}
-	return os.MkdirAll(cacheDir, 0755)
-}
-
-func SourceFilePath(dir, name string) string {
-	return filepath.Join(dir, name+".json")
-}
-
-func CacheFilePath(dir, name string) string {
-	return filepath.Join(dir, name+".json")
-}
-
-func LoadSources(dir string) ([]Source, error) {
-	entries, err := os.ReadDir(dir)
+// Storage handles loading and saving subscription sources
+func LoadSources(configDir string) ([]Source, error) {
+	configPath := filepath.Join(configDir, "sources.yaml")
+	file, err := os.Open(configPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return []Source{}, nil
+			return nil, nil
 		}
-		return nil, err
+		return nil, fmt.Errorf("open sources.yaml failed: %w", err)
+	}
+	defer file.Close()
+
+	var doc struct {
+		Sources []Source `yaml:"sources"`
 	}
 
-	var sources []Source
-	var loadErrs []error
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		if filepath.Ext(entry.Name()) != ".json" {
-			continue
-		}
-		path := filepath.Join(dir, entry.Name())
-		source, err := LoadSourceFile(path)
-		if err != nil {
-			loadErrs = append(loadErrs, err)
-			continue
-		}
-		sources = append(sources, source)
+	decoder := yaml.NewDecoder(file)
+	if err := decoder.Decode(&doc); err != nil {
+		return nil, fmt.Errorf("decode sources.yaml failed: %w", err)
 	}
 
-	sort.Slice(sources, func(i, j int) bool {
-		if sources[i].Priority == sources[j].Priority {
-			return sources[i].Name < sources[j].Name
-		}
-		return sources[i].Priority > sources[j].Priority
+	// Set default values if not explicitly configured
+	for i := range doc.Sources {
+		doc.Sources[i].NormalizeDefaults(fmt.Sprintf("source-%d", i+1))
+	}
+
+	// Sort sources by priority descending (higher integer = higher priority)
+	sort.SliceStable(doc.Sources, func(i, j int) bool {
+		return doc.Sources[i].Priority > doc.Sources[j].Priority
 	})
 
-	if len(loadErrs) > 0 {
-		return sources, fmt.Errorf("failed to load %d subscription file(s)", len(loadErrs))
-	}
-	return sources, nil
+	return doc.Sources, nil
 }
 
-func LoadSourceFile(path string) (Source, error) {
-	content, err := os.ReadFile(path)
+// SaveSources saves the given list of sources to the configuration directory
+func SaveSources(configDir string, sources []Source) error {
+	configPath := filepath.Join(configDir, "sources.yaml")
+
+	doc := struct {
+		Sources []Source `yaml:"sources"`
+	}{
+		Sources: sources,
+	}
+
+	data, err := yaml.Marshal(&doc)
 	if err != nil {
-		return Source{}, err
+		return fmt.Errorf("marshal sources.yaml failed: %w", err)
 	}
 
-	var source Source
-	if err := json.Unmarshal(content, &source); err != nil {
-		return Source{}, fmt.Errorf("invalid subscription file %s: %w", path, err)
+	err = os.MkdirAll(configDir, 0755)
+	if err != nil {
+		return fmt.Errorf("create config dir failed: %w", err)
 	}
 
-	name := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
-	source.NormalizeDefaults(name)
-	if source.Name != name {
-		source.Name = name
+	if err := os.WriteFile(configPath, data, 0644); err != nil {
+		return fmt.Errorf("write sources.yaml failed: %w", err)
 	}
 
-	return source, nil
+	return nil
 }
 
-func SaveSourceFile(path string, source Source) error {
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
-	}
-
-	name := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
-	source.NormalizeDefaults(name)
-	source.Name = name
-
-	data, err := json.MarshalIndent(source, "", "  ")
+// LoadCache loads parsed nodes strictly from cache file without verification
+func LoadCache(cachePath string) (*Cache, error) {
+	data, err := os.ReadFile(cachePath)
 	if err != nil {
-		return err
-	}
-
-	return os.WriteFile(path, data, 0644)
-}
-
-func LoadCache(path string) (Cache, error) {
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return Cache{}, err
+		return nil, fmt.Errorf("read cache file failed: %w", err)
 	}
 
 	var cache Cache
-	if err := json.Unmarshal(content, &cache); err != nil {
-		return Cache{}, fmt.Errorf("invalid cache file %s: %w", path, err)
+	if err := json.Unmarshal(data, &cache); err != nil {
+		return nil, fmt.Errorf("unmarshal cache file failed: %w", err)
 	}
 
-	return cache, nil
+	return &cache, nil
 }
 
-func SaveCache(path string, cache Cache) error {
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
-	}
-
+// SaveCache saves parsed nodes back into the cache
+func SaveCache(cachePath string, cache Cache) error {
 	data, err := json.MarshalIndent(cache, "", "  ")
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal cache file failed: %w", err)
 	}
 
-	return os.WriteFile(path, data, 0644)
+	if err := os.WriteFile(cachePath, data, 0644); err != nil {
+		return fmt.Errorf("write cache file failed: %w", err)
+	}
+
+	return nil
 }

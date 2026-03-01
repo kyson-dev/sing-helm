@@ -1,79 +1,102 @@
 package subscription
 
 import (
-	"crypto/sha1"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
+	"path/filepath"
+	"strings"
+
+	"github.com/kyson-dev/sing-helm/internal/proxy/config/node"
+	"github.com/kyson-dev/sing-helm/internal/sys/logger"
 )
 
-func LoadNodesFromCache(sources []Source, cacheDir string) ([]Node, error) {
-	seen := make(map[string]bool)
-	var nodes []Node
+// LoadNodesFromCache reads from cache files honoring priority and enablement
+func LoadNodesFromCache(sources []Source, cacheDir string) ([]node.Node, error) {
+	var finalNodes []node.Node
+	globalSeen := make(map[string]bool)
 
-	for _, source := range sources {
-		if !source.EnabledValue() {
+	for _, s := range sources {
+		if !s.EnabledValue() {
+			logger.Debug("Skipping disabled source", "name", s.Name)
 			continue
 		}
-		cachePath := CacheFilePath(cacheDir, source.Name)
+
+		cachePath := filepath.Join(cacheDir, s.Name+".json")
 		cache, err := LoadCache(cachePath)
 		if err != nil {
+			logger.Error("Failed to load cache for source", "name", s.Name, "error", err)
 			continue
 		}
 
-		for _, node := range cache.Nodes {
-			normalizeNode(&node, source)
-			if node.Type == "" {
-				continue
-			}
-			if source.DedupeValue() {
-				hash, err := outboundHash(node.Outbound)
-				if err != nil {
-					continue
-				}
-				if seen[hash] {
-					continue
-				}
-				seen[hash] = true
-			}
-			nodes = append(nodes, node)
-		}
-	}
-
-	return nodes, nil
-}
-
-func normalizeNode(node *Node, source Source) {
-	if node.Source == "" {
-		node.Source = source.Name
-	}
-	if node.Type == "" {
-		node.Type = readString(node.Outbound, "type")
-	}
-	if node.Name == "" {
-		node.Name = readString(node.Outbound, "tag")
-	}
-	if node.Name == "" {
-		node.Name = fmt.Sprintf("%s-%s", node.Type, node.Source)
-	}
-	delete(node.Outbound, "tag")
-}
-
-func outboundHash(outbound map[string]any) (string, error) {
-	if outbound == nil {
-		return "", fmt.Errorf("empty outbound")
-	}
-	cloned := make(map[string]any, len(outbound))
-	for key, value := range outbound {
-		if key == "tag" {
+		nodes := cache.Nodes
+		if len(nodes) == 0 {
 			continue
 		}
-		cloned[key] = value
+
+		// Apply tags to nodes
+		if len(s.Tags) > 0 {
+			nodes = appendTags(nodes, s.Tags)
+		}
+
+		// Source deduplication
+		if s.DedupeValue() {
+			nodes = dedupeWithinSource(nodes)
+		}
+
+		// Global deduplication (across sources)
+		for _, n := range nodes {
+			// use standard signature for global dedupe
+			sig := globalSignature(n)
+			if !globalSeen[sig] {
+				globalSeen[sig] = true
+				n.Source = s.Name
+				finalNodes = append(finalNodes, n)
+			}
+		}
 	}
-	data, err := json.Marshal(cloned)
-	if err != nil {
-		return "", err
+
+	return finalNodes, nil
+}
+
+func appendTags(nodes []node.Node, tags []string) []node.Node {
+	for i := range nodes {
+		for _, tag := range tags {
+			if !strings.Contains(nodes[i].Name, tag) {
+				nodes[i].Name = nodes[i].Name + " " + tag
+			}
+		}
 	}
-	sum := sha1.Sum(data)
-	return hex.EncodeToString(sum[:]), nil
+	return nodes
+}
+
+func dedupeWithinSource(nodes []node.Node) []node.Node {
+	seen := make(map[string]bool)
+	var deduped []node.Node
+	for _, n := range nodes {
+		sig := localSignature(n)
+		if !seen[sig] {
+			seen[sig] = true
+			deduped = append(deduped, n)
+		}
+	}
+	return deduped
+}
+
+// localSignature is used for deduplication within the same source.
+// We use name + type as signature since many users only have one server
+// but use name to distinguish them.
+func localSignature(n node.Node) string {
+	return n.Name + "|" + n.Type
+}
+
+// globalSignature is used for cross-source deduplication.
+// We try to use server+port combination if possible, fallback to localSignature.
+func globalSignature(n node.Node) string {
+	if n.Outbound != nil {
+		server, hasServer := n.Outbound["server"].(string)
+		port, hasPort := n.Outbound["server_port"]
+		if hasServer && hasPort {
+			return fmt.Sprintf("%s:%v|%s", server, port, n.Type)
+		}
+	}
+	return localSignature(n)
 }

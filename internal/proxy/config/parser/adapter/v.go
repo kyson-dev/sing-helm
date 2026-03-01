@@ -1,28 +1,30 @@
-package subscription
+package adapter
 
 import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/url"
+
+	"github.com/kyson-dev/sing-helm/internal/proxy/config/node"
 )
 
 // VMessAdapter handles VMess protocol in Clash and URI formats.
 type VMessAdapter struct{}
 
 func init() {
-	RegisterAdapter("vmess", &VMessAdapter{})
+	Register("vmess", &VMessAdapter{})
 }
 
-func (a *VMessAdapter) FromClash(m map[string]any) (Node, error) {
-	server := readString(m, "server")
-	port := readInt(m, "port")
+func (a *VMessAdapter) FromClash(m map[string]any) (node.Node, error) {
+	server := ReadString(m, "server")
+	port := ReadInt(m, "port")
 	if server == "" || port == 0 {
-		return Node{}, fmt.Errorf("missing server or port")
+		return node.Node{}, fmt.Errorf("missing server or port")
 	}
 
-	uuid := readString(m, "uuid")
-	cipher := readString(m, "cipher", "security")
+	uuid := ReadString(m, "uuid")
+	cipher := ReadString(m, "cipher", "security")
 	if cipher == "" {
 		cipher = "auto"
 	}
@@ -35,37 +37,37 @@ func (a *VMessAdapter) FromClash(m map[string]any) (Node, error) {
 		"security":    cipher,
 	}
 
-	if alterID := readInt(m, "alterId", "alter-id"); alterID > 0 {
+	if alterID := ReadInt(m, "alterId", "alter-id"); alterID > 0 {
 		outbound["alter_id"] = alterID
 	}
 
 	ApplyTLSOptions(outbound, m)
 	ApplyTransportOptions(outbound, m)
 
-	return Node{
+	return node.Node{
 		Type:     "vmess",
 		Outbound: outbound,
 	}, nil
 }
 
-func (a *VMessAdapter) FromURI(uri string) (Node, error) {
+func (a *VMessAdapter) FromURI(uri string) (node.Node, error) {
 	decoded, err := base64.StdEncoding.DecodeString(uri)
 	if err != nil {
-		return Node{}, fmt.Errorf("invalid vmess URI: %w", err)
+		return node.Node{}, fmt.Errorf("invalid vmess URI: %w", err)
 	}
 
 	var m map[string]any
 	if err := json.Unmarshal(decoded, &m); err != nil {
-		return Node{}, fmt.Errorf("invalid vmess config: %w", err)
+		return node.Node{}, fmt.Errorf("invalid vmess config: %w", err)
 	}
 
-	server := readString(m, "add", "address")
-	port := readInt(m, "port")
-	uuid := readString(m, "id", "uuid")
-	name := readString(m, "ps", "name")
+	server := ReadString(m, "add", "address")
+	port := ReadInt(m, "port")
+	uuid := ReadString(m, "id", "uuid")
+	name := ReadString(m, "ps", "name")
 
 	if server == "" || port == 0 || uuid == "" {
-		return Node{}, fmt.Errorf("missing required fields")
+		return node.Node{}, fmt.Errorf("missing required fields")
 	}
 
 	outbound := map[string]any{
@@ -73,44 +75,44 @@ func (a *VMessAdapter) FromURI(uri string) (Node, error) {
 		"server":      server,
 		"server_port": port,
 		"uuid":        uuid,
-		"security":    readString(m, "scy", "security"),
+		"security":    ReadString(m, "scy", "security"),
 	}
 
 	if outbound["security"] == "" {
 		outbound["security"] = "auto"
 	}
 
-	if alterID := readInt(m, "aid", "alterId"); alterID > 0 {
+	if alterID := ReadInt(m, "aid", "alterId"); alterID > 0 {
 		outbound["alter_id"] = alterID
 	}
 
-	if tls := readString(m, "tls"); tls == "tls" {
+	if tls := ReadString(m, "tls"); tls == "tls" {
 		tlsConfig := map[string]any{"enabled": true}
-		if sni := readString(m, "sni"); sni != "" {
+		if sni := ReadString(m, "sni"); sni != "" {
 			tlsConfig["server_name"] = sni
 		}
 		outbound["tls"] = tlsConfig
 	}
 
-	if network := readString(m, "net", "network"); network != "" {
+	if network := ReadString(m, "net", "network"); network != "" {
 		transport := map[string]any{"type": network}
 		switch network {
 		case "ws":
-			if path := readString(m, "path"); path != "" {
+			if path := ReadString(m, "path"); path != "" {
 				transport["path"] = path
 			}
-			if host := readString(m, "host"); host != "" {
+			if host := ReadString(m, "host"); host != "" {
 				transport["headers"] = map[string]string{"Host": host}
 			}
 		case "grpc":
-			if serviceName := readString(m, "path", "serviceName"); serviceName != "" {
+			if serviceName := ReadString(m, "path", "serviceName"); serviceName != "" {
 				transport["service_name"] = serviceName
 			}
 		}
 		outbound["transport"] = transport
 	}
 
-	return Node{
+	return node.Node{
 		Name:     name,
 		Type:     "vmess",
 		Outbound: outbound,
@@ -121,17 +123,17 @@ func (a *VMessAdapter) FromURI(uri string) (Node, error) {
 type VLessAdapter struct{}
 
 func init() {
-	RegisterAdapter("vless", &VLessAdapter{})
+	Register("vless", &VLessAdapter{})
 }
 
-func (a *VLessAdapter) FromClash(m map[string]any) (Node, error) {
-	server := readString(m, "server")
-	port := readInt(m, "port")
+func (a *VLessAdapter) FromClash(m map[string]any) (node.Node, error) {
+	server := ReadString(m, "server")
+	port := ReadInt(m, "port")
 	if server == "" || port == 0 {
-		return Node{}, fmt.Errorf("missing server or port")
+		return node.Node{}, fmt.Errorf("missing server or port")
 	}
 
-	uuid := readString(m, "uuid")
+	uuid := ReadString(m, "uuid")
 	outbound := map[string]any{
 		"type":        "vless",
 		"server":      server,
@@ -139,23 +141,23 @@ func (a *VLessAdapter) FromClash(m map[string]any) (Node, error) {
 		"uuid":        uuid,
 	}
 
-	if flow := readString(m, "flow"); flow != "" {
+	if flow := ReadString(m, "flow"); flow != "" {
 		outbound["flow"] = flow
 	}
 
 	ApplyTLSOptions(outbound, m)
 	ApplyTransportOptions(outbound, m)
 
-	return Node{
+	return node.Node{
 		Type:     "vless",
 		Outbound: outbound,
 	}, nil
 }
 
-func (a *VLessAdapter) FromURI(uriStr string) (Node, error) {
+func (a *VLessAdapter) FromURI(uriStr string) (node.Node, error) {
 	u, err := url.Parse("vless://" + uriStr)
 	if err != nil {
-		return Node{}, err
+		return node.Node{}, err
 	}
 
 	uuid := u.User.Username()
@@ -165,10 +167,10 @@ func (a *VLessAdapter) FromURI(uriStr string) (Node, error) {
 	query := u.Query()
 
 	if uuid == "" || server == "" || port == "" {
-		return Node{}, fmt.Errorf("missing required fields")
+		return node.Node{}, fmt.Errorf("missing required fields")
 	}
 
-	portNum, _ := parseInt(port)
+	portNum, _ := ParseInt(port)
 	outbound := map[string]any{
 		"type":        "vless",
 		"server":      server,
@@ -209,7 +211,7 @@ func (a *VLessAdapter) FromURI(uriStr string) (Node, error) {
 		ApplyURITransport(outbound, network, query)
 	}
 
-	return Node{
+	return node.Node{
 		Name:     name,
 		Type:     "vless",
 		Outbound: outbound,

@@ -1,5 +1,10 @@
 package subscription
 
+import (
+	"github.com/kyson-dev/sing-helm/internal/proxy/config/node"
+	"github.com/kyson-dev/sing-helm/internal/proxy/config/parser"
+)
+
 // Source describes a subscription config file.
 type Source struct {
 	Name     string   `json:"name"`
@@ -11,51 +16,20 @@ type Source struct {
 	Tags     []string `json:"tags,omitempty"`
 }
 
-// Node is a normalized outbound entry derived from subscriptions.
-// Outbound contains sing-box outbound fields without tag.
-type Node struct {
-	Name     string         `json:"name"`
-	Type     string         `json:"type"`
-	Source   string         `json:"source,omitempty"`
-	Outbound map[string]any `json:"outbound"`
-}
-
 // Cache stores parsed nodes from a subscription source.
 type Cache struct {
-	Source    Source `json:"source"`
-	UpdatedAt string `json:"updated_at"`
-	Nodes     []Node `json:"nodes"`
-}
-
-const (
-	FormatAuto    = "auto"
-	FormatSingBox = "singbox"
-	FormatClash   = "clash"
-	FormatBase64  = "base64"
-)
-
-func NormalizeFormat(format string) string {
-	switch format {
-	case "", "auto":
-		return FormatAuto
-	case "json":
-		return FormatAuto
-	case "sing-box", "singbox":
-		return FormatSingBox
-	case "clash":
-		return FormatClash
-	default:
-		return format
-	}
+	Source    Source      `json:"source"`
+	UpdatedAt string      `json:"updated_at"`
+	Nodes     []node.Node `json:"nodes"`
 }
 
 func (s *Source) NormalizeDefaults(name string) {
 	if s.Name == "" {
 		s.Name = name
 	}
-	s.Format = NormalizeFormat(s.Format)
+	s.Format = parser.NormalizeFormat(s.Format)
 	if s.Format == "" {
-		s.Format = FormatAuto
+		s.Format = parser.FormatAuto
 	}
 	if s.Enabled == nil {
 		enabled := true
@@ -64,15 +38,6 @@ func (s *Source) NormalizeDefaults(name string) {
 	if s.Dedupe == nil {
 		dedupe := true
 		s.Dedupe = &dedupe
-	}
-}
-
-func IsActualOutboundType(outType string) bool {
-	switch outType {
-	case "selector", "urltest", "direct", "block", "dns":
-		return false
-	default:
-		return true
 	}
 }
 

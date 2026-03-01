@@ -1,15 +1,12 @@
 package module
 
-// Node contains the raw struct for outbound before sing-box validation
-type Node struct {
-	Name     string
-	Type     string
-	Source   string
-	Outbound map[string]any
-}
+import "github.com/kyson-dev/sing-helm/internal/proxy/config/node"
 
-// NodeProvider provides a list of unbound proxy nodes
+// NodeProvider is an interface for modules that provide proxy nodes.
+// Examples: parsing from local user config, or reading from a subscription cache.
 type NodeProvider interface {
+	// Name returns the provider's logic name.
 	Name() string
-	GetNodes() ([]Node, error)
+	// GetNodes fetches a list of normalized outbound nodes.
+	GetNodes() ([]node.Node, error)
 }
