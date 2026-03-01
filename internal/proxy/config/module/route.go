@@ -53,20 +53,6 @@ func (m *RouteModule) Apply(opts *option.Options, ctx *BuildContext) error {
 func (m *RouteModule) generateDefaultRoute() (*option.RouteOptions, error) {
 	routeMap := map[string]any{
 		"rule_set": []map[string]any{
-			// {
-			// 	"download_detour": "proxy",
-			// 	"format":          "binary",
-			// 	"tag":             "geosite-tld-cn",
-			// 	"type":            "remote",
-			// 	"url":             "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-tld-cn.srs",
-			// },
-			// {
-			// 	"tag":             "geosite-google",
-			// 	"type":            "remote",
-			// 	"format":          "binary",
-			// 	"url":             "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-google.srs",
-			// 	"download_detour": "proxy",
-			// },
 			{
 				"tag":             "geosite-cn",
 				"type":            "remote",

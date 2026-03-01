@@ -39,9 +39,12 @@ func DefaultModules(opts *model.RunOptions) []module.ConfigModule {
 	}
 
 	modules := []module.ConfigModule{
-		&module.UserOutboundModule{},
-		&module.SubscriptionModule{},
-		&module.OutboundModule{},
+		&module.OutboundModule{
+			Providers: []module.NodeProvider{
+				&module.UserNodeProvider{},
+				&module.SubscriptionNodeProvider{},
+			},
+		},
 	}
 
 	// 根据 ProxyMode 选择入站模块
