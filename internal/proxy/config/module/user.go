@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"os"
 
-	"github.com/kyson-dev/sing-helm/internal/proxy/engine/config"
 	"github.com/kyson-dev/sing-helm/internal/sys/paths"
 	"github.com/sagernet/sing-box/option"
 )
@@ -17,7 +16,7 @@ func (m *UserOutboundModule) Name() string {
 	return "user_outbound"
 }
 
-func (m *UserOutboundModule) Apply(opts *option.Options, ctx *config.BuildContext) error {
+func (m *UserOutboundModule) Apply(opts *option.Options, ctx *BuildContext) error {
 	// 如果没有提供 ProfilePath，说明用户配置已经在 opts 中了（向后兼容）
 	paths := paths.Get()
 

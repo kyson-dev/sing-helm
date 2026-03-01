@@ -1,79 +1,110 @@
 package engine
 
 import (
+	"context"
 	"fmt"
+	"sync"
 
-	"github.com/kyson-dev/sing-helm/internal/core/model"
-	"github.com/kyson-dev/sing-helm/internal/proxy/engine/config"
-	"github.com/kyson-dev/sing-helm/internal/proxy/engine/module"
+	"github.com/kyson-dev/sing-helm/internal/proxy/config"
+	"github.com/kyson-dev/sing-helm/internal/sys/logger"
+	box "github.com/sagernet/sing-box"
+	"github.com/sagernet/sing-box/include"
 	"github.com/sagernet/sing-box/option"
 )
 
-// BuildConfig loads the profile, applies runtime modules, and saves raw config.
-func BuildConfig(rawPath string, runops *model.RunOptions) error {
-	builder := config.NewBuilder(runops)
-	for _, m := range DefaultModules(runops) {
-		builder.With(m)
-	}
+type instance struct {
+	mu   sync.Mutex
+	once sync.Once
+	box  *box.Box
+}
 
-	if err := builder.SaveToFile(rawPath); err != nil {
-		return fmt.Errorf("failed to save raw config: %w", err)
-	}
+func NewInstance() *instance {
+	return &instance{}
+}
 
+func (s *instance) Stop() {
+	if s.box != nil {
+		if err := s.box.Close(); err != nil {
+			logger.Error("Failed to close box instance", "error", err)
+			return
+		}
+		logger.Info("Sing-box instance closed successfully")
+		s.box = nil
+	}
+}
+
+// ReloadFromFile 从配置文件重新加载 sing-box
+func (s *instance) ReloadFromFile(ctx context.Context, configPath string) error {
+	if s.box != nil {
+		if err := s.box.Close(); err != nil {
+			// 忽略 "file already closed" 错误
+			if !isAlreadyClosedError(err) {
+				return &ReloadError{
+					Stage: ReloadStageStop,
+					Err:   fmt.Errorf("failed to close box instance: %w", err),
+				}
+			}
+			logger.Info("Box instance already closed, continuing reload")
+		}
+		s.box = nil
+	}
+	if err := s.StartFromFile(ctx, configPath); err != nil {
+		return &ReloadError{
+			Stage: ReloadStageStart,
+			Err:   err,
+		}
+	}
 	return nil
 }
 
-// BuildOptions builds a sing-box config without writing to disk.
-func BuildOptions(runops *model.RunOptions) (*option.Options, error) {
-	builder := config.NewBuilder(runops)
-	for _, m := range DefaultModules(runops) {
-		builder.With(m)
+// isAlreadyClosedError 检查是否是 "file already closed" 错误
+func isAlreadyClosedError(err error) bool {
+	if err == nil {
+		return false
 	}
-	return builder.Build()
+	errStr := err.Error()
+	return errStr == "file already closed" || errStr == "use of closed file"
 }
 
-// DefaultModules 根据 RunOptions 返回默认模块组合
-func DefaultModules(opts *model.RunOptions) []config.ConfigModule {
+// StartFromFile 从配置文件启动 sing-box
+func (s *instance) StartFromFile(ctx context.Context, configPath string) error {
+	// 从文件加载配置
+	opts, err := config.LoadOptionsWithContext(ctx, configPath)
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+	return s.Start(ctx, opts)
+}
+
+// Start 启动 sing-box（接收 option.Options）
+func (s *instance) Start(ctx context.Context, opts *option.Options) error {
+	if s.box != nil {
+		return fmt.Errorf("box instance already exists")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	logger.Info("Initializing sing-box core...")
+
+	// 参数校验
 	if opts == nil {
-		defaultOpts := model.DefaultRunOptions()
-		opts = &defaultOpts
+		return fmt.Errorf("options cannot be nil")
 	}
 
-	modules := []config.ConfigModule{
-		&module.UserOutboundModule{},
-		&module.SubscriptionModule{},
-		&module.OutboundModule{},
+	tx := include.Context(ctx)
+	newBox, err := box.New(box.Options{
+		Context:           tx,
+		Options:           *opts,
+		PlatformLogWriter: NewPlatformWriter(), // 将 sing-box 日志重定向到我们的 logger
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create box instance: %w", err)
 	}
 
-	// 根据 ProxyMode 选择入站模块
-	switch opts.ProxyMode {
-	case model.ProxyModeTUN:
-		modules = append(modules,
-			&module.TUNModule{},
-			&module.TUNDNSModule{},
-		)
-	case model.ProxyModeSystem:
-		modules = append(modules, &module.MixedModule{
-			SetSystemProxy: true,
-			ListenAddr:     opts.ListenAddr,
-			Port:           opts.MixedPort,
-		})
-	case model.ProxyModeDefault:
-		modules = append(modules, &module.MixedModule{
-			SetSystemProxy: false,
-			ListenAddr:     opts.ListenAddr,
-			Port:           opts.MixedPort,
-		})
+	// 2. Start sing-box core
+	if err := newBox.Start(); err != nil {
+		return fmt.Errorf("failed to start sing-box core: %w", err)
 	}
-
-	modules = append(modules,
-		&module.RouteModule{RouteMode: opts.RouteMode},
-		&module.ExperimentalModule{
-			ListenAddr: opts.ListenAddr,
-			APIPort:    opts.APIPort,
-		},
-		&module.LogModule{},
-	)
-
-	return modules
+	s.box = newBox
+	logger.Info("Sing-box core started, launching cleanup goroutine")
+	return nil
 }

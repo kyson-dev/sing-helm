@@ -24,11 +24,6 @@ type Paths struct {
 	CacheFile       string // cache.db (sing-box 缓存)
 }
 
-// RuntimeMeta holds system status, such as the config path used by the running daemon.
-type RuntimeMeta struct {
-	ConfigHome string `json:"config_home"`
-}
-
 var (
 	current Paths
 	once    sync.Once
@@ -43,7 +38,7 @@ func Get() Paths {
 // home: 必须是已解析的绝对路径或相对路径，如果为空则报错（或者使用默认？）
 // 为了保持兼容性，我们可以让 Init("") 依旧使用默认 ~/.sing-helm，
 // 但真正的智能选择逻辑交给 setup.go
-func path_init(home string) error {
+func Init(home string) error {
 	var err error
 	once.Do(func() {
 		current, err = resolve(home)
@@ -55,8 +50,14 @@ func path_init(home string) error {
 // This is the preferred way to obtain Paths in DI-based code.
 func resolve(home string) (Paths, error) {
 	if home == "" {
-		userHome, _ := os.UserHomeDir()
-		home = filepath.Join(userHome, ".sing-helm")
+		// 使用默认值
+		// 如果是 sudo 运行，尝试获取原始用户的 home
+		if sudoUser := os.Getenv("SUDO_USER"); sudoUser != "" {
+			home = filepath.Join("/Users", sudoUser, ".sing-helm")
+		} else {
+			userHome, _ := os.UserHomeDir()
+			home = filepath.Join(userHome, ".sing-helm")
+		}
 	}
 
 	absHome, err := filepath.Abs(home)
@@ -68,7 +69,7 @@ func resolve(home string) (Paths, error) {
 		return Paths{}, err
 	}
 
-	runtimeDir := resolveRuntimeDir()
+	runtimeDir := ResolveRuntimeDir()
 	runtimeDir, err = filepath.Abs(runtimeDir)
 	if err != nil {
 		return Paths{}, err
@@ -87,7 +88,7 @@ func getPath(home string, runtimeDir string, logDir string) Paths {
 	return Paths{
 		HomeDir:         home,
 		RuntimeDir:      runtimeDir,
-		RuntimeMetaFile: filepath.Join(runtimeDir, "runtime.json"),
+		RuntimeMetaFile: GetRuntimeMetaFileWithDir(runtimeDir),
 		ConfigFile:      filepath.Join(home, "profile.json"),
 		RawConfigFile:   filepath.Join(runtimeDir, "raw.json"),
 		SubConfigDir:    filepath.Join(home, "subscriptions"),
@@ -102,6 +103,20 @@ func getPath(home string, runtimeDir string, logDir string) Paths {
 	}
 }
 
+// GetRuntimeMetaFileWithDir 根据运行时目录获取 runtime.json 路径
+func GetRuntimeMetaFileWithDir(runtimeDir string) string {
+	return filepath.Join(runtimeDir, "runtime.json")
+}
+// GetRuntimeLockFileWithDir 根据运行时目录获取 lock 文件路径
+func GetRuntimeLockFileWithDir(runtimeDir string) string {
+	return filepath.Join(runtimeDir, "sing-helm.lock")
+}
+// GetProfileFileWithDir 根据主目录获取 profile.json 路径
+func GetProfileFileWithDir(homeDir string) string {
+	return filepath.Join(homeDir, "profile.json")
+}
+
+
 // ResetForTest 重置环境单例状态
 // ⚠️ 仅供测试使用，生产代码禁止调用
 func ResetForTest() {
@@ -111,5 +126,5 @@ func ResetForTest() {
 }
 
 func ForTestInit(home string) error {
-	return path_init(home)
+	return Init(home)
 }

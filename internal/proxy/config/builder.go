@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/kyson-dev/sing-helm/internal/proxy/config/module"
 	"github.com/kyson-dev/sing-helm/internal/core/model"
 	"github.com/kyson-dev/sing-helm/internal/sys/logger"
 	"github.com/sagernet/sing-box/option"
@@ -15,8 +16,8 @@ import (
 // 支持链式调用添加模块，灵活组装配置
 type Builder struct {
 	opts    *model.RunOptions // 运行时参数
-	modules []ConfigModule    // 配置模块列表
-	ctx     *BuildContext     // 构建上下文
+	modules []module.ConfigModule    // 配置模块列表
+	ctx     *module.BuildContext     // 构建上下文
 }
 
 // NewBuilder 创建配置构建器（从已加载的配置）
@@ -27,13 +28,13 @@ func NewBuilder(opts *model.RunOptions) *Builder {
 	}
 	return &Builder{
 		opts:    opts,
-		modules: []ConfigModule{},
-		ctx:     NewBuildContext(opts),
+		modules: []module.ConfigModule{},
+		ctx:     module.NewBuildContext(opts),
 	}
 }
 
 // With 添加一个模块（链式调用）
-func (b *Builder) With(m ConfigModule) *Builder {
+func (b *Builder) With(m module.ConfigModule) *Builder {
 	b.modules = append(b.modules, m)
 	return b
 }

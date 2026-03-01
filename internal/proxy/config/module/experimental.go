@@ -2,8 +2,6 @@ package module
 
 import (
 	"fmt"
-
-	"github.com/kyson-dev/sing-helm/internal/proxy/engine/config"
 	"github.com/kyson-dev/sing-helm/internal/sys/paths"
 	"github.com/sagernet/sing-box/option"
 )
@@ -21,7 +19,7 @@ func (m *ExperimentalModule) Name() string {
 	return "experimental"
 }
 
-func (m *ExperimentalModule) Apply(opts *option.Options, ctx *config.BuildContext) error {
+func (m *ExperimentalModule) Apply(opts *option.Options, ctx *BuildContext) error {
 	// 确定监听地址
 	listenAddr := m.ListenAddr
 	if listenAddr == "" {

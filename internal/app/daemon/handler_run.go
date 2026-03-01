@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/kyson-dev/sing-helm/internal/core/model"
+	"github.com/kyson-dev/sing-helm/internal/proxy/config"
 	"github.com/kyson-dev/sing-helm/internal/proxy/engine"
 	"github.com/kyson-dev/sing-helm/internal/sys/ipc"
 	"github.com/kyson-dev/sing-helm/internal/sys/logger"
@@ -42,7 +43,7 @@ func (d *Daemon) handleRun(ctx context.Context, payload map[string]any) ipc.Comm
 
 	// 1. 构建配置
 	logger.Info("Building configuration", "mode", runops.ProxyMode, "route", runops.RouteMode)
-	if err := engine.BuildConfig(paths.Get().RawConfigFile, &runops); err != nil {
+	if err := config.BuildConfig(paths.Get().RawConfigFile, &runops); err != nil {
 		return ipc.CommandResult{Status: "error", Error: fmt.Errorf("failed to build config: %w", err).Error()}
 	}
 
@@ -126,7 +127,7 @@ func (d *Daemon) applyRunOptions(ctx context.Context, state *model.RuntimeState)
 	}()
 
 	backupPath, _ := backupConfig(paths.Get().RawConfigFile)
-	if err := engine.BuildConfig(paths.Get().RawConfigFile, &state.RunOptions); err != nil {
+	if err := config.BuildConfig(paths.Get().RawConfigFile, &state.RunOptions); err != nil {
 		return err
 	}
 	if d.service == nil {

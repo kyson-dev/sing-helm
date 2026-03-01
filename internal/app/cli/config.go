@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/kyson-dev/sing-helm/internal/proxy/subscription"
+	"github.com/kyson-dev/sing-helm/internal/proxy/config/subscription"
 	"github.com/kyson-dev/sing-helm/internal/sys/paths"
 	"github.com/spf13/cobra"
 )

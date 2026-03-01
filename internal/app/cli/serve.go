@@ -11,8 +11,8 @@ import (
 	"syscall"
 
 	"github.com/kyson-dev/sing-helm/internal/core/model"
-	"github.com/kyson-dev/sing-helm/internal/proxy/engine"
-	"github.com/kyson-dev/sing-helm/internal/proxy/export"
+	"github.com/kyson-dev/sing-helm/internal/proxy/config"
+	"github.com/kyson-dev/sing-helm/internal/proxy/config/export"
 	"github.com/kyson-dev/sing-helm/internal/sys/logger"
 	"github.com/spf13/cobra"
 )
@@ -36,7 +36,7 @@ func newServeCommand() *cobra.Command {
 			runops.RouteMode = model.RouteModeRule
 
 			logger.Info("Building options...")
-			opts, err := engine.BuildOptions(&runops)
+			opts, err := config.BuildOptions(&runops)
 			if err != nil {
 				return err
 			}

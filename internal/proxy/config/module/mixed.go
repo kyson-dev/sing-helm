@@ -1,7 +1,6 @@
 package module
 
 import (
-	"github.com/kyson-dev/sing-helm/internal/proxy/engine/config"
 	"github.com/sagernet/sing-box/option"
 )
 
@@ -19,7 +18,7 @@ func (m *MixedModule) Name() string {
 	return "mixed"
 }
 
-func (m *MixedModule) Apply(opts *option.Options, ctx *config.BuildContext) error {
+func (m *MixedModule) Apply(opts *option.Options, ctx *BuildContext) error {
 	// 确定监听地址
 	listenAddr := m.ListenAddr
 	if listenAddr == "" {
@@ -53,7 +52,7 @@ func (m *MixedModule) Apply(opts *option.Options, ctx *config.BuildContext) erro
 		"listen_port":      port,
 		"set_system_proxy": m.SetSystemProxy,
 	}
-	config.ApplyMapToInbound(&mixedInbound, mixedMap)
+	ApplyMapToInbound(&mixedInbound, mixedMap)
 
 	// 添加到配置
 	opts.Inbounds = append(opts.Inbounds, mixedInbound)

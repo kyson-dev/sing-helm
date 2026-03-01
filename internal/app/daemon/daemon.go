@@ -64,7 +64,7 @@ func (d *Daemon) Serve(ctx context.Context) error {
 	}
 	d.lock = lock
 	d.loadState()
-	_ = paths.SaveRuntimeMeta(paths.Get().RuntimeMetaFile, paths.RuntimeMeta{
+	_ = saveRuntimeMeta(paths.Get().RuntimeMetaFile, RuntimeMeta{
 		ConfigHome: paths.Get().HomeDir,
 	})
 
