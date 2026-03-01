@@ -167,8 +167,8 @@ func setupEnv(t *testing.T) {
 	t.Helper()
 	paths.ResetForTest()
 	dir := t.TempDir()
-	paths.SetRuntimeDir(dir)
-	if err := paths.Init(dir); err != nil {
+	paths.ForTestSetRuntimeDir(dir)
+	if err := paths.ForTestInit(dir); err != nil {
 		t.Fatalf("paths.Init failed: %v", err)
 	}
 	if err := os.WriteFile(paths.Get().ConfigFile, []byte(`{}`), 0644); err != nil {

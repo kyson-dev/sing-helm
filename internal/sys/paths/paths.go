@@ -1,7 +1,6 @@
 package paths
 
 import (
-	"github.com/kyson-dev/sing-helm/internal/sys/lock"
 	"os"
 	"path/filepath"
 	"sync"
@@ -18,7 +17,7 @@ type Paths struct {
 	LogDir        string // log 目录
 	LogFile       string // sing-helm.log
 	StateFile     string // state.json
-	LookFile      string // sing-helm.lock
+	LockFile      string // sing-helm.lock
 	SocketFile    string // 仅 Linux 用，或存放 API 地址的文件
 	AssetDir      string // 存放 geoip.db/geosite.db
 	CacheFile     string // cache.db (sing-box 缓存)
@@ -37,18 +36,18 @@ func Get() Paths {
 // Init 初始化环境
 // home: 必须是已解析的绝对路径或相对路径，如果为空则报错（或者使用默认？）
 // 为了保持兼容性，我们可以让 Init("") 依旧使用默认 ~/.sing-helm，
-// 但真正的智能选择逻辑交给 setup.go
+// 但真正的智能选择逻辑交给 app/cli/setup.go
 func Init(home string) error {
 	var err error
 	once.Do(func() {
-		current, err = Resolve(home)
+		current, err = resolve(home)
 	})
 	return err
 }
 
 // Resolve computes Paths from the given home directory without touching global state.
 // This is the preferred way to obtain Paths in DI-based code.
-func Resolve(home string) (Paths, error) {
+func resolve(home string) (Paths, error) {
 	if home == "" {
 		userHome, _ := os.UserHomeDir()
 		home = filepath.Join(userHome, ".sing-helm")
@@ -63,18 +62,18 @@ func Resolve(home string) (Paths, error) {
 		return Paths{}, err
 	}
 
-	runtimeDir := resolveRuntimeDir()
+	runtimeDir := ResolveRuntimeDir()
 	runtimeDir, err = filepath.Abs(runtimeDir)
 	if err != nil {
 		return Paths{}, err
 	}
 
 	logDir := resolveLogDir(runtimeDir)
-	return GetPath(absHome, runtimeDir, logDir), nil
+	return getPath(absHome, runtimeDir, logDir), nil
 }
 
 // GetPath 根据主目录生成路径配置 (纯函数)
-func GetPath(home string, runtimeDir string, logDir string) Paths {
+func getPath(home string, runtimeDir string, logDir string) Paths {
 	logFile := ""
 	if logDir != "" {
 		logFile = filepath.Join(logDir, "sing-helm.log")
@@ -89,7 +88,7 @@ func GetPath(home string, runtimeDir string, logDir string) Paths {
 		LogDir:        logDir,
 		LogFile:       logFile,
 		StateFile:     filepath.Join(runtimeDir, "state.json"),
-		LookFile:      lock.GetLockPath(runtimeDir), // 使用 lock.go 中的单一事实来源
+		LockFile:      filepath.Join(runtimeDir, "sing-helm.lock"),
 		SocketFile:    filepath.Join(runtimeDir, "ipc.sock"),
 		AssetDir:      filepath.Join(runtimeDir, "assets"),
 		CacheFile:     filepath.Join(runtimeDir, "cache.db"),
@@ -101,5 +100,9 @@ func GetPath(home string, runtimeDir string, logDir string) Paths {
 func ResetForTest() {
 	current = Paths{}
 	once = sync.Once{}
-	ResetRuntimeDir()
+	ForTestResetRuntimeDir()
+}
+
+func ForTestInit(home string) error {
+	return Init(home)
 }

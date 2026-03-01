@@ -58,13 +58,13 @@ func (d *Daemon) SetServiceFactory(factory func() ServiceRunner) {
 // Serve starts the IPC server. Blocks until ctx is cancelled.
 func (d *Daemon) Serve(ctx context.Context) error {
 
-	lock, err := lock.AcquireLock(paths.Get().RuntimeDir)
+	lock, err := lock.AcquireLock(paths.Get().LockFile)
 	if err != nil {
 		return fmt.Errorf("another instance is already running: %w", err)
 	}
 	d.lock = lock
 	d.loadState()
-	_ = paths.SaveRuntimeMeta(paths.Get().RuntimeDir, paths.RuntimeMeta{
+	_ = SaveRuntimeMeta(paths.Get().RuntimeDir, RuntimeMeta{
 		ConfigHome: paths.Get().HomeDir,
 	})
 

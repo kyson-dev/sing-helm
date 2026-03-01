@@ -12,20 +12,15 @@ type DaemonLock struct {
 	path string
 }
 
-func GetLockPath(homeDir string) string {
-	return filepath.Join(homeDir, "sing-helm.lock")
-}
-
 // AcquireLock 获取指定运行时目录的文件锁，非阻塞
 // 如果已经被锁定，返回 error
-func AcquireLock(runtimeDir string) (*DaemonLock, error) {
-	path := GetLockPath(runtimeDir)
+func AcquireLock(lockPath string) (*DaemonLock, error) {
 	// 确保目录存在
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(lockPath), 0755); err != nil {
 		return nil, err
 	}
 
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0644)
+	f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
 		return nil, err
 	}
@@ -38,23 +33,22 @@ func AcquireLock(runtimeDir string) (*DaemonLock, error) {
 
 	return &DaemonLock{
 		file: f,
-		path: path,
+		path: lockPath,
 	}, nil
 }
 
 // CheckLock 检查指定运行时目录的锁是否被占用
 // 如果锁被占用，返回 nil (daemon running)
 // 如果锁未被占用，返回 error (daemon not running)
-func CheckLock(runtimeDir string) error {
-	path := GetLockPath(runtimeDir)
-	f, err := os.OpenFile(path, os.O_RDWR, 0644)
+func CheckLock(lockPath string) error {
+	f, err := os.OpenFile(lockPath, os.O_RDWR, 0644)
 	if os.IsNotExist(err) {
 		return errors.New("daemon not running (lock file missing)")
 	}
 	readOnly := false
 	if err != nil {
 		if os.IsPermission(err) {
-			f, err = os.Open(path)
+			f, err = os.Open(lockPath)
 			if err != nil {
 				return err
 			}

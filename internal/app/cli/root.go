@@ -33,7 +33,7 @@ func NewRootCommand() *cobra.Command {
 			home, _ := cmd.Flags().GetString("home")
 
 			// 使用 setup 初始化环境，支持智能探测和注册
-			if err := paths.Setup(home); err != nil {
+			if err := SetupEnvironment(home); err != nil {
 				return fmt.Errorf("environment setup failed: %w", err)
 			}
 
