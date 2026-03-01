@@ -100,10 +100,10 @@ func (d *Daemon) parseRunOptions(payload map[string]any) (model.RunOptions, erro
 		}
 		runops.RouteMode = routeMode
 	}
-	if port, ok := asInt(payload["api_port"]); ok && port > 0 {
+	if port, ok := ipc.AsInt(payload["api_port"]); ok && port > 0 {
 		runops.APIPort = port
 	}
-	if port, ok := asInt(payload["mixed_port"]); ok && port > 0 {
+	if port, ok := ipc.AsInt(payload["mixed_port"]); ok && port > 0 {
 		runops.MixedPort = port
 	}
 	return runops, nil

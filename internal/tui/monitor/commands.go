@@ -2,16 +2,17 @@ package monitor
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gorilla/websocket"
 	"github.com/kyson-dev/sing-helm/internal/clashapi"
-	"github.com/kyson-dev/sing-helm/internal/controller"
+	"github.com/kyson-dev/sing-helm/internal/ipc"
+	"github.com/kyson-dev/sing-helm/internal/platform"
 )
 
 // ============================================================================
@@ -76,14 +77,10 @@ func cmdFetchStatus(c *clashapi.Client) tea.Cmd {
 		proxyMode := "unknown"
 		routeMode := "unknown"
 		apiBase := ""
-		if status, err := controller.FetchStatus(context.Background()); err == nil {
-			if status.ProxyMode != "" {
-				proxyMode = status.ProxyMode
-			}
-			if status.RouteMode != "" {
-				routeMode = status.RouteMode
-			}
-			apiBase = apiBaseFromStatus(status)
+		if status, fetchErr := fetchDaemonStatus(); fetchErr == nil {
+			proxyMode = status.proxyMode
+			routeMode = status.routeMode
+			apiBase = status.apiBase
 		}
 
 		if err != nil {
@@ -141,14 +138,12 @@ func cmdStatusTick(delay time.Duration) tea.Cmd {
 // -----------------------------------------------------------------------------
 
 // cmdSwitchMode 切换代理模式
-// 智能跳过 TUN（非 root 时）
 func cmdSwitchMode(current string) tea.Cmd {
 	return func() tea.Msg {
-		// 计算下一个模式
 		var next string
 		switch strings.ToLower(current) {
 		case "system":
-			next = "tun" 
+			next = "tun"
 		case "tun":
 			next = "default"
 		case "default":
@@ -157,20 +152,10 @@ func cmdSwitchMode(current string) tea.Cmd {
 			next = "system"
 		}
 
-		// 调用 daemon 切换
-		_, err := controller.SwitchProxyMode(next)
+		_, err := sendDaemonCommand("mode", map[string]any{"mode": next})
 		if err != nil {
 			return modeChangedMsg{NewMode: current, Err: err}
-			// TUN 权限错误时自动跳过
-			// if strings.Contains(err.Error(), "permission") && next == "tun" {
-			// 	next = "default"
-			// 	_, err = controller.SwitchProxyMode(next)
-			// }
-			// if err != nil {
-			// 	return modeChangedMsg{NewMode: current, Err: err}
-			// }
 		}
-
 		return modeChangedMsg{NewMode: next, Err: nil}
 	}
 }
@@ -188,7 +173,7 @@ func cmdSwitchRoute(current string) tea.Cmd {
 			next = "rule"
 		}
 
-		_, err := controller.SwitchRouteMode(next)
+		_, err := sendDaemonCommand("route", map[string]any{"route": next})
 		if err != nil {
 			return routeChangedMsg{NewRoute: current, Err: err}
 		}
@@ -220,7 +205,6 @@ func extractGroups(proxies map[string]clashapi.ProxyData) []string {
 		}
 	}
 
-	// 排序：auto 放最后
 	sort.Slice(groups, func(i, j int) bool {
 		if groups[i] == "auto" {
 			return false
@@ -234,13 +218,50 @@ func extractGroups(proxies map[string]clashapi.ProxyData) []string {
 	return groups
 }
 
-func apiBaseFromStatus(status *controller.Status) string {
-	if status == nil || status.APIPort == 0 {
-		return ""
+// --- IPC helpers (replace controller package) ---
+
+type daemonStatus struct {
+	proxyMode string
+	routeMode string
+	apiBase   string
+}
+
+func fetchDaemonStatus() (*daemonStatus, error) {
+	resp, err := sendDaemonCommand("status", nil)
+	if err != nil {
+		return nil, err
 	}
-	addr := status.ListenAddr
-	if addr == "" {
-		addr = "127.0.0.1"
+	s := &daemonStatus{}
+	if mode, ok := resp.Data["proxy_mode"].(string); ok {
+		s.proxyMode = mode
 	}
-	return addr + ":" + strconv.Itoa(status.APIPort)
+	if mode, ok := resp.Data["route_mode"].(string); ok {
+		s.routeMode = mode
+	}
+	if port, ok := ipc.AsInt(resp.Data["api_port"]); ok && port > 0 {
+		addr, _ := resp.Data["listen_addr"].(string)
+		if addr == "" {
+			addr = "127.0.0.1"
+		}
+		s.apiBase = fmt.Sprintf("%s:%d", addr, port)
+	}
+	return s, nil
+}
+
+func sendDaemonCommand(name string, payload map[string]any) (ipc.CommandResult, error) {
+	sender := ipc.NewUnixSender(platform.Get().SocketFile)
+	resp, err := sender.Send(context.Background(), ipc.CommandMessage{Name: name, Payload: payload})
+	if err != nil {
+		return ipc.CommandResult{}, fmt.Errorf("ipc send failed: %w", err)
+	}
+	if resp.Status == "" {
+		resp.Status = "ok"
+	}
+	if resp.Status != "ok" {
+		if resp.Error != "" {
+			return resp, fmt.Errorf("daemon error: %s", resp.Error)
+		}
+		return resp, fmt.Errorf("daemon responded with status %s", resp.Status)
+	}
+	return resp, nil
 }

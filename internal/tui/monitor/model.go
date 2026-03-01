@@ -20,7 +20,7 @@ type Model struct {
 	connState ConnectionStateMachine // 连接状态机
 	wsConn    *websocket.Conn        // WebSocket 连接
 	apiBase   string                 // API 地址
-	apiClient *clashapi.Client         // HTTP 客户端
+	apiClient *clashapi.Client       // HTTP 客户端
 	lastError error                  // 最近的错误
 	updating  bool                   // mode/route 更新中（防止重复请求）
 
@@ -43,10 +43,10 @@ type Model struct {
 	routeMode string // 路由模式: rule, global, direct
 
 	// --- 节点列表 ---
-	groups    []string                    // 代理组列表
+	groups    []string                      // 代理组列表
 	proxies   map[string]clashapi.ProxyData // 代理详情
-	latencies map[string]int              // 节点延迟 (-1=失败, 0=未测试)
-	testing   map[string]bool             // 正在测速的节点
+	latencies map[string]int                // 节点延迟 (-1=失败, 0=未测试)
+	testing   map[string]bool               // 正在测速的节点
 
 	// =========================================================================
 	// 第三层：UI 交互状态
@@ -74,9 +74,9 @@ type CursorState struct {
 func NewModel(apiHost string) Model {
 	return Model{
 		// 连接管理
-		apiBase:   apiHost,
-		apiClient: clashapi.New(apiHost),
-		connState: ConnectionStateMachine{State: ConnStateConnecting},
+		apiBase:        apiHost,
+		apiClient:      clashapi.New(apiHost),
+		connState:      ConnectionStateMachine{State: ConnStateConnecting},
 		statusInterval: time.Second,
 
 		// 业务数据初始化

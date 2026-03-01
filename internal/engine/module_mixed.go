@@ -1,7 +1,7 @@
 package engine
 
 import (
-	"github.com/kyson-dev/sing-helm/internal/pkg/netutil"
+	"github.com/kyson-dev/sing-helm/internal/platform"
 	"github.com/sagernet/sing-box/option"
 )
 
@@ -33,7 +33,7 @@ func (m *MixedModule) Apply(opts *option.Options, ctx *BuildContext) error {
 			port = override
 		} else {
 			var err error
-			port, err = netutil.GetFreePort()
+			port, err = platform.GetFreePort()
 			if err != nil {
 				return err
 			}

@@ -23,7 +23,7 @@ type UnixSender struct {
 // NewUnixSender returns a CommandSender that communicates over a unix socket.
 func NewUnixSender(socket string) *UnixSender {
 	return &UnixSender{
-		Socket:  socket,
+		Socket: socket,
 		//Dial:    func(network, address string) (net.Conn, error) { return net.Dial("unix", address) },
 		Timeout: 2 * time.Second,
 	}

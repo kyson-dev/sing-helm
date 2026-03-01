@@ -1,52 +1,10 @@
-package engine
+package export
 
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
-
-	"github.com/sagernet/sing-box/option"
-	singboxjson "github.com/sagernet/sing/common/json"
 )
-
-// Target controls compatibility transforms for exported configs.
-type Target struct {
-	Version  string
-	Platform string
-}
-
-// Export serializes options and applies compatibility transforms when needed.
-func Export(opts *option.Options, target Target) ([]byte, error) {
-	data, err := singboxjson.Marshal(opts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal config: %w", err)
-	}
-
-	var root map[string]any
-	if err := json.Unmarshal(data, &root); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
-	}
-
-	// No transforms needed if no target specified
-	if strings.TrimSpace(target.Version) == "" && strings.TrimSpace(target.Platform) == "" {
-		return json.MarshalIndent(root, "", "  ")
-	}
-
-	// Apply version-specific compatibility transforms
-	if strings.TrimSpace(target.Version) != "" {
-		if err := applyVersionCompat(root, target.Version); err != nil {
-			return nil, err
-		}
-	}
-
-	// Apply platform-specific compatibility transforms
-	if strings.TrimSpace(target.Platform) != "" {
-		applyPlatformCompat(root, target.Platform)
-	}
-
-	return json.MarshalIndent(root, "", "  ")
-}
 
 // applyVersionCompat applies version-specific compatibility transforms
 func applyVersionCompat(root map[string]any, version string) error {
@@ -311,56 +269,4 @@ func intFromAny(value any) int {
 		}
 	}
 	return 0
-}
-
-func versionLess(a, b string) (bool, error) {
-	av, err := parseVersion(a)
-	if err != nil {
-		return false, err
-	}
-	bv, err := parseVersion(b)
-	if err != nil {
-		return false, err
-	}
-
-	for i := 0; i < 3; i++ {
-		if av[i] < bv[i] {
-			return true, nil
-		}
-		if av[i] > bv[i] {
-			return false, nil
-		}
-	}
-	return false, nil
-}
-
-func parseVersion(v string) ([3]int, error) {
-	var out [3]int
-	trimmed := strings.TrimSpace(strings.TrimPrefix(v, "v"))
-	if trimmed == "" {
-		return out, fmt.Errorf("invalid version: %q", v)
-	}
-
-	parts := strings.Split(trimmed, ".")
-	if len(parts) > 3 {
-		parts = parts[:3]
-	}
-
-	for i := 0; i < 3; i++ {
-		if i >= len(parts) {
-			out[i] = 0
-			continue
-		}
-		part := strings.TrimSpace(parts[i])
-		if part == "" {
-			return out, fmt.Errorf("invalid version: %q", v)
-		}
-		value, err := strconv.Atoi(part)
-		if err != nil {
-			return out, fmt.Errorf("invalid version: %q", v)
-		}
-		out[i] = value
-	}
-
-	return out, nil
 }

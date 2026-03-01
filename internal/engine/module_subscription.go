@@ -1,8 +1,8 @@
 package engine
 
 import (
-	"github.com/kyson-dev/sing-helm/internal/platform"
 	"github.com/kyson-dev/sing-helm/internal/logger"
+	"github.com/kyson-dev/sing-helm/internal/platform"
 	"github.com/kyson-dev/sing-helm/internal/subscription"
 	"github.com/sagernet/sing-box/option"
 )

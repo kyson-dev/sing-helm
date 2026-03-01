@@ -6,8 +6,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/kyson-dev/sing-helm/internal/logger"
 	"github.com/kyson-dev/sing-helm/internal/clashapi"
+	"github.com/kyson-dev/sing-helm/internal/logger"
 	"github.com/spf13/cobra"
 )
 

@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/kyson-dev/sing-helm/internal/platform"
-	"github.com/kyson-dev/sing-helm/internal/pkg/netutil"
 	"github.com/sagernet/sing-box/option"
 )
 
@@ -35,7 +34,7 @@ func (m *ExperimentalModule) Apply(opts *option.Options, ctx *BuildContext) erro
 			apiPort = override
 		} else {
 			var err error
-			apiPort, err = netutil.GetFreePort()
+			apiPort, err = platform.GetFreePort()
 			if err != nil {
 				return err
 			}

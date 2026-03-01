@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	"github.com/kyson-dev/sing-helm/internal/engine"
+	"github.com/kyson-dev/sing-helm/internal/export"
 	"github.com/kyson-dev/sing-helm/internal/logger"
 	"github.com/kyson-dev/sing-helm/internal/model"
 	"github.com/spf13/cobra"
@@ -41,7 +42,7 @@ func newServeCommand() *cobra.Command {
 			}
 
 			logger.Info("Exporting config...", "version", targetVersion, "platform", platform)
-			data, err := engine.Export(opts, engine.Target{Version: targetVersion, Platform: platform})
+			data, err := export.Export(opts, export.Target{Version: targetVersion, Platform: platform})
 			if err != nil {
 				return err
 			}

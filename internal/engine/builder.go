@@ -15,8 +15,8 @@ import (
 // 支持链式调用添加模块，灵活组装配置
 type ConfigBuilder struct {
 	opts    *model.RunOptions // 运行时参数
-	modules []ConfigModule      // 配置模块列表
-	ctx     *BuildContext       // 构建上下文
+	modules []ConfigModule    // 配置模块列表
+	ctx     *BuildContext     // 构建上下文
 }
 
 // BuildConfig loads the profile, applies runtime modules, and saves raw config.

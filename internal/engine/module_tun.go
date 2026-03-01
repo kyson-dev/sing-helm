@@ -91,9 +91,9 @@ func (m *TUNDNSModule) Apply(opts *option.Options, ctx *BuildContext) error {
 			},
 			{
 				"domain_suffix": []string{"wise.com", "schwab.com", "interactivebrokers.com", "cloudflare.com",
-											"5e1f8y2z3l9.shop", "sky.money", "ethena.fi"},
-				"action":        "route",
-				"server":        "local_dns",
+					"5e1f8y2z3l9.shop", "sky.money", "ethena.fi"},
+				"action": "route",
+				"server": "local_dns",
 			},
 			{
 				"rule_set": []string{"geosite-cn", "geoip-cn"},

@@ -7,10 +7,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/kyson-dev/sing-helm/internal/logger"
 	coredaemon "github.com/kyson-dev/sing-helm/internal/daemon"
-	"github.com/kyson-dev/sing-helm/internal/platform"
 	"github.com/kyson-dev/sing-helm/internal/ipc"
+	"github.com/kyson-dev/sing-helm/internal/logger"
+	"github.com/kyson-dev/sing-helm/internal/platform"
 	"github.com/spf13/cobra"
 )
 

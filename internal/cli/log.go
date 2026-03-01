@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kyson-dev/sing-helm/internal/platform"
 	"github.com/kyson-dev/sing-helm/internal/logger"
+	"github.com/kyson-dev/sing-helm/internal/platform"
 	"github.com/nxadm/tail"
 	"github.com/spf13/cobra"
 )
@@ -77,7 +77,7 @@ func showSystemLogs(cmd *cobra.Command) {
 	fmt.Println()
 
 	// Check if files exist
-	if !fileExists(stdoutLog) && !fileExists(stderrLog) {
+	if !pathExists(stdoutLog) && !pathExists(stderrLog) {
 		fmt.Println("⚠️  No system logs found. This is normal if:")
 		fmt.Println("   - Service was never started via launchd")
 		fmt.Println("   - No startup failures occurred")
@@ -85,13 +85,13 @@ func showSystemLogs(cmd *cobra.Command) {
 	}
 
 	// Show last 20 lines of each
-	if fileExists(stdoutLog) {
+	if pathExists(stdoutLog) {
 		fmt.Println("--- stdout.log (last 20 lines) ---")
 		showLastLines(stdoutLog, 20)
 		fmt.Println()
 	}
 
-	if fileExists(stderrLog) {
+	if pathExists(stderrLog) {
 		fmt.Println("--- stderr.log (last 20 lines) ---")
 		showLastLines(stderrLog, 20)
 	}

@@ -190,15 +190,3 @@ func (d *Daemon) loadState() {
 	d.state.PID = os.Getpid()
 	d.mu.Unlock()
 }
-
-func asInt(val any) (int, bool) {
-	switch v := val.(type) {
-	case float64:
-		return int(v), true
-	case int:
-		return v, true
-	case int64:
-		return int(v), true
-	}
-	return 0, false
-}

@@ -113,7 +113,7 @@ func showLaunchdStatus(cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
-	if !fileExists(launchdPlistPath) {
+	if !pathExists(launchdPlistPath) {
 		cmd.Printf("Enabled: false\n")
 		return nil
 	}

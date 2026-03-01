@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 
+	"github.com/kyson-dev/sing-helm/internal/ipc"
 	"github.com/spf13/cobra"
 )
 
@@ -18,7 +19,7 @@ func newStatusCommand() *cobra.Command {
 			running, _ := resp.Data["running"].(bool)
 			fmt.Printf("Running: %v\n", running)
 
-			if pid, ok := asInt(resp.Data["pid"]); ok && pid != 0 {
+			if pid, ok := ipc.AsInt(resp.Data["pid"]); ok && pid != 0 {
 				fmt.Printf("PID: %d\n", pid)
 			}
 			if mode, ok := resp.Data["proxy_mode"].(string); ok && mode != "" {
@@ -28,10 +29,10 @@ func newStatusCommand() *cobra.Command {
 				fmt.Printf("Route mode: %s\n", mode)
 			}
 			if addr, ok := resp.Data["listen_addr"].(string); ok && addr != "" {
-				if apiPort, ok := asInt(resp.Data["api_port"]); ok && apiPort != 0 {
+				if apiPort, ok := ipc.AsInt(resp.Data["api_port"]); ok && apiPort != 0 {
 					fmt.Printf("API: %s:%d\n", addr, apiPort)
 				}
-				if mixedPort, ok := asInt(resp.Data["mixed_port"]); ok && mixedPort != 0 {
+				if mixedPort, ok := ipc.AsInt(resp.Data["mixed_port"]); ok && mixedPort != 0 {
 					fmt.Printf("Mixed: %s:%d\n", addr, mixedPort)
 				}
 			}

@@ -1,4 +1,4 @@
-package netutil
+package platform
 
 import (
 	"net"
@@ -17,7 +17,7 @@ func GetFreePort() (int, error) {
 		return 0, err
 	}
 	defer l.Close()
-	
+
 	// 返回分配到的端口
 	return l.Addr().(*net.TCPAddr).Port, nil
 }
