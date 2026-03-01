@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/kyson-dev/sing-helm/internal/engine/config"
 	"github.com/kyson-dev/sing-helm/internal/logger"
 	box "github.com/sagernet/sing-box"
 	"github.com/sagernet/sing-box/include"
@@ -68,7 +69,7 @@ func isAlreadyClosedError(err error) bool {
 // StartFromFile 从配置文件启动 sing-box
 func (s *instance) StartFromFile(ctx context.Context, configPath string) error {
 	// 从文件加载配置
-	opts, err := LoadOptionsWithContext(ctx, configPath)
+	opts, err := config.LoadOptionsWithContext(ctx, configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}

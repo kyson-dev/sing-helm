@@ -1,4 +1,4 @@
-package engine
+package config
 
 import (
 	"context"
@@ -28,8 +28,8 @@ func LoadOptionsWithContext(ctx context.Context, configPath string) (*option.Opt
 	return &opts, nil
 }
 
-// applyMapToOutbound 将 map 配置应用到 Outbound 结构体
-func applyMapToOutbound(out *option.Outbound, m map[string]any) error {
+// ApplyMapToOutbound 将 map 配置应用到 Outbound 结构体
+func ApplyMapToOutbound(out *option.Outbound, m map[string]any) error {
 	data, err := singboxjson.Marshal(m)
 	if err != nil {
 		return err
@@ -39,8 +39,8 @@ func applyMapToOutbound(out *option.Outbound, m map[string]any) error {
 	return singboxjson.UnmarshalContext(ctx, data, out)
 }
 
-// applyMapToInbound 将 map 配置应用到 Inbound 结构体
-func applyMapToInbound(in *option.Inbound, m map[string]any) error {
+// ApplyMapToInbound 将 map 配置应用到 Inbound 结构体
+func ApplyMapToInbound(in *option.Inbound, m map[string]any) error {
 	data, err := singboxjson.Marshal(m)
 	if err != nil {
 		return err

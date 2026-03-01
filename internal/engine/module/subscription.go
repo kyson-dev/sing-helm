@@ -1,6 +1,7 @@
-package engine
+package module
 
 import (
+	"github.com/kyson-dev/sing-helm/internal/engine/config"
 	"github.com/kyson-dev/sing-helm/internal/logger"
 	"github.com/kyson-dev/sing-helm/internal/platform"
 	"github.com/kyson-dev/sing-helm/internal/subscription"
@@ -14,7 +15,7 @@ func (m *SubscriptionModule) Name() string {
 	return "subscription"
 }
 
-func (m *SubscriptionModule) Apply(opts *option.Options, ctx *BuildContext) error {
+func (m *SubscriptionModule) Apply(opts *option.Options, ctx *config.BuildContext) error {
 	paths := platform.Get()
 	sources, err := subscription.LoadSources(paths.SubConfigDir)
 	if err != nil {

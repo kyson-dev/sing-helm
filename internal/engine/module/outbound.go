@@ -1,6 +1,7 @@
-package engine
+package module
 
 import (
+	"github.com/kyson-dev/sing-helm/internal/engine/config"
 	"github.com/kyson-dev/sing-helm/internal/logger"
 	"github.com/sagernet/sing-box/option"
 )
@@ -13,7 +14,7 @@ func (m *OutboundModule) Name() string {
 	return "outbound"
 }
 
-func (m *OutboundModule) Apply(opts *option.Options, ctx *BuildContext) error {
+func (m *OutboundModule) Apply(opts *option.Options, ctx *config.BuildContext) error {
 	// 1. 过滤保留 tag，并统计节点信息
 	filteredOutbounds := []option.Outbound{}
 	userNodeTags := []string{}
@@ -39,7 +40,7 @@ func (m *OutboundModule) Apply(opts *option.Options, ctx *BuildContext) error {
 		"type": "direct",
 		"tag":  "direct",
 	}
-	applyMapToOutbound(&directOutbound, directOutboundMap)
+	config.ApplyMapToOutbound(&directOutbound, directOutboundMap)
 	filteredOutbounds = append(filteredOutbounds, directOutbound)
 
 	// 3. 添加 block 出站
@@ -48,7 +49,7 @@ func (m *OutboundModule) Apply(opts *option.Options, ctx *BuildContext) error {
 		"type": "block",
 		"tag":  "block",
 	}
-	applyMapToOutbound(&blockOutbound, blockOutboundMap)
+	config.ApplyMapToOutbound(&blockOutbound, blockOutboundMap)
 	filteredOutbounds = append(filteredOutbounds, blockOutbound)
 
 	// 4 & 5. 添加 proxy selector 和 auto urltest
@@ -66,7 +67,7 @@ func (m *OutboundModule) Apply(opts *option.Options, ctx *BuildContext) error {
 			"outbounds": proxyNodes,
 			"default":   "auto",
 		}
-		applyMapToOutbound(&proxyOutbound, proxyOutboundMap)
+		config.ApplyMapToOutbound(&proxyOutbound, proxyOutboundMap)
 		filteredOutbounds = append(filteredOutbounds, proxyOutbound)
 
 		// 5. 添加 auto urltest
@@ -76,7 +77,7 @@ func (m *OutboundModule) Apply(opts *option.Options, ctx *BuildContext) error {
 			"tag":       "auto",
 			"outbounds": actualNodes,
 		}
-		applyMapToOutbound(&autoOutbound, autoOutboundMap)
+		config.ApplyMapToOutbound(&autoOutbound, autoOutboundMap)
 		filteredOutbounds = append(filteredOutbounds, autoOutbound)
 	} else {
 		// 无节点时的逻辑：
@@ -90,7 +91,7 @@ func (m *OutboundModule) Apply(opts *option.Options, ctx *BuildContext) error {
 			"outbounds": []string{"direct"},
 			"default":   "direct",
 		}
-		applyMapToOutbound(&proxyOutbound, proxyOutboundMap)
+		config.ApplyMapToOutbound(&proxyOutbound, proxyOutboundMap)
 		filteredOutbounds = append(filteredOutbounds, proxyOutbound)
 	}
 

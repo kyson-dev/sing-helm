@@ -130,43 +130,6 @@ func (c *Client) GetNodeDelay(name string, testURL string, timeout int) (int, er
 	return res.Delay, nil
 }
 
-// ConfigsResponse 对应 GET /configs 的响应
-// type ConfigsResponse struct {
-// 	Port        int            `json:"port"`
-// 	SocksPort   int            `json:"socks-port"`
-// 	RedirPort   int            `json:"redir-port"`
-// 	TProxyPort  int            `json:"tproxy-port"`
-// 	MixedPort   int            `json:"mixed-port"`
-// 	AllowLan    bool           `json:"allow-lan"`
-// 	BindAddress string         `json:"bind-address"`
-// 	Mode        string         `json:"mode"`
-// 	ModeList    []string       `json:"mode-list"`
-// 	LogLevel    string         `json:"log-level"`
-// 	IPv6        bool           `json:"ipv6"`
-// 	Tun         map[string]any `json:"tun"`
-// }
-
-// GetConfigs 获取 sing-box 运行配置
-// func (c *Client) GetConfigs() (*ConfigsResponse, error) {
-// 	url := fmt.Sprintf("%s/configs", c.baseURL)
-// 	resp, err := c.httpClient.Get(url)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("connect api failed: %w", err)
-// 	}
-// 	defer resp.Body.Close()
-
-// 	if resp.StatusCode != http.StatusOK {
-// 		return nil, fmt.Errorf("bad status: %s", resp.Status)
-// 	}
-
-// 	var configs ConfigsResponse
-// 	if err := json.NewDecoder(resp.Body).Decode(&configs); err != nil {
-// 		return nil, fmt.Errorf("decode json failed: %w", err)
-// 	}
-
-// 	return &configs, nil
-// }
-
 // ConnectionsResponse 对应 GET /connections 的响应
 type ConnectionsResponse struct {
 	DownloadTotal int64         `json:"downloadTotal"`

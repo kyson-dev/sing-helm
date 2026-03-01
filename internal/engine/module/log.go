@@ -1,6 +1,7 @@
-package engine
+package module
 
 import (
+	"github.com/kyson-dev/sing-helm/internal/engine/config"
 	"github.com/sagernet/sing-box/option"
 )
 
@@ -13,7 +14,7 @@ func (m *LogModule) Name() string {
 	return "log"
 }
 
-func (m *LogModule) Apply(opts *option.Options, ctx *BuildContext) error {
+func (m *LogModule) Apply(opts *option.Options, ctx *config.BuildContext) error {
 	level := m.Level
 	if level == "" {
 		level = "info"

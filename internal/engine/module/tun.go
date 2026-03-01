@@ -1,8 +1,9 @@
-package engine
+package module
 
 import (
 	"context"
 
+	"github.com/kyson-dev/sing-helm/internal/engine/config"
 	"github.com/sagernet/sing-box/include"
 	"github.com/sagernet/sing-box/option"
 	singboxjson "github.com/sagernet/sing/common/json"
@@ -18,7 +19,7 @@ func (m *TUNModule) Name() string {
 	return "tun"
 }
 
-func (m *TUNModule) Apply(opts *option.Options, ctx *BuildContext) error {
+func (m *TUNModule) Apply(opts *option.Options, ctx *config.BuildContext) error {
 	// 默认值
 	mtu := m.MTU
 	if mtu == 0 {
@@ -44,7 +45,7 @@ func (m *TUNModule) Apply(opts *option.Options, ctx *BuildContext) error {
 		"sniff":                      true,
 		"sniff_override_destination": true,
 	}
-	applyMapToInbound(&tunInbound, tunMap)
+	config.ApplyMapToInbound(&tunInbound, tunMap)
 
 	// 添加到配置
 	opts.Inbounds = append(opts.Inbounds, tunInbound)
@@ -60,7 +61,7 @@ func (m *TUNDNSModule) Name() string {
 	return "tun_dns"
 }
 
-func (m *TUNDNSModule) Apply(opts *option.Options, ctx *BuildContext) error {
+func (m *TUNDNSModule) Apply(opts *option.Options, ctx *config.BuildContext) error {
 	// 使用 map 方式创建 DNS 配置
 	// local_dns 不需要 detour，默认就是直连
 	dnsMap := map[string]any{

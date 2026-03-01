@@ -1,6 +1,7 @@
-package engine
+package module
 
 import (
+	"github.com/kyson-dev/sing-helm/internal/engine/config"
 	"github.com/kyson-dev/sing-helm/internal/model"
 	"github.com/sagernet/sing-box/option"
 	singboxjson "github.com/sagernet/sing/common/json"
@@ -16,7 +17,7 @@ func (m *RouteModule) Name() string {
 	return "route"
 }
 
-func (m *RouteModule) Apply(opts *option.Options, ctx *BuildContext) error {
+func (m *RouteModule) Apply(opts *option.Options, ctx *config.BuildContext) error {
 	// 如果用户没有配置路由，使用默认路由
 	if opts.Route == nil {
 		defaultRoute, err := m.generateDefaultRoute()

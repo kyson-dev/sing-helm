@@ -1,4 +1,4 @@
-package engine
+package config
 
 import (
 	"github.com/kyson-dev/sing-helm/internal/model"

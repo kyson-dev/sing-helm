@@ -1,8 +1,9 @@
-package engine
+package module
 
 import (
 	"fmt"
 
+	"github.com/kyson-dev/sing-helm/internal/engine/config"
 	"github.com/kyson-dev/sing-helm/internal/platform"
 	"github.com/sagernet/sing-box/option"
 )
@@ -20,7 +21,7 @@ func (m *ExperimentalModule) Name() string {
 	return "experimental"
 }
 
-func (m *ExperimentalModule) Apply(opts *option.Options, ctx *BuildContext) error {
+func (m *ExperimentalModule) Apply(opts *option.Options, ctx *config.BuildContext) error {
 	// 确定监听地址
 	listenAddr := m.ListenAddr
 	if listenAddr == "" {
