@@ -76,8 +76,8 @@ func (m *OutboundModule) Apply(opts *option.Options, ctx *BuildContext) error {
 	// 5. 添加 direct 出站
 	directOutbound := option.Outbound{}
 	directOutboundMap := map[string]any{
-		"type": "direct",
-		"tag":  "direct",
+		"type": TagDirect,
+		"tag":  TagDirect,
 	}
 	ApplyMapToOutbound(&directOutbound, directOutboundMap)
 	filteredOutbounds = append(filteredOutbounds, directOutbound)
@@ -85,8 +85,8 @@ func (m *OutboundModule) Apply(opts *option.Options, ctx *BuildContext) error {
 	// 6. 添加 block 出站
 	blockOutbound := option.Outbound{}
 	blockOutboundMap := map[string]any{
-		"type": "block",
-		"tag":  "block",
+		"type": TagBlock,
+		"tag":  TagBlock,
 	}
 	ApplyMapToOutbound(&blockOutbound, blockOutboundMap)
 	filteredOutbounds = append(filteredOutbounds, blockOutbound)
@@ -98,13 +98,13 @@ func (m *OutboundModule) Apply(opts *option.Options, ctx *BuildContext) error {
 		// - proxy: selector [auto, ...all nodes]
 
 		// 7. 添加 proxy selector
-		proxyNodes := append([]string{"auto"}, actualNodes...)
+		proxyNodes := append([]string{TagAuto}, actualNodes...)
 		proxyOutbound := option.Outbound{}
 		proxyOutboundMap := map[string]any{
 			"type":      "selector",
-			"tag":       "proxy",
+			"tag":       TagProxy,
 			"outbounds": proxyNodes,
-			"default":   "auto",
+			"default":   TagAuto,
 		}
 		ApplyMapToOutbound(&proxyOutbound, proxyOutboundMap)
 		filteredOutbounds = append(filteredOutbounds, proxyOutbound)
@@ -113,7 +113,7 @@ func (m *OutboundModule) Apply(opts *option.Options, ctx *BuildContext) error {
 		autoOutbound := option.Outbound{}
 		autoOutboundMap := map[string]any{
 			"type":      "urltest",
-			"tag":       "auto",
+			"tag":       TagAuto,
 			"outbounds": actualNodes,
 		}
 		ApplyMapToOutbound(&autoOutbound, autoOutboundMap)
@@ -126,9 +126,9 @@ func (m *OutboundModule) Apply(opts *option.Options, ctx *BuildContext) error {
 		proxyOutbound := option.Outbound{}
 		proxyOutboundMap := map[string]any{
 			"type":      "selector",
-			"tag":       "proxy",
-			"outbounds": []string{"direct"},
-			"default":   "direct",
+			"tag":       TagProxy,
+			"outbounds": []string{TagDirect},
+			"default":   TagDirect,
 		}
 		ApplyMapToOutbound(&proxyOutbound, proxyOutboundMap)
 		filteredOutbounds = append(filteredOutbounds, proxyOutbound)

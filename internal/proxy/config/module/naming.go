@@ -7,10 +7,11 @@ import (
 )
 
 var reservedOutboundTags = map[string]bool{
-	"direct": true,
-	"block":  true,
-	"proxy":  true,
-	"auto":   true,
+	TagDirect: true,
+	TagBlock:  true,
+	TagProxy:  true,
+	TagAuto:   true,
+	TagDNS:    true,
 }
 
 func IsReservedOutboundTag(tag string) bool {

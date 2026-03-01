@@ -76,7 +76,7 @@ func (m *TUNDNSModule) Apply(opts *option.Options, ctx *BuildContext) error {
 				"type":            "https",
 				"server":          "dns.google",
 				"domain_resolver": "resolver_dns",
-				"detour":          "proxy",
+				"detour":          TagProxy,
 			},
 			{
 				"tag":    "resolver_dns",
