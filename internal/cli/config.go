@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kyson-dev/sing-helm/internal/env"
+	"github.com/kyson-dev/sing-helm/internal/platform"
 	"github.com/kyson-dev/sing-helm/internal/subscription"
 	"github.com/spf13/cobra"
 )
@@ -76,7 +76,7 @@ func newConfigAddCommand() *cobra.Command {
 				return fmt.Errorf("url cannot be empty")
 			}
 
-			paths := env.Get()
+			paths := platform.Get()
 			if err := subscription.EnsureDirs(paths.SubConfigDir, paths.SubCacheDir); err != nil {
 				return err
 			}
@@ -115,7 +115,7 @@ func newConfigEditCommand() *cobra.Command {
 		Short: "Edit base config or a subscription file",
 		Args:  cobra.RangeArgs(0, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			paths := env.Get()
+			paths := platform.Get()
 			target := paths.ConfigFile
 			if len(args) == 1 {
 				if err := subscription.EnsureDirs(paths.SubConfigDir, paths.SubCacheDir); err != nil {
@@ -134,7 +134,7 @@ func newConfigRefreshCommand() *cobra.Command {
 		Short: "Refresh subscription cache",
 		Args:  cobra.RangeArgs(0, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			paths := env.Get()
+			paths := platform.Get()
 			if err := subscription.EnsureDirs(paths.SubConfigDir, paths.SubCacheDir); err != nil {
 				return err
 			}
@@ -158,7 +158,7 @@ func newConfigDeleteCommand() *cobra.Command {
 		Short: "Delete a subscription config and cache",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			paths := env.Get()
+			paths := platform.Get()
 			// 确保目录存在（虽然我们要删除东西，但如果目录都不存在也就没什么好删的，不过为了路径构建不出错）
 			if err := subscription.EnsureDirs(paths.SubConfigDir, paths.SubCacheDir); err != nil {
 				return err
@@ -178,7 +178,7 @@ func newConfigDeleteCommand() *cobra.Command {
 }
 
 func runConfigList(cmd *cobra.Command, _ []string) error {
-	paths := env.Get()
+	paths := platform.Get()
 	out := cmd.OutOrStdout()
 
 	fmt.Fprintf(out, "Base config: %s\n", paths.ConfigFile)

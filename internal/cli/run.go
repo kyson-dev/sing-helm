@@ -9,7 +9,7 @@ import (
 
 	"github.com/kyson-dev/sing-helm/internal/logger"
 	coredaemon "github.com/kyson-dev/sing-helm/internal/daemon"
-	"github.com/kyson-dev/sing-helm/internal/env"
+	"github.com/kyson-dev/sing-helm/internal/platform"
 	"github.com/kyson-dev/sing-helm/internal/ipc"
 	"github.com/spf13/cobra"
 )
@@ -83,7 +83,7 @@ func runAsDaemon(ctx context.Context, payload map[string]any) error {
 
 		// 现在（正确）
 		//TODO: 这里可以改进为等待 IPC 服务器真正启动，然后通过统一的dispatchToDaemon发送命令
-		sender := ipc.NewUnixSender(env.Get().SocketFile)
+		sender := ipc.NewUnixSender(platform.Get().SocketFile)
 		resp, err := sender.Send(context.Background(), ipc.CommandMessage{
 			Name:    "run",
 			Payload: payload,

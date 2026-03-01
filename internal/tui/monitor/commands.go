@@ -10,7 +10,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gorilla/websocket"
-	"github.com/kyson-dev/sing-helm/internal/client"
+	"github.com/kyson-dev/sing-helm/internal/clashapi"
 	"github.com/kyson-dev/sing-helm/internal/controller"
 )
 
@@ -68,7 +68,7 @@ func cmdReadTraffic(conn *websocket.Conn) tea.Cmd {
 // -----------------------------------------------------------------------------
 
 // cmdFetchStatus 获取状态信息
-func cmdFetchStatus(c *client.Client) tea.Cmd {
+func cmdFetchStatus(c *clashapi.Client) tea.Cmd {
 	return func() tea.Msg {
 		// 从 sing-box API 获取连接信息
 		conns, err := c.GetConnections()
@@ -108,7 +108,7 @@ func cmdFetchStatus(c *client.Client) tea.Cmd {
 }
 
 // cmdFetchProxies 获取代理列表
-func cmdFetchProxies(c *client.Client) tea.Cmd {
+func cmdFetchProxies(c *clashapi.Client) tea.Cmd {
 	return func() tea.Msg {
 		proxies, err := c.GetProxies()
 		if err != nil {
@@ -119,7 +119,7 @@ func cmdFetchProxies(c *client.Client) tea.Cmd {
 }
 
 // cmdTestLatency 测试节点延迟
-func cmdTestLatency(c *client.Client, name string) tea.Cmd {
+func cmdTestLatency(c *clashapi.Client, name string) tea.Cmd {
 	return func() tea.Msg {
 		delay, err := c.GetNodeDelay(name, "http://www.gstatic.com/generate_204", 2000)
 		if err != nil {
@@ -197,7 +197,7 @@ func cmdSwitchRoute(current string) tea.Cmd {
 }
 
 // cmdSwitchNode 切换节点
-func cmdSwitchNode(c *client.Client, group, node string) tea.Cmd {
+func cmdSwitchNode(c *clashapi.Client, group, node string) tea.Cmd {
 	return func() tea.Msg {
 		err := c.SelectProxy(group, node)
 		if err != nil {
@@ -212,7 +212,7 @@ func cmdSwitchNode(c *client.Client, group, node string) tea.Cmd {
 // -----------------------------------------------------------------------------
 
 // extractGroups 从代理列表中提取可切换的组
-func extractGroups(proxies map[string]client.ProxyData) []string {
+func extractGroups(proxies map[string]clashapi.ProxyData) []string {
 	var groups []string
 	for name, data := range proxies {
 		if data.Type == "Selector" || data.Type == "URLTest" {

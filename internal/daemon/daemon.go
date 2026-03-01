@@ -2,43 +2,41 @@ package daemon
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"sync"
 
-	"github.com/kyson-dev/sing-helm/internal/logger"
-	"github.com/kyson-dev/sing-helm/internal/client"
-	"github.com/kyson-dev/sing-helm/internal/config"
-	"github.com/kyson-dev/sing-helm/internal/runtime"
-	"github.com/kyson-dev/sing-helm/internal/service"
-	"github.com/kyson-dev/sing-helm/internal/env"
+	"github.com/kyson-dev/sing-helm/internal/engine"
 	"github.com/kyson-dev/sing-helm/internal/ipc"
+	"github.com/kyson-dev/sing-helm/internal/logger"
+	"github.com/kyson-dev/sing-helm/internal/model"
+	"github.com/kyson-dev/sing-helm/internal/platform"
 )
 
-// Daemon handles long-running sing-box operations and responds to IPC commands.
+// ServiceRunner abstracts the sing-box engine lifecycle.
 type ServiceRunner interface {
 	StartFromFile(context.Context, string) error
 	ReloadFromFile(context.Context, string) error
 	Stop()
 }
 
+// Daemon manages the sing-box service lifecycle and responds to IPC commands.
 type Daemon struct {
 	mu             sync.Mutex
-	cancelFunc     context.CancelFunc // 用于取消 daemon context
+	cancelFunc     context.CancelFunc
 	service        ServiceRunner
 	serviceFactory func() ServiceRunner
-	lock           *env.DaemonLock
+	lock           *platform.DaemonLock
 	running        bool
-	reloading      bool // 防止并发 reload
-	state          *runtime.RuntimeState
+	reloading      bool
+	state          *model.RuntimeState
 }
 
 // NewDaemon builds a daemon controller.
 func NewDaemon() *Daemon {
 	return &Daemon{
 		serviceFactory: func() ServiceRunner {
-			return service.NewInstance()
+			return engine.NewInstance()
 		},
 	}
 }
@@ -49,7 +47,7 @@ func (d *Daemon) SetServiceFactory(factory func() ServiceRunner) {
 	defer d.mu.Unlock()
 	if factory == nil {
 		d.serviceFactory = func() ServiceRunner {
-			return service.NewInstance()
+			return engine.NewInstance()
 		}
 		return
 	}
@@ -57,75 +55,41 @@ func (d *Daemon) SetServiceFactory(factory func() ServiceRunner) {
 }
 
 // Serve starts the IPC server. Blocks until ctx is cancelled.
-// Use "run" IPC command to start sing-box service.
 func (d *Daemon) Serve(ctx context.Context) error {
-	if err := env.EnsureRuntimeDirs(env.Get().RuntimeDir, env.Get().LogFile); err != nil {
+	if err := platform.EnsureRuntimeDirs(platform.Get().RuntimeDir, platform.Get().LogFile); err != nil {
 		if os.IsPermission(err) {
 			return fmt.Errorf("runtime directory not writable (try sudo): %w", err)
 		}
 		return fmt.Errorf("runtime directory not writable: %w", err)
 	}
-	// 检查是否已有实例在运行（通过尝试获取锁）
-	lock, err := env.AcquireLock(env.Get().RuntimeDir)
+
+	lock, err := platform.AcquireLock(platform.Get().RuntimeDir)
 	if err != nil {
 		return fmt.Errorf("another instance is already running: %w", err)
 	}
 	d.lock = lock
 	d.loadState()
-	_ = env.SaveRuntimeMeta(env.Get().RuntimeDir, env.RuntimeMeta{
-		ConfigHome: env.Get().HomeDir,
+	_ = platform.SaveRuntimeMeta(platform.Get().RuntimeDir, platform.RuntimeMeta{
+		ConfigHome: platform.Get().HomeDir,
 	})
 
-	// 创建可取消的 context，用于控制所有子服务的生命周期
 	ctx, cancel := context.WithCancel(ctx)
 	d.cancelFunc = cancel
 	defer func() {
-		logger.Info("Daemon shutting down defer")
+		logger.Info("Daemon shutting down")
 		cancel()
 		d.cleanup()
 	}()
 
 	logger.Info("Daemon started, listening for IPC commands")
 
-	// 启动 IPC 服务器（阻塞，直到 ctx 取消）
-	if err := ipc.Serve(ctx, env.Get().SocketFile, d, &ipc.ServerOptions{}); err != nil {
+	if err := ipc.Serve(ctx, platform.Get().SocketFile, d, &ipc.ServerOptions{}); err != nil {
 		return err
 	}
-
-	logger.Info("Daemon shutting down")
 	return nil
 }
 
-// cleanup 清理资源
-func (d *Daemon) cleanup() {
-	d.mu.Lock()
-	state := d.state
-	defer d.mu.Unlock()
-
-	if d.cancelFunc != nil {
-		d.cancelFunc()
-		d.cancelFunc = nil
-	}
-
-	d.running = false
-
-	if d.lock != nil {
-		d.lock.Release()
-		d.lock = nil
-	}
-	if d.service != nil {
-		d.service.Stop()
-		d.service = nil
-	}
-	if state != nil {
-		state.PID = 0
-		if err := runtime.SaveState(state); err != nil {
-			logger.Error("Failed to save runtime state", "error", err)
-		}
-	}
-}
-
-// Handle routes the CLI commands to the proper handlers.
+// Handle routes IPC commands to the proper handlers.
 func (d *Daemon) Handle(ctx context.Context, cmd ipc.CommandMessage) ipc.CommandResult {
 	switch cmd.Name {
 	case "run":
@@ -153,100 +117,78 @@ func (d *Daemon) Handle(ctx context.Context, cmd ipc.CommandMessage) ipc.Command
 	}
 }
 
-// handleRun 处理 IPC run 命令，启动 sing-box 服务
-func (d *Daemon) handleRun(ctx context.Context, payload map[string]any) ipc.CommandResult {
-	runops, err := d.parseRunOptions(payload)
-	if err != nil {
-		return ipc.CommandResult{Status: "error", Error: err.Error()}
-	}
+// --- internal helpers ---
 
-	// 检查并设置运行状态（原子操作）
+func (d *Daemon) cleanup() {
 	d.mu.Lock()
-	if d.running {
-		d.mu.Unlock()
-		return ipc.CommandResult{Status: "error", Error: "sing-box is already running"}
-	}
-	// 立即设置为 running，防止并发请求
-	d.running = true
-	d.mu.Unlock()
+	state := d.state
+	defer d.mu.Unlock()
 
-	// 如果后续启动失败，需要重置 running 状态
-	startFailed := true
-	defer func() {
-		if startFailed {
-			d.mu.Lock()
-			d.running = false
-			d.mu.Unlock()
+	if d.cancelFunc != nil {
+		d.cancelFunc()
+		d.cancelFunc = nil
+	}
+	d.running = false
+
+	if d.lock != nil {
+		d.lock.Release()
+		d.lock = nil
+	}
+	if d.service != nil {
+		d.service.Stop()
+		d.service = nil
+	}
+	if state != nil {
+		state.PID = 0
+		if err := model.SaveState(state); err != nil {
+			logger.Error("Failed to save runtime state", "error", err)
 		}
-	}()
-
-	// 1. 构建配置
-	logger.Info("Building configuration", "mode", runops.ProxyMode, "route", runops.RouteMode)
-	if err := config.BuildConfig( env.Get().RawConfigFile, &runops); err != nil {
-		return ipc.CommandResult{Status: "error", Error: fmt.Errorf("failed to build config: %w", err).Error()}
 	}
-
-	// 3. 启动 sing-box 服务
-	svc := d.newService()
-	rawPath := env.Get().RawConfigFile
-	logger.Info("Starting sing-box", "config", rawPath)
-	if err := svc.StartFromFile(ctx, rawPath); err != nil {
-		return ipc.CommandResult{Status: "error", Error: fmt.Errorf("failed to start sing-box: %w", err).Error()}
-	}
-
-	// 启动成功，更新状态
-	startFailed = false
-	d.mu.Lock()
-	d.service = svc
-	if d.state == nil {
-		d.state = &runtime.RuntimeState{}
-	}
-	d.state.RunOptions = runops
-	d.mu.Unlock()
-
-	logger.Info("Sing-box started successfully")
-	return ipc.CommandResult{Status: "ok", Data: map[string]any{
-		"proxy_mode": string(runops.ProxyMode),
-		"route_mode": string(runops.RouteMode),
-	}}
 }
 
-// parseRunOptions 解析 run 命令的参数
-func (d *Daemon) parseRunOptions(payload map[string]any) (runtime.RunOptions, error) {
-	runops := runtime.DefaultRunOptions()
+func (d *Daemon) newService() ServiceRunner {
+	if d.serviceFactory != nil {
+		return d.serviceFactory()
+	}
+	return engine.NewInstance()
+}
+
+func (d *Daemon) currentState() (*model.RuntimeState, error) {
 	d.mu.Lock()
 	state := d.state
 	d.mu.Unlock()
 	if state != nil {
-		logger.Info("Using state from file", "proxy_mode", state.RunOptions.ProxyMode, "route_mode", state.RunOptions.RouteMode)
-		runops = state.RunOptions
-	} else {
-		logger.Info("No state file, using defaults")
+		copyState := *state
+		return &copyState, nil
 	}
-	if payload == nil {
-		return runops, nil
-	}
-	if mode, ok := payload["mode"].(string); ok && mode != "" {
-		proxyMode, err := runtime.ParseProxyMode(mode)
-		if err != nil {
-			return runops, err
+	return nil, nil
+}
+
+func (d *Daemon) isRunning() bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.running
+}
+
+func (d *Daemon) setRunning(running bool) {
+	d.mu.Lock()
+	d.running = running
+	d.mu.Unlock()
+}
+
+func (d *Daemon) loadState() {
+	state, err := model.LoadState()
+	if err != nil {
+		if os.IsNotExist(err) {
+			return
 		}
-		runops.ProxyMode = proxyMode
+		logger.Error("Failed to load runtime state", "error", err)
+		return
 	}
-	if route, ok := payload["route"].(string); ok && route != "" {
-		routeMode, err := runtime.ParseRouteMode(route)
-		if err != nil {
-			return runops, err
-		}
-		runops.RouteMode = routeMode
-	}
-	if port, ok := asInt(payload["api_port"]); ok && port > 0 {
-		runops.APIPort = port
-	}
-	if port, ok := asInt(payload["mixed_port"]); ok && port > 0 {
-		runops.MixedPort = port
-	}
-	return runops, nil
+	d.mu.Lock()
+	d.state = state
+	d.state.PID = os.Getpid()
+	d.mu.Unlock()
 }
 
 func asInt(val any) (int, bool) {
@@ -259,320 +201,4 @@ func asInt(val any) (int, bool) {
 		return int(v), true
 	}
 	return 0, false
-}
-
-func (d *Daemon) handleStatus() ipc.CommandResult {
-	running := d.isRunning()
-	state, err := d.currentState()
-	if err != nil && running {
-		return ipc.CommandResult{Status: "error", Error: err.Error()}
-	}
-	data := map[string]any{
-		"running": running,
-	}
-	if state != nil {
-		data["proxy_mode"] = state.RunOptions.ProxyMode
-		data["route_mode"] = state.RunOptions.RouteMode
-		data["pid"] = state.PID
-		data["api_port"] = state.RunOptions.APIPort
-		data["mixed_port"] = state.RunOptions.MixedPort
-		data["listen_addr"] = state.RunOptions.ListenAddr
-	}
-	return ipc.CommandResult{Status: "ok", Data: data}
-}
-
-func (d *Daemon) handleMode(ctx context.Context, payload map[string]any) ipc.CommandResult {
-	if !d.isRunning() {
-		return ipc.CommandResult{Status: "error", Error: "sing-box not running"}
-	}
-	modeStr, ok := payload["mode"].(string)
-	if !ok || modeStr == "" {
-		return ipc.CommandResult{Status: "error", Error: "missing mode"}
-	}
-	proxyMode, err := runtime.ParseProxyMode(modeStr)
-	if err != nil {
-		return ipc.CommandResult{Status: "error", Error: err.Error()}
-	}
-	state, err := d.currentState()
-	if err != nil {
-		return ipc.CommandResult{Status: "error", Error: err.Error()}
-	}
-	if (proxyMode == runtime.ProxyModeTUN || state.RunOptions.ProxyMode == runtime.ProxyModeTUN) && os.Geteuid() != 0 {
-		return ipc.CommandResult{Status: "error", Error: "operating with TUN mode requires root permission"}
-	}
-	if state.RunOptions.ProxyMode == proxyMode {
-		return ipc.CommandResult{Status: "ok", Data: map[string]any{"proxy_mode": string(proxyMode)}}
-	}
-	state.RunOptions.ProxyMode = proxyMode
-	if err := d.applyRunOptions(ctx, state); err != nil {
-		return ipc.CommandResult{Status: "error", Error: err.Error()}
-	}
-	return ipc.CommandResult{Status: "ok", Data: map[string]any{"proxy_mode": string(proxyMode)}}
-}
-
-func (d *Daemon) handleRoute(ctx context.Context, payload map[string]any) ipc.CommandResult {
-	if !d.isRunning() {
-		return ipc.CommandResult{Status: "error", Error: "sing-box not running"}
-	}
-	routeStr, ok := payload["route"].(string)
-	if !ok || routeStr == "" {
-		return ipc.CommandResult{Status: "error", Error: "missing route"}
-	}
-	routeMode, err := runtime.ParseRouteMode(routeStr)
-	if err != nil {
-		return ipc.CommandResult{Status: "error", Error: err.Error()}
-	}
-	state, err := d.currentState()
-	if err != nil {
-		return ipc.CommandResult{Status: "error", Error: err.Error()}
-	}
-	if state.RunOptions.RouteMode == routeMode {
-		return ipc.CommandResult{Status: "ok", Data: map[string]any{"route_mode": string(routeMode)}}
-	}
-	state.RunOptions.RouteMode = routeMode
-	if err := d.applyRunOptions(ctx, state); err != nil {
-		return ipc.CommandResult{Status: "error", Error: err.Error()}
-	}
-	return ipc.CommandResult{Status: "ok", Data: map[string]any{"route_mode": string(routeMode)}}
-}
-
-func (d *Daemon) applyRunOptions(ctx context.Context, state *runtime.RuntimeState) error {
-	// 检查并设置 reloading 标志，防止并发 reload
-	d.mu.Lock()
-	if d.reloading {
-		d.mu.Unlock()
-		return errors.New("reload already in progress")
-	}
-	d.reloading = true
-	d.mu.Unlock()
-	defer func() {
-		d.mu.Lock()
-		d.reloading = false
-		d.mu.Unlock()
-	}()
-
-	backupPath, _ := backupConfig(env.Get().RawConfigFile)
-	if err := config.BuildConfig(env.Get().RawConfigFile, &state.RunOptions); err != nil {
-		return err
-	}
-	if d.service == nil {
-		err := errors.New("service not available")
-		return err
-	}
-	if err := d.service.ReloadFromFile(ctx, env.Get().RawConfigFile); err != nil {
-		var reloadErr *service.ReloadError
-		if errors.As(err, &reloadErr) && reloadErr.Stage == service.ReloadStageStart {
-			if backupPath != "" {
-				if retryErr := d.service.StartFromFile(ctx, backupPath); retryErr == nil {
-					if restoreErr := restoreConfig(backupPath, env.Get().RawConfigFile); restoreErr != nil {
-						return restoreErr
-					}
-					d.setRunning(true)
-					_ = os.Remove(backupPath)
-				} else {
-					d.setRunning(false)
-				}
-			} else {
-				d.setRunning(false)
-			}
-		}
-		return err
-	}
-	d.mu.Lock()
-	d.state = state
-	d.mu.Unlock()
-	return nil
-}
-
-func (d *Daemon) setRunning(running bool) {
-	d.mu.Lock()
-	d.running = running
-	d.mu.Unlock()
-}
-
-func backupConfig(path string) (string, error) {
-	if path == "" {
-		return "", nil
-	}
-	if _, err := os.Stat(path); err != nil {
-		if os.IsNotExist(err) {
-			return "", nil
-		}
-		return "", err
-	}
-	backup := path + ".bak"
-	input, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	if err := os.WriteFile(backup, input, 0644); err != nil {
-		return "", err
-	}
-	return backup, nil
-}
-
-func restoreConfig(backupPath, targetPath string) error {
-	if backupPath == "" || targetPath == "" {
-		return nil
-	}
-	data, err := os.ReadFile(backupPath)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(targetPath, data, 0644)
-}
-
-func (d *Daemon) handleStop() ipc.CommandResult {
-	d.mu.Lock()
-	running := d.running
-	cancel := d.cancelFunc
-	d.mu.Unlock()
-
-	if cancel == nil {
-		if running {
-			return ipc.CommandResult{Status: "error", Error: "daemon not running"}
-		}
-		return ipc.CommandResult{Status: "error", Error: "daemon not running"}
-	}
-	// 取消 daemon context 会触发所有子服务退出
-	cancel()
-	return ipc.CommandResult{Status: "ok"}
-}
-
-func (d *Daemon) newService() ServiceRunner {
-	if d.serviceFactory != nil {
-		return d.serviceFactory()
-	}
-	return service.NewInstance()
-}
-
-func (d *Daemon) currentState() (*runtime.RuntimeState, error) {
-	d.mu.Lock()
-	state := d.state
-	d.mu.Unlock()
-
-	if state != nil {
-		copyState := *state
-		return &copyState, nil
-	}
-	return nil, nil
-}
-
-func (d *Daemon) handleNodeList(payload map[string]any) ipc.CommandResult {
-	if !d.isRunning() {
-		return ipc.CommandResult{Status: "error", Error: "sing-box not running"}
-	}
-	apiAddr, err := d.resolveAPIAddr(payload)
-	if err != nil {
-		return ipc.CommandResult{Status: "error", Error: err.Error()}
-	}
-	c := client.New(apiAddr)
-	proxies, err := c.GetProxies()
-	if err != nil {
-		return ipc.CommandResult{Status: "error", Error: err.Error()}
-	}
-	return ipc.CommandResult{Status: "ok", Data: map[string]any{"proxies": proxies}}
-}
-
-func (d *Daemon) handleNodeUse(payload map[string]any) ipc.CommandResult {
-	if !d.isRunning() {
-		return ipc.CommandResult{Status: "error", Error: "sing-box not running"}
-	}
-	group, ok := payload["group"].(string)
-	if !ok || group == "" {
-		return ipc.CommandResult{Status: "error", Error: "missing group"}
-	}
-	node, ok := payload["node"].(string)
-	if !ok || node == "" {
-		return ipc.CommandResult{Status: "error", Error: "missing node"}
-	}
-	apiAddr, err := d.resolveAPIAddr(payload)
-	if err != nil {
-		return ipc.CommandResult{Status: "error", Error: err.Error()}
-	}
-	c := client.New(apiAddr)
-	if err := c.SelectProxy(group, node); err != nil {
-		return ipc.CommandResult{Status: "error", Error: err.Error()}
-	}
-	return ipc.CommandResult{Status: "ok", Data: map[string]any{"group": group, "node": node}}
-}
-
-func (d *Daemon) handleLog() ipc.CommandResult {
-	logPath := env.Get().LogFile
-	return ipc.CommandResult{Status: "ok", Data: map[string]any{"path": logPath}}
-}
-
-func (d *Daemon) handleHealth() ipc.CommandResult {
-	running := d.isRunning()
-	data := map[string]any{"running": running}
-	state, err := d.currentState()
-	if err != nil {
-		return ipc.CommandResult{Status: "error", Error: err.Error()}
-	}
-	if state != nil {
-		data["pid"] = state.PID
-	}
-	return ipc.CommandResult{Status: "ok", Data: data}
-}
-
-func (d *Daemon) handleReload(ctx context.Context) ipc.CommandResult {
-	if !d.isRunning() {
-		return ipc.CommandResult{Status: "error", Error: "daemon not running"}
-	}
-	state, err := d.currentState()
-	if err != nil {
-		return ipc.CommandResult{Status: "error", Error: err.Error()}
-	}
-	if state == nil {
-		return ipc.CommandResult{Status: "error", Error: "missing state"}
-	}
-	if err := d.applyRunOptions(ctx, state); err != nil {
-		return ipc.CommandResult{Status: "error", Error: err.Error()}
-	}
-	return ipc.CommandResult{Status: "ok"}
-}
-
-func (d *Daemon) resolveAPIAddr(payload map[string]any) (string, error) {
-	if payload != nil {
-		if api, ok := payload["api"].(string); ok && api != "" {
-			return api, nil
-		}
-	}
-	state, err := d.currentState()
-	if err != nil {
-		return "", err
-	}
-	if state == nil {
-		return "", errors.New("missing state")
-	}
-	if state.RunOptions.APIPort == 0 {
-		return "", errors.New("api port unavailable")
-	}
-	listenAddr := state.RunOptions.ListenAddr
-	if listenAddr == "" {
-		listenAddr = "127.0.0.1"
-	}
-	return fmt.Sprintf("%s:%d", listenAddr, state.RunOptions.APIPort), nil
-}
-
-func (d *Daemon) isRunning() bool {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	return d.running
-}
-
-func (d *Daemon) loadState() {
-
-	state, err := runtime.LoadState()
-	if err != nil {
-		if os.IsNotExist(err) {
-			return
-		}
-		logger.Error("Failed to load runtime state", "error", err)
-		return
-	}
-	d.mu.Lock()
-	d.state = state
-	d.state.PID = os.Getpid()
-	d.mu.Unlock()
 }

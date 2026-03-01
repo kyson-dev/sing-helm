@@ -5,7 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/kyson-dev/sing-helm/internal/logger"
-	"github.com/kyson-dev/sing-helm/internal/client"
+	"github.com/kyson-dev/sing-helm/internal/clashapi"
 )
 
 // ============================================================================
@@ -85,7 +85,7 @@ func (m *Model) handleStatus(msg statusMsg) (Model, tea.Cmd) {
 	m.statusInFlight = false
 	if msg.APIBase != "" && msg.APIBase != m.apiBase {
 		m.apiBase = msg.APIBase
-		m.apiClient = client.New(msg.APIBase)
+		m.apiClient = clashapi.New(msg.APIBase)
 		if m.wsConn != nil {
 			m.wsConn.Close()
 			m.wsConn = nil

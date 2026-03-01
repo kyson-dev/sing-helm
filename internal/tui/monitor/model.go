@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/kyson-dev/sing-helm/internal/client"
+	"github.com/kyson-dev/sing-helm/internal/clashapi"
 )
 
 // ============================================================================
@@ -20,7 +20,7 @@ type Model struct {
 	connState ConnectionStateMachine // 连接状态机
 	wsConn    *websocket.Conn        // WebSocket 连接
 	apiBase   string                 // API 地址
-	apiClient *client.Client         // HTTP 客户端
+	apiClient *clashapi.Client         // HTTP 客户端
 	lastError error                  // 最近的错误
 	updating  bool                   // mode/route 更新中（防止重复请求）
 
@@ -44,7 +44,7 @@ type Model struct {
 
 	// --- 节点列表 ---
 	groups    []string                    // 代理组列表
-	proxies   map[string]client.ProxyData // 代理详情
+	proxies   map[string]clashapi.ProxyData // 代理详情
 	latencies map[string]int              // 节点延迟 (-1=失败, 0=未测试)
 	testing   map[string]bool             // 正在测速的节点
 
@@ -75,14 +75,14 @@ func NewModel(apiHost string) Model {
 	return Model{
 		// 连接管理
 		apiBase:   apiHost,
-		apiClient: client.New(apiHost),
+		apiClient: clashapi.New(apiHost),
 		connState: ConnectionStateMachine{State: ConnStateConnecting},
 		statusInterval: time.Second,
 
 		// 业务数据初始化
 		proxyMode: "unknown",
 		routeMode: "unknown",
-		proxies:   make(map[string]client.ProxyData),
+		proxies:   make(map[string]clashapi.ProxyData),
 		latencies: make(map[string]int),
 		testing:   make(map[string]bool),
 	}
@@ -128,7 +128,7 @@ func (m *Model) Groups() []string {
 }
 
 // Proxies 获取代理详情
-func (m *Model) Proxies() map[string]client.ProxyData {
+func (m *Model) Proxies() map[string]clashapi.ProxyData {
 	return m.proxies
 }
 

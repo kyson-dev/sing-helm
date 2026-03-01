@@ -1,12 +1,26 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 
-	"github.com/kyson-dev/sing-helm/internal/env"
+	"github.com/kyson-dev/sing-helm/internal/app"
 	"github.com/kyson-dev/sing-helm/internal/logger"
+	"github.com/kyson-dev/sing-helm/internal/platform"
 	"github.com/spf13/cobra"
 )
+
+// appKey is the context key for the Application instance.
+type appKey struct{}
+
+// AppFromContext retrieves the Application from a command's context.
+// Returns nil if not set (should not happen after PersistentPreRunE).
+func AppFromContext(ctx context.Context) *app.Application {
+	if v := ctx.Value(appKey{}); v != nil {
+		return v.(*app.Application)
+	}
+	return nil
+}
 
 func NewRootCommand() *cobra.Command {
 	var homeDir string
@@ -19,7 +33,7 @@ func NewRootCommand() *cobra.Command {
 			home, _ := cmd.Flags().GetString("home")
 
 			// 使用 setup 初始化环境，支持智能探测和注册
-			if err := env.Setup(home); err != nil {
+			if err := platform.Setup(home); err != nil {
 				return fmt.Errorf("environment setup failed: %w", err)
 			}
 
@@ -28,6 +42,13 @@ func NewRootCommand() *cobra.Command {
 			} else {
 				logger.Setup(logger.Config{Debug: globalDebug, FilePath: logFile})
 			}
+
+			// Build the Application and attach to context
+			paths := platform.Get()
+			application := app.New(paths, logger.GetInstance())
+			ctx := context.WithValue(cmd.Context(), appKey{}, application)
+			cmd.SetContext(ctx)
+
 			return nil
 		},
 	}
@@ -61,7 +82,7 @@ func NewRootCommand() *cobra.Command {
 	return cmd
 }
 
-// execute command
+// Execute runs the root command.
 func Execute() error {
 	return NewRootCommand().Execute()
 }

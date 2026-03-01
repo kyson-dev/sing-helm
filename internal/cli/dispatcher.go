@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kyson-dev/sing-helm/internal/env"
+	"github.com/kyson-dev/sing-helm/internal/platform"
 	"github.com/kyson-dev/sing-helm/internal/ipc"
 )
 
@@ -19,9 +19,9 @@ var ErrDaemonUnavailable = errDaemonUnavailable
 var commandSenderFactory = defaultCommandSenderFactory
 
 func defaultCommandSenderFactory() ipc.CommandSender {
-	socket := env.Get().SocketFile
+	socket := platform.Get().SocketFile
 	if !pathExists(socket) {
-		legacy := filepath.Join(env.Get().HomeDir, "ipc.sock")
+		legacy := filepath.Join(platform.Get().HomeDir, "ipc.sock")
 		if legacy != socket && pathExists(legacy) {
 			return ipc.NewUnixSender(legacy)
 		}

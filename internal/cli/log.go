@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kyson-dev/sing-helm/internal/env"
+	"github.com/kyson-dev/sing-helm/internal/platform"
 	"github.com/kyson-dev/sing-helm/internal/logger"
 	"github.com/nxadm/tail"
 	"github.com/spf13/cobra"
@@ -65,7 +65,7 @@ func showAppLog(cmd *cobra.Command) {
 
 func showSystemLogs(cmd *cobra.Command) {
 	// Resolve log directory dynamically
-	runtimeDir := env.ResolveRuntimeDir()
+	runtimeDir := platform.ResolveRuntimeDir()
 	logDir := logger.ResolveLogDir(runtimeDir)
 
 	stdoutLog := filepath.Join(logDir, "stdout.log")

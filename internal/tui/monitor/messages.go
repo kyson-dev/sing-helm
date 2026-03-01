@@ -2,7 +2,7 @@ package monitor
 
 import (
 	"github.com/gorilla/websocket"
-	"github.com/kyson-dev/sing-helm/internal/client"
+	"github.com/kyson-dev/sing-helm/internal/clashapi"
 )
 
 // ============================================================================
@@ -54,7 +54,7 @@ type statusTickMsg struct{}
 
 // proxiesMsg 代理节点列表
 type proxiesMsg struct {
-	Proxies map[string]client.ProxyData
+	Proxies map[string]clashapi.ProxyData
 	Err     error
 }
 

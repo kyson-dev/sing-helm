@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/kyson-dev/sing-helm/internal/daemon"
-	"github.com/kyson-dev/sing-helm/internal/env"
+	"github.com/kyson-dev/sing-helm/internal/platform"
 	"github.com/kyson-dev/sing-helm/internal/ipc"
 )
 
@@ -165,13 +165,13 @@ func TestDaemonHandleCommands(t *testing.T) {
 
 func setupEnv(t *testing.T) {
 	t.Helper()
-	env.ResetForTest()
+	platform.ResetForTest()
 	dir := t.TempDir()
-	env.SetRuntimeDir(dir)
-	if err := env.Init(dir); err != nil {
-		t.Fatalf("env.Init failed: %v", err)
+	platform.SetRuntimeDir(dir)
+	if err := platform.Init(dir); err != nil {
+		t.Fatalf("platform.Init failed: %v", err)
 	}
-	if err := os.WriteFile(env.Get().ConfigFile, []byte(`{}`), 0644); err != nil {
+	if err := os.WriteFile(platform.Get().ConfigFile, []byte(`{}`), 0644); err != nil {
 		t.Fatalf("write profile.json: %v", err)
 	}
 }

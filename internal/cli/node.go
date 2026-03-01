@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/kyson-dev/sing-helm/internal/logger"
-	"github.com/kyson-dev/sing-helm/internal/client"
+	"github.com/kyson-dev/sing-helm/internal/clashapi"
 	"github.com/spf13/cobra"
 )
 
@@ -110,7 +110,7 @@ func newUseCommand() *cobra.Command {
 	}
 }
 
-func decodeProxies(raw any) (map[string]client.ProxyData, error) {
+func decodeProxies(raw any) (map[string]clashapi.ProxyData, error) {
 	if raw == nil {
 		return nil, fmt.Errorf("missing proxies data")
 	}
@@ -118,7 +118,7 @@ func decodeProxies(raw any) (map[string]client.ProxyData, error) {
 	if err != nil {
 		return nil, err
 	}
-	var proxies map[string]client.ProxyData
+	var proxies map[string]clashapi.ProxyData
 	if err := json.Unmarshal(data, &proxies); err != nil {
 		return nil, err
 	}

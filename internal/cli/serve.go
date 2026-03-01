@@ -10,10 +10,9 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/kyson-dev/sing-helm/internal/config"
+	"github.com/kyson-dev/sing-helm/internal/engine"
 	"github.com/kyson-dev/sing-helm/internal/logger"
-	"github.com/kyson-dev/sing-helm/internal/runtime"
-	"github.com/kyson-dev/sing-helm/internal/tools/exporter"
+	"github.com/kyson-dev/sing-helm/internal/model"
 	"github.com/spf13/cobra"
 )
 
@@ -31,18 +30,18 @@ func newServeCommand() *cobra.Command {
 		Long:  `Generates a sing-box configuration file locally and starts a HTTP server to share it via LAN.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// 1. 生成并写入本地文件
-			runops := runtime.DefaultRunOptions()
-			runops.ProxyMode = runtime.ProxyModeTUN
-			runops.RouteMode = runtime.RouteModeRule
+			runops := model.DefaultRunOptions()
+			runops.ProxyMode = model.ProxyModeTUN
+			runops.RouteMode = model.RouteModeRule
 
 			logger.Info("Building options...")
-			opts, err := config.BuildOptions(&runops)
+			opts, err := engine.BuildOptions(&runops)
 			if err != nil {
 				return err
 			}
 
 			logger.Info("Exporting config...", "version", targetVersion, "platform", platform)
-			data, err := exporter.Export(opts, exporter.Target{Version: targetVersion, Platform: platform})
+			data, err := engine.Export(opts, engine.Target{Version: targetVersion, Platform: platform})
 			if err != nil {
 				return err
 			}

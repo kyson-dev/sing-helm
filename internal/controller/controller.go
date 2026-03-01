@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/kyson-dev/sing-helm/internal/logger"
-	"github.com/kyson-dev/sing-helm/internal/env"
 	"github.com/kyson-dev/sing-helm/internal/ipc"
+	"github.com/kyson-dev/sing-helm/internal/logger"
+	"github.com/kyson-dev/sing-helm/internal/platform"
 )
 
 // SwitchProxyMode 切换代理模式
@@ -78,7 +78,7 @@ func FetchStatus(ctx context.Context) (*Status, error) {
 }
 
 func sendCommand(ctx context.Context, name string, payload map[string]any) (ipc.CommandResult, error) {
-	sender := ipc.NewUnixSender(env.Get().SocketFile)
+	sender := ipc.NewUnixSender(platform.Get().SocketFile)
 	resp, err := sender.Send(ctx, ipc.CommandMessage{Name: name, Payload: payload})
 	if err != nil {
 		return ipc.CommandResult{}, fmt.Errorf("ipc send failed: %w", err)

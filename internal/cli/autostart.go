@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/kyson-dev/sing-helm/internal/env"
+	"github.com/kyson-dev/sing-helm/internal/platform"
 	"github.com/spf13/cobra"
 )
 
@@ -157,8 +157,8 @@ func getSystemdUnitContent() (string, error) {
 	}
 
 	// Use the environment settings for consistent path handling
-	appHome := env.Get().HomeDir
-	appLog := env.Get().LogFile
+	appHome := platform.Get().HomeDir
+	appLog := platform.Get().LogFile
 
 	return `[Unit]
 Description=SingHelm daemon
@@ -206,9 +206,9 @@ func getLaunchdPlistContent() (string, error) {
 	// Check if we are running via a symlink, resolve it if possible, or just use the path as is if valid.
 	// For autostart, using the absolute path to the binary is safest.
 
-	// Use the environment settings directly, as env.Setup() now handles sudo users correctly
-	appHome := env.Get().HomeDir
-	appLog := env.Get().LogFile
+	// Use the environment settings directly, as platform.Setup() now handles sudo users correctly
+	appHome := platform.Get().HomeDir
+	appLog := platform.Get().LogFile
 
 	return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

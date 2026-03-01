@@ -70,6 +70,12 @@ func get() *slog.Logger {
 	return instance
 }
 
+// GetInstance returns the underlying *slog.Logger instance.
+// This allows passing the logger to DI containers like app.Application.
+func GetInstance() *slog.Logger {
+	return get()
+}
+
 // logInternal is internal helper
 func logInternal(level slog.Level, msg string, args ...any) {
 	l := get()
