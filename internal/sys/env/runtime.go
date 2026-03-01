@@ -12,7 +12,7 @@ const runtimeDirEnv = "SINGHELM_RUNTIME_DIR"
 var runtimeDirOverride string
 
 // ResolveRuntimeDir returns the system-level runtime directory for sockets/locks/logs/state.
-func ResolveRuntimeDir() string {
+func resolveRuntimeDir() string {
 	if runtimeDirOverride != "" {
 		return runtimeDirOverride
 	}
@@ -41,7 +41,7 @@ func ResolveRuntimeDir() string {
 }
 
 // EnsureRuntimeDirs ensures runtime and log directories exist and are writable.
-func EnsureRuntimeDirs(runtimeDir, logFile string) error {
+func ensureRuntimeDirs(runtimeDir, logFile string) error {
 	if runtimeDir != "" {
 		if err := os.MkdirAll(runtimeDir, 0755); err != nil {
 			return err
@@ -91,7 +91,7 @@ func dirExists(path string) bool {
 
 // FindRuntimeConfigHome returns the config home from a running system daemon, if any.
 func FindRuntimeConfigHome() string {
-	runtimeDir := ResolveRuntimeDir()
+	runtimeDir := resolveRuntimeDir()
 	if runtimeDir == "" {
 		return ""
 	}

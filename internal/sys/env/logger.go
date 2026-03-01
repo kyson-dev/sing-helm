@@ -1,4 +1,4 @@
-package logger
+package env
 
 import (
 	"os"
@@ -7,7 +7,7 @@ import (
 )
 
 // ResolveLogDir returns the preferred log directory, falling back to runtimeDir if needed.
-func ResolveLogDir(runtimeDir string) string {
+func resolveLogDir(runtimeDir string) string {
 	candidate := ""
 	switch runtime.GOOS {
 	case "linux":

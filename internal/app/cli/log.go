@@ -65,8 +65,7 @@ func showAppLog(cmd *cobra.Command) {
 
 func showSystemLogs(cmd *cobra.Command) {
 	// Resolve log directory dynamically
-	runtimeDir := env.ResolveRuntimeDir()
-	logDir := logger.ResolveLogDir(runtimeDir)
+	logDir := env.Get().LogDir
 
 	stdoutLog := filepath.Join(logDir, "stdout.log")
 	stderrLog := filepath.Join(logDir, "stderr.log")

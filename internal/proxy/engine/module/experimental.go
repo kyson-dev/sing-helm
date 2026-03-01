@@ -35,7 +35,7 @@ func (m *ExperimentalModule) Apply(opts *option.Options, ctx *config.BuildContex
 			apiPort = override
 		} else {
 			var err error
-			apiPort, err = env.GetFreePort()
+			apiPort, err = getFreePort()
 			if err != nil {
 				return err
 			}

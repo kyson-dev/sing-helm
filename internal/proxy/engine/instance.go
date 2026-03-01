@@ -94,7 +94,7 @@ func (s *instance) Start(ctx context.Context, opts *option.Options) error {
 	newBox, err := box.New(box.Options{
 		Context:           tx,
 		Options:           *opts,
-		PlatformLogWriter: logger.NewPlatformWriter(), // 将 sing-box 日志重定向到我们的 logger
+		PlatformLogWriter: NewPlatformWriter(), // 将 sing-box 日志重定向到我们的 logger
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create box instance: %w", err)

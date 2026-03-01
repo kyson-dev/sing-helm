@@ -2,7 +2,6 @@ package module
 
 import (
 	"github.com/kyson-dev/sing-helm/internal/proxy/engine/config"
-	"github.com/kyson-dev/sing-helm/internal/sys/env"
 	"github.com/sagernet/sing-box/option"
 )
 
@@ -34,7 +33,7 @@ func (m *MixedModule) Apply(opts *option.Options, ctx *config.BuildContext) erro
 			port = override
 		} else {
 			var err error
-			port, err = env.GetFreePort()
+			port, err = getFreePort()
 			if err != nil {
 				return err
 			}
@@ -61,3 +60,5 @@ func (m *MixedModule) Apply(opts *option.Options, ctx *config.BuildContext) erro
 
 	return nil
 }
+
+

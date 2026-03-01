@@ -56,12 +56,6 @@ func (d *Daemon) SetServiceFactory(factory func() ServiceRunner) {
 
 // Serve starts the IPC server. Blocks until ctx is cancelled.
 func (d *Daemon) Serve(ctx context.Context) error {
-	if err := env.EnsureRuntimeDirs(env.Get().RuntimeDir, env.Get().LogFile); err != nil {
-		if os.IsPermission(err) {
-			return fmt.Errorf("runtime directory not writable (try sudo): %w", err)
-		}
-		return fmt.Errorf("runtime directory not writable: %w", err)
-	}
 
 	lock, err := env.AcquireLock(env.Get().RuntimeDir)
 	if err != nil {

@@ -4,8 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-
-	"github.com/kyson-dev/sing-helm/internal/sys/logger"
 )
 
 // Paths 定义了应用所有的关键路径
@@ -16,6 +14,7 @@ type Paths struct {
 	RawConfigFile string // raw.json (生成的完整配置)
 	SubConfigDir  string // subscriptions 目录
 	SubCacheDir   string // subscriptions cache 目录
+	LogDir        string // log 目录
 	LogFile       string // sing-helm.log
 	StateFile     string // state.json
 	LookFile      string // sing-helm.lock
@@ -63,13 +62,13 @@ func Resolve(home string) (Paths, error) {
 		return Paths{}, err
 	}
 
-	runtimeDir := ResolveRuntimeDir()
+	runtimeDir := resolveRuntimeDir()
 	runtimeDir, err = filepath.Abs(runtimeDir)
 	if err != nil {
 		return Paths{}, err
 	}
 
-	logDir := logger.ResolveLogDir(runtimeDir)
+	logDir := resolveLogDir(runtimeDir)
 	return GetPath(absHome, runtimeDir, logDir), nil
 }
 
@@ -86,6 +85,7 @@ func GetPath(home string, runtimeDir string, logDir string) Paths {
 		RawConfigFile: filepath.Join(runtimeDir, "raw.json"),
 		SubConfigDir:  filepath.Join(home, "subscriptions"),
 		SubCacheDir:   filepath.Join(home, "subscriptions", "cache"),
+		LogDir:        logDir,
 		LogFile:       logFile,
 		StateFile:     filepath.Join(runtimeDir, "state.json"),
 		LookFile:      GetLockPath(runtimeDir), // 使用 lock.go 中的单一事实来源

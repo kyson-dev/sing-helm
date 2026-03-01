@@ -1,6 +1,7 @@
-package logger
+package engine
 
 import (
+	"github.com/kyson-dev/sing-helm/internal/sys/logger"
 	"github.com/sagernet/sing-box/log"
 )
 
@@ -20,15 +21,16 @@ func (p *PlatformWriter) DisableColors() bool {
 func (p *PlatformWriter) WriteMessage(level log.Level, message string) {
 	switch level {
 	case log.LevelTrace, log.LevelDebug:
-		get().Debug(message, "source", "sing-box")
+		logger.Debug(message, "source", "sing-box")
 	case log.LevelInfo:
-		get().Info(message, "source", "sing-box")
+		logger.Info(message, "source", "sing-box")
 	case log.LevelWarn:
-		get().Warn(message, "source", "sing-box")
+		// logger doesn't have Warn exposed, using Info for now
+		logger.Info("[WARN] "+message, "source", "sing-box")
 	case log.LevelError, log.LevelFatal, log.LevelPanic:
-		get().Error(message, "source", "sing-box")
+		logger.Error(message, "source", "sing-box")
 	default:
-		get().Info(message, "source", "sing-box")
+		logger.Info(message, "source", "sing-box")
 	}
 }
 
