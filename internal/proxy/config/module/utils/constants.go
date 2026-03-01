@@ -6,5 +6,5 @@ const (
 	TagBlock  = "block"
 	TagProxy  = "proxy"
 	TagAuto   = "auto"
-	TagDNS    = "dns-out"
+	//TagDNS    = "dns-out"
 )

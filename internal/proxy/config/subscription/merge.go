@@ -1,7 +1,6 @@
 package subscription
 
 import (
-	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -12,8 +11,6 @@ import (
 // LoadNodesFromCache reads from cache files honoring priority and enablement
 func LoadNodesFromCache(sources []Source, cacheDir string) ([]node.Node, error) {
 	var finalNodes []node.Node
-	globalSeen := make(map[string]bool)
-
 	for _, s := range sources {
 		if !s.EnabledValue() {
 			logger.Debug("Skipping disabled source", "name", s.Name)
@@ -37,20 +34,11 @@ func LoadNodesFromCache(sources []Source, cacheDir string) ([]node.Node, error) 
 			nodes = appendTags(nodes, s.Tags)
 		}
 
-		// Source deduplication
-		if s.DedupeValue() {
-			nodes = dedupeWithinSource(nodes)
-		}
-
-		// Global deduplication (across sources)
+		// Pass dedupe intention to the node level
 		for _, n := range nodes {
-			// use standard signature for global dedupe
-			sig := globalSignature(n)
-			if !globalSeen[sig] {
-				globalSeen[sig] = true
-				n.Source = s.Name
-				finalNodes = append(finalNodes, n)
-			}
+			n.Source = s.Name
+			n.SkipDedupe = !s.DedupeValue()
+			finalNodes = append(finalNodes, n)
 		}
 	}
 
@@ -66,37 +54,4 @@ func appendTags(nodes []node.Node, tags []string) []node.Node {
 		}
 	}
 	return nodes
-}
-
-func dedupeWithinSource(nodes []node.Node) []node.Node {
-	seen := make(map[string]bool)
-	var deduped []node.Node
-	for _, n := range nodes {
-		sig := localSignature(n)
-		if !seen[sig] {
-			seen[sig] = true
-			deduped = append(deduped, n)
-		}
-	}
-	return deduped
-}
-
-// localSignature is used for deduplication within the same source.
-// We use name + type as signature since many users only have one server
-// but use name to distinguish them.
-func localSignature(n node.Node) string {
-	return n.Name + "|" + n.Type
-}
-
-// globalSignature is used for cross-source deduplication.
-// We try to use server+port combination if possible, fallback to localSignature.
-func globalSignature(n node.Node) string {
-	if n.Outbound != nil {
-		server, hasServer := n.Outbound["server"].(string)
-		port, hasPort := n.Outbound["server_port"]
-		if hasServer && hasPort {
-			return fmt.Sprintf("%s:%v|%s", server, port, n.Type)
-		}
-	}
-	return localSignature(n)
 }

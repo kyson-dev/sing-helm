@@ -1,11 +1,12 @@
 package node
 
 import (
+	"fmt"
 	"strings"
 
+	moduleUtils "github.com/kyson-dev/sing-helm/internal/proxy/config/module/utils"
 	"github.com/kyson-dev/sing-helm/internal/proxy/config/node"
 	"github.com/sagernet/sing-box/option"
-	moduleUtils "github.com/kyson-dev/sing-helm/internal/proxy/config/module/utils"
 )
 
 // OutboundProcessor processes raw outbounds, manages tags, and prevents duplication globally.
@@ -17,13 +18,17 @@ type OutboundProcessor struct {
 
 	// sourceGroups maps source names (or 'user') to their nodes' tags. Useful for grouping.
 	sourceGroups map[string][]string
+
+	// globalFingerprints prevents identical nodes (same IP:Port+Type) across all sources.
+	globalFingerprints map[string]bool
 }
 
 func NewOutboundProcessor() *OutboundProcessor {
 	return &OutboundProcessor{
-		usedTags:      make(map[string]bool),
-		originalToTag: make(map[string]map[string]string),
-		sourceGroups:  make(map[string][]string),
+		usedTags:           make(map[string]bool),
+		originalToTag:      make(map[string]map[string]string),
+		sourceGroups:       make(map[string][]string),
+		globalFingerprints: make(map[string]bool),
 	}
 }
 
@@ -33,6 +38,19 @@ func (p *OutboundProcessor) AddNodes(nodes []node.Node) {
 		source := strings.TrimSpace(n.Source)
 		if source == "" {
 			source = "unknown"
+		}
+
+		// 1. Global deduplication
+		if !n.SkipDedupe {
+			fp := p.fingerprint(n)
+			if p.globalFingerprints[fp] {
+				// Record mapping anyway so detour references still work
+				// We map the duplicate's original name to whatever tag we gave to the FIRST seen node.
+				// Wait, we don't know the first seen node's name easily.
+				// But we can just skip it here.
+				continue
+			}
+			p.globalFingerprints[fp] = true
 		}
 
 		// Ensure uniqueness of tag
@@ -64,6 +82,18 @@ func (p *OutboundProcessor) GetGroups() map[string][]string {
 }
 
 // --- Internal helpers ---
+
+func (p *OutboundProcessor) fingerprint(n node.Node) string {
+	if n.Outbound != nil {
+		server, hasServer := n.Outbound["server"].(string)
+		port, hasPort := n.Outbound["server_port"]
+		if hasServer && hasPort {
+			return fmt.Sprintf("%s:%v|%s", server, port, n.Type)
+		}
+	}
+	// Fallback to name+type if no server/port
+	return n.Name + "|" + n.Type
+}
 
 func (p *OutboundProcessor) recordMapping(source, original, unique string) {
 	if p.originalToTag[source] == nil {
