@@ -6,32 +6,12 @@ import (
 	"strings"
 )
 
-// applyVersionCompat applies version-specific compatibility transforms
-func applyVersionCompat(root map[string]any, version string) error {
-	less, err := versionLess(version, "1.12.0")
-	if err != nil {
-		return err
-	}
-
-	if less {
-		// v1.11.x compatibility transforms
-		downgradeDNSServers(root)
-		downgradeDNSDetour(root) // Add detour: direct for DNS servers
-		downgradeRuleSets(root)
-		downgradeSelectorOutbounds(root)
-
-		// tun.address was introduced in v1.11.0.
-		// Only downgrade to inet4_address for v1.10.x and earlier.
-		less111, err := versionLess(version, "1.11.0")
-		if err != nil {
-			return err
-		}
-		if less111 {
-			downgradeTunInbounds(root)
-		}
-	}
-
-	return nil
+// applyCompatForV1114 applies explicit compatibility transforms for sing-box 1.11.4.
+func applyCompatForV1114(root map[string]any) {
+	downgradeDNSServers(root)
+	downgradeDNSDetour(root)
+	downgradeRuleSets(root)
+	downgradeSelectorOutbounds(root)
 }
 
 // downgradeDNSServers converts v1.12+ DNS server format to v1.11.x format
@@ -147,30 +127,6 @@ func downgradeRuleSets(root map[string]any) {
 					// Default to source format for .json files
 					ruleSet["format"] = "source"
 				}
-			}
-		}
-	}
-}
-
-// downgradeTunInbounds converts tun inbound address field for v1.11.x
-func downgradeTunInbounds(root map[string]any) {
-	inbounds, ok := root["inbounds"].([]any)
-	if !ok {
-		return
-	}
-
-	for _, entry := range inbounds {
-		inbound, ok := entry.(map[string]any)
-		if !ok {
-			continue
-		}
-
-		typ, _ := inbound["type"].(string)
-		if typ == "tun" {
-			// Convert address to inet4_address for v1.11.4
-			if address, ok := inbound["address"].(string); ok {
-				inbound["inet4_address"] = address
-				delete(inbound, "address")
 			}
 		}
 	}

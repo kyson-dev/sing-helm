@@ -30,6 +30,12 @@ func newServeCommand() *cobra.Command {
 		Short: "Generate config file and start local HTTP server",
 		Long:  `Generates a sing-box configuration file locally and starts a HTTP server to share it via LAN.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			resolvedVersion, err := resolveServeTargetVersion(targetVersion)
+			if err != nil {
+				fmt.Println(err)
+				return err
+			}
+
 			// 1. 生成并写入本地文件
 			runops := model.DefaultRunOptions()
 			runops.ProxyMode = model.ProxyModeTUN
@@ -38,12 +44,14 @@ func newServeCommand() *cobra.Command {
 			logger.Info("Building options...")
 			opts, err := config.BuildOptions(&runops)
 			if err != nil {
+				fmt.Println(err)
 				return err
 			}
 
-			logger.Info("Exporting config...", "version", targetVersion, "platform", platform)
-			data, err := export.Export(opts, export.Target{Version: targetVersion, Platform: platform})
+			logger.Info("Exporting config...", "version", targetVersion, "resolved_version", resolvedVersion, "platform", platform)
+			data, err := export.Export(opts, export.Target{Version: resolvedVersion, Platform: platform})
 			if err != nil {
+				fmt.Println(err)
 				return err
 			}
 
@@ -111,10 +119,22 @@ func newServeCommand() *cobra.Command {
 
 	cmd.Flags().IntVarP(&port, "port", "p", 8090, "HTTP server port")
 	cmd.Flags().StringVar(&platform, "platform", "ios", "Target platform (e.g. ios)")
-	cmd.Flags().StringVar(&targetVersion, "target-version", "1.11.4", "Target sing-box version")
+	cmd.Flags().StringVar(&targetVersion, "target-version", "1.11.4", "Target sing-box version: 1.11.4 or latest")
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output local file path")
 
 	return cmd
+}
+
+func resolveServeTargetVersion(v string) (string, error) {
+	version := strings.ToLower(strings.TrimSpace(v))
+	switch version {
+	case "1.11.4":
+		return "1.11.4", nil
+	case "latest":
+		return "latest", nil
+	default:
+		return "", fmt.Errorf("unsupported --target-version %q, only supports: 1.11.4, latest", v)
+	}
 }
 
 func defaultExportPath(version, platform string) string {

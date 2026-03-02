@@ -27,16 +27,14 @@ func Export(opts *option.Options, target Target) ([]byte, error) {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
-	// No transforms needed if no target specified
-	if strings.TrimSpace(target.Version) == "" && strings.TrimSpace(target.Platform) == "" {
-		return json.MarshalIndent(root, "", "  ")
-	}
-
-	// Apply version-specific compatibility transforms
-	if strings.TrimSpace(target.Version) != "" {
-		if err := applyVersionCompat(root, target.Version); err != nil {
-			return nil, err
-		}
+	version := strings.ToLower(strings.TrimSpace(target.Version))
+	switch version {
+	case "", "latest":
+		// Latest uses current schema directly.
+	case "1.11.4":
+		applyCompatForV1114(root)
+	default:
+		return nil, fmt.Errorf("unsupported target version %q, only supports: 1.11.4, latest", target.Version)
 	}
 
 	// Apply platform-specific compatibility transforms
