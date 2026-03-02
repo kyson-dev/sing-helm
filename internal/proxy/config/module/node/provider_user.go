@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/kyson-dev/sing-helm/internal/proxy/config/node"
+	"github.com/kyson-dev/sing-helm/internal/proxy/config/model"
 	"github.com/kyson-dev/sing-helm/internal/sys/logger"
 	"github.com/kyson-dev/sing-helm/internal/sys/paths"
 )
@@ -17,7 +17,7 @@ func (p *UserNodeProvider) Name() string {
 	return "user"
 }
 
-func (p *UserNodeProvider) GetNodes() ([]node.Node, error) {
+func (p *UserNodeProvider) GetNodes() ([]model.Node, error) {
 	paths := paths.Get()
 	profileData, err := os.ReadFile(paths.ConfigFile)
 	if err != nil {
@@ -48,7 +48,7 @@ func (p *UserNodeProvider) GetNodes() ([]node.Node, error) {
 		return nil, nil
 	}
 
-	var nodes []node.Node
+	var nodes []model.Node
 	for i, raw := range list {
 		outMap, ok := raw.(map[string]any)
 		if !ok {
@@ -65,7 +65,7 @@ func (p *UserNodeProvider) GetNodes() ([]node.Node, error) {
 		}
 		delete(outMap, "tag")
 
-		nodes = append(nodes, node.Node{
+		nodes = append(nodes, model.Node{
 			Name:     name,
 			Type:     outType,
 			Source:   "user", // Indicates it came from user config

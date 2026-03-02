@@ -4,13 +4,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kyson-dev/sing-helm/internal/proxy/config/node"
+	"github.com/kyson-dev/sing-helm/internal/proxy/config/model"
 	"github.com/kyson-dev/sing-helm/internal/sys/logger"
 )
 
 // LoadNodesFromCache reads from cache files honoring priority and enablement
-func LoadNodesFromCache(sources []Source, cacheDir string) ([]node.Node, error) {
-	var finalNodes []node.Node
+func LoadNodesFromCache(sources []Source, cacheDir string) ([]model.Node, error) {
+	var finalNodes []model.Node
 	for _, s := range sources {
 		if !s.EnabledValue() {
 			logger.Debug("Skipping disabled source", "name", s.Name)
@@ -45,7 +45,7 @@ func LoadNodesFromCache(sources []Source, cacheDir string) ([]node.Node, error) 
 	return finalNodes, nil
 }
 
-func appendTags(nodes []node.Node, tags []string) []node.Node {
+func appendTags(nodes []model.Node, tags []string) []model.Node {
 	for i := range nodes {
 		for _, tag := range tags {
 			if !strings.Contains(nodes[i].Name, tag) {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"os"
 
-	"github.com/kyson-dev/sing-helm/internal/core/model"
+	"github.com/kyson-dev/sing-helm/internal/proxy/config/model"
 	"github.com/kyson-dev/sing-helm/internal/sys/ipc"
 )
 

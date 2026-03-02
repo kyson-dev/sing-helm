@@ -3,9 +3,9 @@ package module
 import (
 	"context"
 
+	moduleUtils "github.com/kyson-dev/sing-helm/internal/proxy/config/module/utils"
 	"github.com/sagernet/sing-box/include"
 	"github.com/sagernet/sing-box/option"
-	moduleUtils "github.com/kyson-dev/sing-helm/internal/proxy/config/module/utils"
 	singboxjson "github.com/sagernet/sing/common/json"
 )
 

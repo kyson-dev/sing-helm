@@ -50,10 +50,9 @@ func openInEditor(cmd *cobra.Command, path string) error {
 		editor = "vim" // Default to vim if EDITOR not set
 	}
 
-	// 检查目标文件所属的 sources.yaml 中的 name
-	// 但是因为现在是 sources.yaml 了，不再是一个文件一个源码，所以我们应该打开 sources.yaml
-	if strings.Contains(path, "sources.yaml") {
-		// allow edit
+	// Simple editor opener
+	if strings.HasSuffix(path, ".json") {
+		// allow edit json files
 	}
 
 	execCmd := exec.Command(editor, path)
@@ -116,7 +115,10 @@ func refreshOneSubscription(cmd *cobra.Command, name, configDir, cacheDir string
 }
 
 func deleteAllSubscriptions(cmd *cobra.Command, configDir, cacheDir string) error {
-	_ = os.Remove(filepath.Join(configDir, "sources.yaml"))
+	sources, _ := subscription.LoadSources(configDir)
+	for _, s := range sources {
+		_ = subscription.DeleteSource(configDir, s.Name)
+	}
 	_ = os.RemoveAll(cacheDir)
 	fmt.Fprintf(cmd.OutOrStdout(), "Deleted all subscriptions.\n")
 	return nil
@@ -142,14 +144,7 @@ func deleteOneSubscription(cmd *cobra.Command, name, configDir, cacheDir string)
 		return fmt.Errorf("subscription not found: %s", name)
 	}
 
-	// Update sources.yaml
-	if len(newSources) == 0 {
-		_ = os.Remove(filepath.Join(configDir, "sources.yaml"))
-	} else {
-		if err := subscription.SaveSources(configDir, newSources); err != nil {
-			return err
-		}
-	}
+	_ = subscription.DeleteSource(configDir, name)
 
 	// Delete cache
 	_ = os.Remove(filepath.Join(cacheDir, name+".json"))

@@ -1,10 +1,10 @@
 package module
 
 import (
-	"github.com/kyson-dev/sing-helm/internal/core/model"
+	"github.com/kyson-dev/sing-helm/internal/proxy/config/model"
+	moduleUtils "github.com/kyson-dev/sing-helm/internal/proxy/config/module/utils"
 	"github.com/sagernet/sing-box/option"
 	singboxjson "github.com/sagernet/sing/common/json"
-	moduleUtils "github.com/kyson-dev/sing-helm/internal/proxy/config/module/utils"
 )
 
 // RouteModule 路由模块

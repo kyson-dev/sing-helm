@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
+	//"strings"
 
-	"github.com/kyson-dev/sing-helm/internal/core/model"
+	"github.com/kyson-dev/sing-helm/internal/proxy/config/model"
 	"github.com/kyson-dev/sing-helm/internal/proxy/config/module"
 	nodeProvider "github.com/kyson-dev/sing-helm/internal/proxy/config/module/node"
 	"github.com/kyson-dev/sing-helm/internal/sys/logger"
@@ -106,30 +106,30 @@ func SaveToFile(path string, opts *option.Options) error {
 
 	// Hotfix for sing-box v1.13.0-rc.7 removing 'format' from output JSON.
 	// We inject 'format' back inside 'rule_set' to maintain compat with v1.11.x
-	if routeStruct, ok := pretty["route"].(map[string]any); ok {
-		if ruleSets, ok := routeStruct["rule_set"].([]any); ok {
-			for idx, rs := range ruleSets {
-				if rsMap, ok := rs.(map[string]any); ok {
-					if _, hasFormat := rsMap["format"]; !hasFormat {
-						// guess format by url/path extension
-						urlStr, _ := rsMap["url"].(string)
-						if urlStr == "" {
-							urlStr, _ = rsMap["path"].(string)
-						}
-						if urlStr != "" {
-							if strings.HasSuffix(urlStr, ".srs") {
-								rsMap["format"] = "binary"
-							} else if strings.HasSuffix(urlStr, ".json") {
-								rsMap["format"] = "source"
-							}
-							ruleSets[idx] = rsMap
-						}
-					}
-				}
-			}
-			routeStruct["rule_set"] = ruleSets
-		}
-	}
+	// if routeStruct, ok := pretty["route"].(map[string]any); ok {
+	// 	if ruleSets, ok := routeStruct["rule_set"].([]any); ok {
+	// 		for idx, rs := range ruleSets {
+	// 			if rsMap, ok := rs.(map[string]any); ok {
+	// 				if _, hasFormat := rsMap["format"]; !hasFormat {
+	// 					// guess format by url/path extension
+	// 					urlStr, _ := rsMap["url"].(string)
+	// 					if urlStr == "" {
+	// 						urlStr, _ = rsMap["path"].(string)
+	// 					}
+	// 					if urlStr != "" {
+	// 						if strings.HasSuffix(urlStr, ".srs") {
+	// 							rsMap["format"] = "binary"
+	// 						} else if strings.HasSuffix(urlStr, ".json") {
+	// 							rsMap["format"] = "source"
+	// 						}
+	// 						ruleSets[idx] = rsMap
+	// 					}
+	// 				}
+	// 			}
+	// 		}
+	// 		routeStruct["rule_set"] = ruleSets
+	// 	}
+	// }
 
 	data, err = json.MarshalIndent(pretty, "", "  ")
 	if err != nil {

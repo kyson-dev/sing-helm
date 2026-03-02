@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/kyson-dev/sing-helm/internal/proxy/config/node"
+	"github.com/kyson-dev/sing-helm/internal/proxy/config/model"
 )
 
 // VMessAdapter handles VMess protocol in Clash and URI formats.
@@ -16,11 +16,11 @@ func init() {
 	Register("vmess", &VMessAdapter{})
 }
 
-func (a *VMessAdapter) FromClash(m map[string]any) (node.Node, error) {
+func (a *VMessAdapter) FromClash(m map[string]any) (model.Node, error) {
 	server := ReadString(m, "server")
 	port := ReadInt(m, "port")
 	if server == "" || port == 0 {
-		return node.Node{}, fmt.Errorf("missing server or port")
+		return model.Node{}, fmt.Errorf("missing server or port")
 	}
 
 	uuid := ReadString(m, "uuid")
@@ -44,21 +44,21 @@ func (a *VMessAdapter) FromClash(m map[string]any) (node.Node, error) {
 	ApplyTLSOptions(outbound, m)
 	ApplyTransportOptions(outbound, m)
 
-	return node.Node{
+	return model.Node{
 		Type:     "vmess",
 		Outbound: outbound,
 	}, nil
 }
 
-func (a *VMessAdapter) FromURI(uri string) (node.Node, error) {
+func (a *VMessAdapter) FromURI(uri string) (model.Node, error) {
 	decoded, err := base64.StdEncoding.DecodeString(uri)
 	if err != nil {
-		return node.Node{}, fmt.Errorf("invalid vmess URI: %w", err)
+		return model.Node{}, fmt.Errorf("invalid vmess URI: %w", err)
 	}
 
 	var m map[string]any
 	if err := json.Unmarshal(decoded, &m); err != nil {
-		return node.Node{}, fmt.Errorf("invalid vmess config: %w", err)
+		return model.Node{}, fmt.Errorf("invalid vmess config: %w", err)
 	}
 
 	server := ReadString(m, "add", "address")
@@ -67,7 +67,7 @@ func (a *VMessAdapter) FromURI(uri string) (node.Node, error) {
 	name := ReadString(m, "ps", "name")
 
 	if server == "" || port == 0 || uuid == "" {
-		return node.Node{}, fmt.Errorf("missing required fields")
+		return model.Node{}, fmt.Errorf("missing required fields")
 	}
 
 	outbound := map[string]any{
@@ -112,7 +112,7 @@ func (a *VMessAdapter) FromURI(uri string) (node.Node, error) {
 		outbound["transport"] = transport
 	}
 
-	return node.Node{
+	return model.Node{
 		Name:     name,
 		Type:     "vmess",
 		Outbound: outbound,
@@ -126,11 +126,11 @@ func init() {
 	Register("vless", &VLessAdapter{})
 }
 
-func (a *VLessAdapter) FromClash(m map[string]any) (node.Node, error) {
+func (a *VLessAdapter) FromClash(m map[string]any) (model.Node, error) {
 	server := ReadString(m, "server")
 	port := ReadInt(m, "port")
 	if server == "" || port == 0 {
-		return node.Node{}, fmt.Errorf("missing server or port")
+		return model.Node{}, fmt.Errorf("missing server or port")
 	}
 
 	uuid := ReadString(m, "uuid")
@@ -148,16 +148,16 @@ func (a *VLessAdapter) FromClash(m map[string]any) (node.Node, error) {
 	ApplyTLSOptions(outbound, m)
 	ApplyTransportOptions(outbound, m)
 
-	return node.Node{
+	return model.Node{
 		Type:     "vless",
 		Outbound: outbound,
 	}, nil
 }
 
-func (a *VLessAdapter) FromURI(uriStr string) (node.Node, error) {
+func (a *VLessAdapter) FromURI(uriStr string) (model.Node, error) {
 	u, err := url.Parse("vless://" + uriStr)
 	if err != nil {
-		return node.Node{}, err
+		return model.Node{}, err
 	}
 
 	uuid := u.User.Username()
@@ -167,7 +167,7 @@ func (a *VLessAdapter) FromURI(uriStr string) (node.Node, error) {
 	query := u.Query()
 
 	if uuid == "" || server == "" || port == "" {
-		return node.Node{}, fmt.Errorf("missing required fields")
+		return model.Node{}, fmt.Errorf("missing required fields")
 	}
 
 	portNum, _ := ParseInt(port)
@@ -211,7 +211,7 @@ func (a *VLessAdapter) FromURI(uriStr string) (node.Node, error) {
 		ApplyURITransport(outbound, network, query)
 	}
 
-	return node.Node{
+	return model.Node{
 		Name:     name,
 		Type:     "vless",
 		Outbound: outbound,

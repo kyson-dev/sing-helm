@@ -5,7 +5,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/kyson-dev/sing-helm/internal/app/tui/monitor"
-	"github.com/kyson-dev/sing-helm/internal/sys/ipc"
 	"github.com/kyson-dev/sing-helm/internal/sys/logger"
 	"github.com/spf13/cobra"
 )
@@ -25,7 +24,7 @@ func newMonitorCommand() *cobra.Command {
 					return fmt.Errorf("sing-box is not running")
 				}
 				listenAddr, _ := resp.Data["listen_addr"].(string)
-				apiPort, ok := ipc.AsInt(resp.Data["api_port"])
+				apiPort, ok := asInt(resp.Data["api_port"])
 				if !ok || apiPort == 0 {
 					return fmt.Errorf("failed to resolve API port from daemon status")
 				}
@@ -47,4 +46,15 @@ func newMonitorCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVarP(&host, "host", "H", "", "Sing-box API host")
 	return cmd
+}
+func asInt(val any) (int, bool) {
+	switch v := val.(type) {
+	case float64:
+		return int(v), true
+	case int:
+		return v, true
+	case int64:
+		return int(v), true
+	}
+	return 0, false
 }

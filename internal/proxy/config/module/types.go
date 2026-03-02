@@ -1,7 +1,7 @@
 package module
 
 import (
-	"github.com/kyson-dev/sing-helm/internal/core/model"
+	"github.com/kyson-dev/sing-helm/internal/proxy/config/model"
 	"github.com/sagernet/sing-box/option"
 )
 

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/kyson-dev/sing-helm/internal/proxy/config/node"
+	"github.com/kyson-dev/sing-helm/internal/proxy/config/model"
 )
 
 // HysteriaAdapter handles Hysteria protocol
@@ -14,11 +14,11 @@ func init() {
 	Register("hysteria", &HysteriaAdapter{})
 }
 
-func (a *HysteriaAdapter) FromClash(m map[string]any) (node.Node, error) {
+func (a *HysteriaAdapter) FromClash(m map[string]any) (model.Node, error) {
 	server := ReadString(m, "server")
 	port := ReadInt(m, "port")
 	if server == "" || port == 0 {
-		return node.Node{}, fmt.Errorf("missing server or port")
+		return model.Node{}, fmt.Errorf("missing server or port")
 	}
 
 	auth := ReadString(m, "auth_str", "auth-str", "auth")
@@ -46,16 +46,16 @@ func (a *HysteriaAdapter) FromClash(m map[string]any) (node.Node, error) {
 
 	ApplyTLSOptions(outbound, m)
 
-	return node.Node{
+	return model.Node{
 		Type:     "hysteria",
 		Outbound: outbound,
 	}, nil
 }
 
-func (a *HysteriaAdapter) FromURI(uriStr string) (node.Node, error) {
+func (a *HysteriaAdapter) FromURI(uriStr string) (model.Node, error) {
 	u, err := url.Parse("hysteria://" + uriStr)
 	if err != nil {
-		return node.Node{}, err
+		return model.Node{}, err
 	}
 
 	auth := u.User.Username()
@@ -65,7 +65,7 @@ func (a *HysteriaAdapter) FromURI(uriStr string) (node.Node, error) {
 	query := u.Query()
 
 	if server == "" || port == "" {
-		return node.Node{}, fmt.Errorf("missing required fields")
+		return model.Node{}, fmt.Errorf("missing required fields")
 	}
 
 	portNum, _ := ParseInt(port)
@@ -99,7 +99,7 @@ func (a *HysteriaAdapter) FromURI(uriStr string) (node.Node, error) {
 	}
 	outbound["tls"] = tls
 
-	return node.Node{
+	return model.Node{
 		Name:     name,
 		Type:     "hysteria",
 		Outbound: outbound,
@@ -114,11 +114,11 @@ func init() {
 	Register("hy2", &Hysteria2Adapter{})
 }
 
-func (a *Hysteria2Adapter) FromClash(m map[string]any) (node.Node, error) {
+func (a *Hysteria2Adapter) FromClash(m map[string]any) (model.Node, error) {
 	server := ReadString(m, "server")
 	port := ReadInt(m, "port")
 	if server == "" || port == 0 {
-		return node.Node{}, fmt.Errorf("missing server or port")
+		return model.Node{}, fmt.Errorf("missing server or port")
 	}
 
 	password := ReadString(m, "password")
@@ -138,16 +138,16 @@ func (a *Hysteria2Adapter) FromClash(m map[string]any) (node.Node, error) {
 
 	ApplyTLSOptions(outbound, m)
 
-	return node.Node{
+	return model.Node{
 		Type:     "hysteria2",
 		Outbound: outbound,
 	}, nil
 }
 
-func (a *Hysteria2Adapter) FromURI(uriStr string) (node.Node, error) {
+func (a *Hysteria2Adapter) FromURI(uriStr string) (model.Node, error) {
 	u, err := url.Parse("hysteria2://" + uriStr)
 	if err != nil {
-		return node.Node{}, err
+		return model.Node{}, err
 	}
 
 	password := u.User.Username()
@@ -157,7 +157,7 @@ func (a *Hysteria2Adapter) FromURI(uriStr string) (node.Node, error) {
 	query := u.Query()
 
 	if server == "" || port == "" {
-		return node.Node{}, fmt.Errorf("missing required fields")
+		return model.Node{}, fmt.Errorf("missing required fields")
 	}
 
 	portNum, _ := ParseInt(port)
@@ -177,7 +177,7 @@ func (a *Hysteria2Adapter) FromURI(uriStr string) (node.Node, error) {
 	}
 	outbound["tls"] = tls
 
-	return node.Node{
+	return model.Node{
 		Name:     name,
 		Type:     "hysteria2",
 		Outbound: outbound,

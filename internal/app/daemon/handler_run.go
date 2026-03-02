@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/kyson-dev/sing-helm/internal/core/model"
+	"github.com/kyson-dev/sing-helm/internal/proxy/config/model"
 	"github.com/kyson-dev/sing-helm/internal/proxy/config"
 	"github.com/kyson-dev/sing-helm/internal/proxy/engine"
 	"github.com/kyson-dev/sing-helm/internal/sys/ipc"
@@ -60,7 +60,7 @@ func (d *Daemon) handleRun(ctx context.Context, payload map[string]any) ipc.Comm
 	d.mu.Lock()
 	d.service = svc
 	if d.state == nil {
-		d.state = &model.RuntimeState{}
+		d.state = &RuntimeState{}
 	}
 	d.state.RunOptions = runops
 	d.mu.Unlock()
@@ -111,7 +111,7 @@ func (d *Daemon) parseRunOptions(payload map[string]any) (model.RunOptions, erro
 }
 
 // applyRunOptions 重新构建配置并 reload sing-box
-func (d *Daemon) applyRunOptions(ctx context.Context, state *model.RuntimeState) error {
+func (d *Daemon) applyRunOptions(ctx context.Context, state *RuntimeState) error {
 	// 检查并设置 reloading 标志，防止并发 reload
 	d.mu.Lock()
 	if d.reloading {

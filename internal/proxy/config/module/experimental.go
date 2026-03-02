@@ -2,6 +2,7 @@ package module
 
 import (
 	"fmt"
+
 	moduleUtils "github.com/kyson-dev/sing-helm/internal/proxy/config/module/utils"
 	"github.com/kyson-dev/sing-helm/internal/sys/paths"
 	"github.com/sagernet/sing-box/option"

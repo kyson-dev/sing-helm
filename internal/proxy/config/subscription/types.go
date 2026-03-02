@@ -1,7 +1,7 @@
 package subscription
 
 import (
-	"github.com/kyson-dev/sing-helm/internal/proxy/config/node"
+	"github.com/kyson-dev/sing-helm/internal/proxy/config/model"
 )
 
 // Source describes a subscription config file.
@@ -19,7 +19,7 @@ type Source struct {
 type Cache struct {
 	Source    Source      `json:"source"`
 	UpdatedAt string      `json:"updated_at"`
-	Nodes     []node.Node `json:"nodes"`
+	Nodes     []model.Node `json:"nodes"`
 }
 
 func (s *Source) NormalizeDefaults(name string) {

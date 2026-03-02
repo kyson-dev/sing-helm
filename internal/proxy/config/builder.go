@@ -3,8 +3,8 @@ package config
 import (
 	"fmt"
 
+	"github.com/kyson-dev/sing-helm/internal/proxy/config/model"
 	"github.com/kyson-dev/sing-helm/internal/proxy/config/module"
-	"github.com/kyson-dev/sing-helm/internal/core/model"
 	"github.com/kyson-dev/sing-helm/internal/sys/logger"
 	"github.com/sagernet/sing-box/option"
 )

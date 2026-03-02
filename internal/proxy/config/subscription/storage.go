@@ -6,69 +6,68 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-
-	"gopkg.in/yaml.v3"
+	"strings"
 )
 
-// Storage handles loading and saving subscription sources
+// LoadSources reads all .json subscription definitions from the config directory
 func LoadSources(configDir string) ([]Source, error) {
-	configPath := filepath.Join(configDir, "sources.yaml")
-	file, err := os.Open(configPath)
+	var sources []Source
+
+	entries, err := os.ReadDir(configDir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("open sources.yaml failed: %w", err)
-	}
-	defer file.Close()
-
-	var doc struct {
-		Sources []Source `yaml:"sources"`
+		return nil, fmt.Errorf("read subscription config dir failed: %w", err)
 	}
 
-	decoder := yaml.NewDecoder(file)
-	if err := decoder.Decode(&doc); err != nil {
-		return nil, fmt.Errorf("decode sources.yaml failed: %w", err)
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
+			continue
+		}
+
+		name := strings.TrimSuffix(entry.Name(), ".json")
+		data, err := os.ReadFile(filepath.Join(configDir, entry.Name()))
+		if err != nil {
+			continue
+		}
+
+		var s Source
+		if err := json.Unmarshal(data, &s); err != nil {
+			continue
+		}
+
+		s.NormalizeDefaults(name)
+		sources = append(sources, s)
 	}
 
-	// Set default values if not explicitly configured
-	for i := range doc.Sources {
-		doc.Sources[i].NormalizeDefaults(fmt.Sprintf("source-%d", i+1))
-	}
-
-	// Sort sources by priority descending (higher integer = higher priority)
-	sort.SliceStable(doc.Sources, func(i, j int) bool {
-		return doc.Sources[i].Priority > doc.Sources[j].Priority
+	// Sort sources by priority descending
+	sort.SliceStable(sources, func(i, j int) bool {
+		return sources[i].Priority > sources[j].Priority
 	})
 
-	return doc.Sources, nil
+	return sources, nil
 }
 
-// SaveSources saves the given list of sources to the configuration directory
-func SaveSources(configDir string, sources []Source) error {
-	configPath := filepath.Join(configDir, "sources.yaml")
-
-	doc := struct {
-		Sources []Source `yaml:"sources"`
-	}{
-		Sources: sources,
-	}
-
-	data, err := yaml.Marshal(&doc)
-	if err != nil {
-		return fmt.Errorf("marshal sources.yaml failed: %w", err)
-	}
-
-	err = os.MkdirAll(configDir, 0755)
-	if err != nil {
+// SaveSource saves a single subscription source to its own .json file
+func SaveSource(configDir string, source Source) error {
+	if err := os.MkdirAll(configDir, 0755); err != nil {
 		return fmt.Errorf("create config dir failed: %w", err)
 	}
 
-	if err := os.WriteFile(configPath, data, 0644); err != nil {
-		return fmt.Errorf("write sources.yaml failed: %w", err)
+	configPath := filepath.Join(configDir, source.Name+".json")
+	data, err := json.MarshalIndent(source, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal subscription source failed: %w", err)
 	}
 
-	return nil
+	return os.WriteFile(configPath, data, 0644)
+}
+
+// DeleteSource removes a subscription source's .json definition
+func DeleteSource(configDir string, name string) error {
+	configPath := filepath.Join(configDir, name+".json")
+	return os.Remove(configPath)
 }
 
 // LoadCache loads parsed nodes strictly from cache file without verification

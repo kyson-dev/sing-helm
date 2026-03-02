@@ -6,7 +6,6 @@ import (
 	"os"
 	"sync"
 
-	"github.com/kyson-dev/sing-helm/internal/core/model"
 	"github.com/kyson-dev/sing-helm/internal/proxy/engine"
 	"github.com/kyson-dev/sing-helm/internal/sys/ipc"
 	"github.com/kyson-dev/sing-helm/internal/sys/lock"
@@ -30,7 +29,7 @@ type Daemon struct {
 	lock           *lock.DaemonLock
 	running        bool
 	reloading      bool
-	state          *model.RuntimeState
+	state          *RuntimeState
 }
 
 // NewDaemon builds a daemon controller.
@@ -135,7 +134,7 @@ func (d *Daemon) cleanup() {
 	}
 	if state != nil {
 		state.PID = 0
-		if err := model.SaveState(state); err != nil {
+		if err := SaveState(state); err != nil {
 			logger.Error("Failed to save runtime state", "error", err)
 		}
 	}
@@ -148,7 +147,7 @@ func (d *Daemon) newService() ServiceRunner {
 	return engine.NewInstance()
 }
 
-func (d *Daemon) currentState() (*model.RuntimeState, error) {
+func (d *Daemon) currentState() (*RuntimeState, error) {
 	d.mu.Lock()
 	state := d.state
 	d.mu.Unlock()
@@ -172,7 +171,7 @@ func (d *Daemon) setRunning(running bool) {
 }
 
 func (d *Daemon) loadState() {
-	state, err := model.LoadState()
+	state, err := LoadState()
 	if err != nil {
 		if os.IsNotExist(err) {
 			return

@@ -1,4 +1,4 @@
-package node
+package model
 
 // Node is a normalized outbound entry representing a proxy node in a universal format.
 type Node struct {

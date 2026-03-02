@@ -3,13 +3,13 @@ package adapter
 import (
 	"fmt"
 
-	"github.com/kyson-dev/sing-helm/internal/proxy/config/node"
+	"github.com/kyson-dev/sing-helm/internal/proxy/config/model"
 )
 
 // ProtocolAdapter describes how to parse different node formats into a standard Node.
 type ProtocolAdapter interface {
-	FromClash(m map[string]any) (node.Node, error)
-	FromURI(uri string) (node.Node, error)
+	FromClash(m map[string]any) (model.Node, error)
+	FromURI(uri string) (model.Node, error)
 }
 
 var registry = make(map[string]ProtocolAdapter)

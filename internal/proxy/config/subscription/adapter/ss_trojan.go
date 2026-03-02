@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/kyson-dev/sing-helm/internal/proxy/config/node"
+	"github.com/kyson-dev/sing-helm/internal/proxy/config/model"
 )
 
 // ShadowsocksAdapter handles Shadowsocks protocol
@@ -17,11 +17,11 @@ func init() {
 	Register("shadowsocks", &ShadowsocksAdapter{})
 }
 
-func (a *ShadowsocksAdapter) FromClash(m map[string]any) (node.Node, error) {
+func (a *ShadowsocksAdapter) FromClash(m map[string]any) (model.Node, error) {
 	server := ReadString(m, "server")
 	port := ReadInt(m, "port")
 	if server == "" || port == 0 {
-		return node.Node{}, fmt.Errorf("missing server or port")
+		return model.Node{}, fmt.Errorf("missing server or port")
 	}
 
 	password := ReadString(m, "password")
@@ -42,16 +42,16 @@ func (a *ShadowsocksAdapter) FromClash(m map[string]any) (node.Node, error) {
 		outbound["plugin_opts"] = pluginOpts
 	}
 
-	return node.Node{
+	return model.Node{
 		Type:     "shadowsocks",
 		Outbound: outbound,
 	}, nil
 }
 
-func (a *ShadowsocksAdapter) FromURI(uriStr string) (node.Node, error) {
+func (a *ShadowsocksAdapter) FromURI(uriStr string) (model.Node, error) {
 	parts := strings.SplitN(uriStr, "@", 2)
 	if len(parts) != 2 {
-		return node.Node{}, fmt.Errorf("invalid ss URI format")
+		return model.Node{}, fmt.Errorf("invalid ss URI format")
 	}
 
 	methodPassword := parts[0]
@@ -62,7 +62,7 @@ func (a *ShadowsocksAdapter) FromURI(uriStr string) (node.Node, error) {
 
 	mpParts := strings.SplitN(methodPassword, ":", 2)
 	if len(mpParts) != 2 {
-		return node.Node{}, fmt.Errorf("invalid method:password format")
+		return model.Node{}, fmt.Errorf("invalid method:password format")
 	}
 
 	method := mpParts[0]
@@ -78,13 +78,13 @@ func (a *ShadowsocksAdapter) FromURI(uriStr string) (node.Node, error) {
 
 	spParts := strings.SplitN(serverPart, ":", 2)
 	if len(spParts) != 2 {
-		return node.Node{}, fmt.Errorf("invalid server:port format")
+		return model.Node{}, fmt.Errorf("invalid server:port format")
 	}
 
 	server := spParts[0]
 	port, _ := ParseInt(spParts[1])
 
-	return node.Node{
+	return model.Node{
 		Name: name,
 		Type: "shadowsocks",
 		Outbound: map[string]any{
@@ -104,11 +104,11 @@ func init() {
 	Register("trojan", &TrojanAdapter{})
 }
 
-func (a *TrojanAdapter) FromClash(m map[string]any) (node.Node, error) {
+func (a *TrojanAdapter) FromClash(m map[string]any) (model.Node, error) {
 	server := ReadString(m, "server")
 	port := ReadInt(m, "port")
 	if server == "" || port == 0 {
-		return node.Node{}, fmt.Errorf("missing server or port")
+		return model.Node{}, fmt.Errorf("missing server or port")
 	}
 
 	password := ReadString(m, "password")
@@ -123,16 +123,16 @@ func (a *TrojanAdapter) FromClash(m map[string]any) (node.Node, error) {
 	ApplyTLSOptions(outbound, m)
 	ApplyTransportOptions(outbound, m)
 
-	return node.Node{
+	return model.Node{
 		Type:     "trojan",
 		Outbound: outbound,
 	}, nil
 }
 
-func (a *TrojanAdapter) FromURI(uriStr string) (node.Node, error) {
+func (a *TrojanAdapter) FromURI(uriStr string) (model.Node, error) {
 	u, err := url.Parse("trojan://" + uriStr)
 	if err != nil {
-		return node.Node{}, err
+		return model.Node{}, err
 	}
 
 	password := u.User.Username()
@@ -142,7 +142,7 @@ func (a *TrojanAdapter) FromURI(uriStr string) (node.Node, error) {
 	query := u.Query()
 
 	if password == "" || server == "" || port == "" {
-		return node.Node{}, fmt.Errorf("missing required fields")
+		return model.Node{}, fmt.Errorf("missing required fields")
 	}
 
 	portNum, _ := ParseInt(port)
@@ -165,7 +165,7 @@ func (a *TrojanAdapter) FromURI(uriStr string) (node.Node, error) {
 		ApplyURITransport(outbound, network, query)
 	}
 
-	return node.Node{
+	return model.Node{
 		Name:     name,
 		Type:     "trojan",
 		Outbound: outbound,

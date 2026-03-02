@@ -1,9 +1,9 @@
 package module
 
 import (
-	"github.com/sagernet/sing-box/option"
-	moduleUtils "github.com/kyson-dev/sing-helm/internal/proxy/config/module/utils"
 	nodeProvider "github.com/kyson-dev/sing-helm/internal/proxy/config/module/node"
+	moduleUtils "github.com/kyson-dev/sing-helm/internal/proxy/config/module/utils"
+	"github.com/sagernet/sing-box/option"
 )
 
 // OutboundModule 出站模块

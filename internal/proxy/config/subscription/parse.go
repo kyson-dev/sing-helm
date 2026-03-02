@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/kyson-dev/sing-helm/internal/proxy/config/node"
+	"github.com/kyson-dev/sing-helm/internal/proxy/config/model"
 	"github.com/kyson-dev/sing-helm/internal/proxy/config/subscription/adapter"
 	"github.com/kyson-dev/sing-helm/internal/sys/logger"
 	"gopkg.in/yaml.v3"
@@ -33,7 +33,7 @@ func NormalizeFormat(format string) string {
 }
 
 // Parse parses subscription content into a standard Node list.
-func Parse(content []byte, format string) ([]node.Node, error) {
+func Parse(content []byte, format string) ([]model.Node, error) {
 	format = NormalizeFormat(strings.ToLower(strings.TrimSpace(format)))
 	switch format {
 	case FormatAuto:
@@ -58,7 +58,7 @@ func Parse(content []byte, format string) ([]node.Node, error) {
 	}
 }
 
-func parseSingBox(content []byte) ([]node.Node, error) {
+func parseSingBox(content []byte) ([]model.Node, error) {
 	var root map[string]any
 	if err := json.Unmarshal(content, &root); err != nil {
 		return nil, err
@@ -74,7 +74,7 @@ func parseSingBox(content []byte) ([]node.Node, error) {
 		return nil, fmt.Errorf("invalid outbounds format")
 	}
 
-	var nodes []node.Node
+	var nodes []model.Node
 	for i, raw := range list {
 		outMap, ok := raw.(map[string]any)
 		if !ok {
@@ -90,7 +90,7 @@ func parseSingBox(content []byte) ([]node.Node, error) {
 		}
 		delete(outMap, "tag")
 
-		nodes = append(nodes, node.Node{
+		nodes = append(nodes, model.Node{
 			Name:     name,
 			Type:     outType,
 			Outbound: outMap,
@@ -103,7 +103,7 @@ func parseSingBox(content []byte) ([]node.Node, error) {
 	return nodes, nil
 }
 
-func parseClash(content []byte) ([]node.Node, error) {
+func parseClash(content []byte) ([]model.Node, error) {
 	var root map[string]any
 	if err := yaml.Unmarshal(content, &root); err != nil {
 		return nil, err
@@ -119,7 +119,7 @@ func parseClash(content []byte) ([]node.Node, error) {
 		return nil, fmt.Errorf("invalid proxies format")
 	}
 
-	var nodes []node.Node
+	var nodes []model.Node
 	for _, raw := range list {
 		proxyMap := adapter.AsStringMap(raw)
 		if proxyMap == nil {
@@ -155,14 +155,14 @@ func parseClash(content []byte) ([]node.Node, error) {
 	return nodes, nil
 }
 
-func parseBase64URI(content []byte) ([]node.Node, error) {
+func parseBase64URI(content []byte) ([]model.Node, error) {
 	decoded, err := base64.StdEncoding.DecodeString(string(content))
 	if err != nil {
 		decoded = content
 	}
 
 	lines := strings.Split(string(decoded), "\n")
-	var nodes []node.Node
+	var nodes []model.Node
 
 	for _, line := range lines {
 		line = strings.TrimSpace(line)

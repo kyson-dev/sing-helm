@@ -1,13 +1,16 @@
-package model
+package daemon
 
 import (
 	"encoding/json"
 	"os"
+
+	"github.com/kyson-dev/sing-helm/internal/proxy/config/model"
+	"github.com/kyson-dev/sing-helm/internal/sys/paths"
 )
 
 type RuntimeState struct {
-	RunOptions RunOptions `json:"run_options"`
-	PID        int        `json:"pid"`
+	RunOptions model.RunOptions `json:"run_options"`
+	PID        int              `json:"pid"`
 }
 
 // SaveState saves runtime state to the given path.
@@ -45,5 +48,5 @@ func LoadStateFrom(path string) (*RuntimeState, error) {
 func defaultStatePath() string {
 	// Lazy import to avoid circular dependency at package level.
 	// Uses the global singleton — callers that want DI should use SaveStateTo/LoadStateFrom.
-	return platformGetStateFile()
+	return paths.Get().StateFile
 }

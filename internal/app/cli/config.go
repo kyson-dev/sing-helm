@@ -102,13 +102,11 @@ func newConfigAddCommand() *cobra.Command {
 				Enabled:  &enabled,
 				Dedupe:   &dedupe,
 			}
-			sources = append(sources, source)
-
-			if err := subscription.SaveSources(p.SubConfigDir, sources); err != nil {
+			if err := subscription.SaveSource(p.SubConfigDir, source); err != nil {
 				return err
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Saved: %s\n", filepath.Join(p.SubConfigDir, "sources.yaml"))
+			fmt.Fprintf(cmd.OutOrStdout(), "Saved: %s\n", filepath.Join(p.SubConfigDir, source.Name+".json"))
 			return nil
 		},
 	}
@@ -134,7 +132,7 @@ func newConfigEditCommand() *cobra.Command {
 				if err := os.MkdirAll(p.SubCacheDir, 0755); err != nil {
 					return fmt.Errorf("failed to create cache dir: %w", err)
 				}
-				target = filepath.Join(p.SubConfigDir, "sources.yaml")
+				target = filepath.Join(p.SubConfigDir, args[0]+".json")
 			}
 			return openInEditor(cmd, target)
 		},

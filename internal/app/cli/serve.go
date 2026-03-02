@@ -10,9 +10,9 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/kyson-dev/sing-helm/internal/core/model"
 	"github.com/kyson-dev/sing-helm/internal/proxy/config"
 	"github.com/kyson-dev/sing-helm/internal/proxy/config/export"
+	"github.com/kyson-dev/sing-helm/internal/proxy/config/model"
 	"github.com/kyson-dev/sing-helm/internal/sys/logger"
 	"github.com/spf13/cobra"
 )

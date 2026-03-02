@@ -1,7 +1,7 @@
 package node
 
 import (
-	"github.com/kyson-dev/sing-helm/internal/proxy/config/node"
+	"github.com/kyson-dev/sing-helm/internal/proxy/config/model"
 	"github.com/kyson-dev/sing-helm/internal/proxy/config/subscription"
 	"github.com/kyson-dev/sing-helm/internal/sys/logger"
 	"github.com/kyson-dev/sing-helm/internal/sys/paths"
@@ -14,7 +14,7 @@ func (p *SubscriptionNodeProvider) Name() string {
 	return "subscription"
 }
 
-func (p *SubscriptionNodeProvider) GetNodes() ([]node.Node, error) {
+func (p *SubscriptionNodeProvider) GetNodes() ([]model.Node, error) {
 	paths := paths.Get()
 	sources, err := subscription.LoadSources(paths.SubConfigDir)
 	if err != nil {
@@ -27,7 +27,7 @@ func (p *SubscriptionNodeProvider) GetNodes() ([]node.Node, error) {
 		return nil, nil // Return empty list instead of failing the whole build
 	}
 
-	var nodes []node.Node
+	var nodes []model.Node
 	for _, n := range subNodes {
 		if n.Outbound == nil || n.Source == "" {
 			continue
@@ -38,7 +38,7 @@ func (p *SubscriptionNodeProvider) GetNodes() ([]node.Node, error) {
 			outboundCopy[k] = v
 		}
 
-		nodes = append(nodes, node.Node{
+		nodes = append(nodes, model.Node{
 			Name:     n.Name,
 			Type:     n.Type,
 			Source:   n.Source, // Provide the sub source name

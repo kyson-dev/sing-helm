@@ -1,8 +1,8 @@
 package cli
 
 import (
-	"github.com/kyson-dev/sing-helm/internal/core/version"
 	"github.com/kyson-dev/sing-helm/internal/sys/logger"
+	"github.com/kyson-dev/sing-helm/internal/sys/version"
 	"github.com/spf13/cobra"
 )
 

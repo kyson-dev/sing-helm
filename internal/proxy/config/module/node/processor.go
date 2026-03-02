@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	moduleUtils "github.com/kyson-dev/sing-helm/internal/proxy/config/module/utils"
-	"github.com/kyson-dev/sing-helm/internal/proxy/config/node"
+	"github.com/kyson-dev/sing-helm/internal/proxy/config/model"
 	"github.com/sagernet/sing-box/option"
 )
 
@@ -33,7 +33,7 @@ func NewOutboundProcessor() *OutboundProcessor {
 }
 
 // AddNodes processes a list of raw nodes gathered from a provider
-func (p *OutboundProcessor) AddNodes(nodes []node.Node) {
+func (p *OutboundProcessor) AddNodes(nodes []model.Node) {
 	for _, n := range nodes {
 		source := strings.TrimSpace(n.Source)
 		if source == "" {
@@ -45,7 +45,7 @@ func (p *OutboundProcessor) AddNodes(nodes []node.Node) {
 			fp := p.fingerprint(n)
 			if p.globalFingerprints[fp] {
 				// Record mapping anyway so detour references still work
-				// We map the duplicate's original name to whatever tag we gave to the FIRST seen node.
+				// We map the duplicate's original name to whatever tag we gave to the FIRST seen model.
 				// Wait, we don't know the first seen node's name easily.
 				// But we can just skip it here.
 				continue
@@ -83,7 +83,7 @@ func (p *OutboundProcessor) GetGroups() map[string][]string {
 
 // --- Internal helpers ---
 
-func (p *OutboundProcessor) fingerprint(n node.Node) string {
+func (p *OutboundProcessor) fingerprint(n model.Node) string {
 	if n.Outbound != nil {
 		server, hasServer := n.Outbound["server"].(string)
 		port, hasPort := n.Outbound["server_port"]
@@ -133,7 +133,7 @@ func (p *OutboundProcessor) resolveDetour(target string) (string, bool) {
 
 	// 2. linear search across all mappings
 	// A more robust implementation would require knowing the source of the reference,
-	// but usually users reference by the original name of a user node.
+	// but usually users reference by the original name of a user model.
 	for _, mapping := range p.originalToTag {
 		if mapped, exists := mapping[target]; exists {
 			return mapped, true

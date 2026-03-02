@@ -3,7 +3,7 @@ package version_test
 import (
 	"testing"
 
-	"github.com/kyson-dev/sing-helm/internal/core/version"
+	"github.com/kyson-dev/sing-helm/internal/sys/version"
 
 	"github.com/stretchr/testify/assert"
 )
