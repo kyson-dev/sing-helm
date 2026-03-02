@@ -1,11 +1,12 @@
 package node
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
-	moduleUtils "github.com/kyson-dev/sing-helm/internal/proxy/config/module/utils"
 	"github.com/kyson-dev/sing-helm/internal/proxy/config/model"
+	moduleUtils "github.com/kyson-dev/sing-helm/internal/proxy/config/module/utils"
 	"github.com/sagernet/sing-box/option"
 )
 
@@ -21,6 +22,9 @@ type OutboundProcessor struct {
 
 	// globalFingerprints prevents identical nodes (same IP:Port+Type) across all sources.
 	globalFingerprints map[string]bool
+	fingerprintToTag   map[string]string
+	globalNameToTag    map[string]string // original name -> unique tag (only when globally unambiguous)
+	ambiguousNames     map[string]bool   // original names that map to multiple unique tags
 }
 
 func NewOutboundProcessor() *OutboundProcessor {
@@ -29,6 +33,9 @@ func NewOutboundProcessor() *OutboundProcessor {
 		originalToTag:      make(map[string]map[string]string),
 		sourceGroups:       make(map[string][]string),
 		globalFingerprints: make(map[string]bool),
+		fingerprintToTag:   make(map[string]string),
+		globalNameToTag:    make(map[string]string),
+		ambiguousNames:     make(map[string]bool),
 	}
 }
 
@@ -41,13 +48,14 @@ func (p *OutboundProcessor) AddNodes(nodes []model.Node) {
 		}
 
 		// 1. Global deduplication
+		var fp string
 		if !n.SkipDedupe {
-			fp := p.fingerprint(n)
+			fp = p.fingerprint(n)
 			if p.globalFingerprints[fp] {
-				// Record mapping anyway so detour references still work
-				// We map the duplicate's original name to whatever tag we gave to the FIRST seen model.
-				// Wait, we don't know the first seen node's name easily.
-				// But we can just skip it here.
+				// Keep duplicate-name mapping to canonical tag so detour references remain valid.
+				if canonicalTag, ok := p.fingerprintToTag[fp]; ok {
+					p.recordMapping(source, n.Name, canonicalTag)
+				}
 				continue
 			}
 			p.globalFingerprints[fp] = true
@@ -56,6 +64,9 @@ func (p *OutboundProcessor) AddNodes(nodes []model.Node) {
 		// Ensure uniqueness of tag
 		uniqueTag := MakeUniqueOutboundTag(n.Name, source, p.usedTags)
 		p.recordMapping(source, n.Name, uniqueTag)
+		if !n.SkipDedupe {
+			p.fingerprintToTag[fp] = uniqueTag
+		}
 
 		// Create the option.Outbound structure
 		outbound := p.mapToOutbound(n.Type, uniqueTag, n.Outbound)
@@ -84,14 +95,32 @@ func (p *OutboundProcessor) GetGroups() map[string][]string {
 // --- Internal helpers ---
 
 func (p *OutboundProcessor) fingerprint(n model.Node) string {
-	if n.Outbound != nil {
-		server, hasServer := n.Outbound["server"].(string)
-		port, hasPort := n.Outbound["server_port"]
-		if hasServer && hasPort {
+	if n.Outbound == nil {
+		return n.Name + "|" + n.Type
+	}
+
+	identity := make(map[string]any, len(n.Outbound)+1)
+	identity["type"] = n.Type
+	for k, v := range n.Outbound {
+		switch k {
+		case "tag", "detour":
+			continue
+		default:
+			identity[k] = v
+		}
+	}
+
+	raw, err := json.Marshal(identity)
+	if err == nil {
+		return string(raw)
+	}
+
+	// Fallback to a coarse key only if marshal unexpectedly fails.
+	if server, hasServer := n.Outbound["server"].(string); hasServer {
+		if port, hasPort := n.Outbound["server_port"]; hasPort {
 			return fmt.Sprintf("%s:%v|%s", server, port, n.Type)
 		}
 	}
-	// Fallback to name+type if no server/port
 	return n.Name + "|" + n.Type
 }
 
@@ -100,6 +129,17 @@ func (p *OutboundProcessor) recordMapping(source, original, unique string) {
 		p.originalToTag[source] = make(map[string]string)
 	}
 	p.originalToTag[source][original] = unique
+
+	// Keep a deterministic global-name mapping only when unambiguous.
+	if original == "" || p.ambiguousNames[original] {
+		return
+	}
+	if existing, ok := p.globalNameToTag[original]; ok && existing != unique {
+		delete(p.globalNameToTag, original)
+		p.ambiguousNames[original] = true
+		return
+	}
+	p.globalNameToTag[original] = unique
 }
 
 func (p *OutboundProcessor) mapToOutbound(outType, tag string, raw map[string]any) option.Outbound {
@@ -131,15 +171,25 @@ func (p *OutboundProcessor) resolveDetour(target string) (string, bool) {
 		return target, true
 	}
 
-	// 2. linear search across all mappings
-	// A more robust implementation would require knowing the source of the reference,
-	// but usually users reference by the original name of a user model.
-	for _, mapping := range p.originalToTag {
-		if mapped, exists := mapping[target]; exists {
-			return mapped, true
+	// 2. already a concrete generated tag
+	if p.usedTags[target] {
+		return target, true
+	}
+
+	// 3. source-qualified lookup: "<source>/<original-name>"
+	if source, name, ok := strings.Cut(target, "/"); ok && source != "" && name != "" {
+		if mapping := p.originalToTag[source]; mapping != nil {
+			if mapped, exists := mapping[name]; exists {
+				return mapped, true
+			}
 		}
 	}
 
-	// 3. direct use (assume user knows what they're doing)
+	// 4. deterministic global-name lookup (only for unambiguous names)
+	if mapped, ok := p.globalNameToTag[target]; ok {
+		return mapped, true
+	}
+
+	// 5. direct use (assume user knows what they're doing)
 	return target, false
 }
