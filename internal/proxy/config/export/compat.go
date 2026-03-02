@@ -18,8 +18,17 @@ func applyVersionCompat(root map[string]any, version string) error {
 		downgradeDNSServers(root)
 		downgradeDNSDetour(root) // Add detour: direct for DNS servers
 		downgradeRuleSets(root)
-		downgradeTunInbounds(root)
 		downgradeSelectorOutbounds(root)
+
+		// tun.address was introduced in v1.11.0.
+		// Only downgrade to inet4_address for v1.10.x and earlier.
+		less111, err := versionLess(version, "1.11.0")
+		if err != nil {
+			return err
+		}
+		if less111 {
+			downgradeTunInbounds(root)
+		}
 	}
 
 	return nil

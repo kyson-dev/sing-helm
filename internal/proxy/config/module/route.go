@@ -62,16 +62,17 @@ func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 	var ruleSets []map[string]any
 	var rules []map[string]any
 
-	// 片段 1: 局域网直连 (必须最优先)
-	rules = append(rules, map[string]any{"ip_is_private": true, "outbound": moduleUtils.TagDirect})
-
-	// 片段 2: NTP 直连
-	rules = append(rules, map[string]any{"protocol": []string{"ntp"}, "outbound": moduleUtils.TagDirect})
-
-	// 片段 3: DNS 流量专门劫持 (在 TUN/Mixed 模式中，由 sing-box 本地解析)
+	// 片段 1: DNS 流量专门劫持 (在 TUN/Mixed 模式中，由 sing-box 本地解析)
+	// 必须在 ip_is_private 之前，否则会把 172.19.0.2:53 等 DNS 包提前放行到 direct，导致 DNS 劫持失效。
 	rules = append(rules, map[string]any{"protocol": []string{"dns"}, "action": "hijack-dns"})
 	// 针对 ali dns 放行（因为在 DNS 模块中配置了国内直接去 ali 解析，避免循环）
 	rules = append(rules, map[string]any{"ip_cidr": []string{"223.5.5.5/32", "223.6.6.6/32", "2400:3200::/32"}, "outbound": moduleUtils.TagDirect})
+
+	// 片段 2: 局域网直连
+	rules = append(rules, map[string]any{"ip_is_private": true, "outbound": moduleUtils.TagDirect})
+
+	// 片段 3: NTP 直连
+	rules = append(rules, map[string]any{"protocol": []string{"ntp"}, "outbound": moduleUtils.TagDirect})
 
 	// 片段 4: 去广告模块
 	ruleSets = append(ruleSets, map[string]any{
