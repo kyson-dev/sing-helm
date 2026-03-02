@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/kyson-dev/sing-helm/internal/proxy/config/model"
 	"github.com/kyson-dev/sing-helm/internal/proxy/config"
+	"github.com/kyson-dev/sing-helm/internal/proxy/config/model"
 	"github.com/kyson-dev/sing-helm/internal/proxy/engine"
 	"github.com/kyson-dev/sing-helm/internal/sys/ipc"
 	"github.com/kyson-dev/sing-helm/internal/sys/logger"
@@ -74,16 +74,22 @@ func (d *Daemon) handleRun(ctx context.Context, payload map[string]any) ipc.Comm
 
 // parseRunOptions 解析 run 命令的参数
 func (d *Daemon) parseRunOptions(payload map[string]any) (model.RunOptions, error) {
+	// 1. 底层：硬编码默认值
 	runops := model.DefaultRunOptions()
 	d.mu.Lock()
 	state := d.state
 	d.mu.Unlock()
+
+	// 2. 第二层覆盖：上一次的 RuntimeState (通常在 restart 时)
 	if state != nil {
 		logger.Info("Using state from file", "proxy_mode", state.RunOptions.ProxyMode, "route_mode", state.RunOptions.RouteMode)
 		runops = state.RunOptions
 	} else {
 		logger.Info("No state file, using defaults")
 	}
+
+	// 3. 最顶端层覆盖：本次 IPC 的 Payload (比如 sing-helm run --mode global)
+	// 这是最高优先级的动态指定
 	if payload == nil {
 		return runops, nil
 	}

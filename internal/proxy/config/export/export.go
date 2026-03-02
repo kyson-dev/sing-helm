@@ -22,14 +22,10 @@ func Export(opts *option.Options, target Target) ([]byte, error) {
 		return nil, fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	fmt.Printf("DEBUG Raw JSON: %s\n", string(data)) // 检查这里的 JSON 是否有 
-
 	var root map[string]any
 	if err := json.Unmarshal(data, &root); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
-
-	fmt.Printf("DEBUG Map Root: %+v\n", root) 
 
 	// No transforms needed if no target specified
 	if strings.TrimSpace(target.Version) == "" && strings.TrimSpace(target.Platform) == "" {

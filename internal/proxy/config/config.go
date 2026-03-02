@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"os"
 
-	//"strings"
-
 	"github.com/kyson-dev/sing-helm/internal/proxy/config/model"
 	"github.com/kyson-dev/sing-helm/internal/proxy/config/module"
 	nodeProvider "github.com/kyson-dev/sing-helm/internal/proxy/config/module/node"
@@ -51,8 +49,8 @@ func DefaultModules(opts *model.RunOptions) []module.ConfigModule {
 	}
 
 	modules := []module.ConfigModule{
+		&module.TemplateModule{},
 		module.NewOutboundModule(
-			&nodeProvider.UserNodeProvider{},
 			&nodeProvider.SubscriptionNodeProvider{},
 		),
 	}
@@ -62,7 +60,7 @@ func DefaultModules(opts *model.RunOptions) []module.ConfigModule {
 	case model.ProxyModeTUN:
 		modules = append(modules,
 			&module.TUNModule{},
-			&module.TUNDNSModule{},
+			&module.DNSModule{},
 		)
 	case model.ProxyModeSystem:
 		modules = append(modules, &module.MixedModule{
@@ -98,7 +96,6 @@ func SaveToFile(path string, opts *option.Options) error {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	// Re-marshal for pretty print
 	// Re-marshal for pretty print
 	var pretty map[string]any
 	if err := json.Unmarshal(data, &pretty); err != nil {

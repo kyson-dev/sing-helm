@@ -1,8 +1,11 @@
 package module
 
 import (
+	"context"
+
 	"github.com/kyson-dev/sing-helm/internal/proxy/config/model"
 	moduleUtils "github.com/kyson-dev/sing-helm/internal/proxy/config/module/utils"
+	"github.com/sagernet/sing-box/include"
 	"github.com/sagernet/sing-box/option"
 	singboxjson "github.com/sagernet/sing/common/json"
 )
@@ -38,10 +41,11 @@ func (m *RouteModule) Apply(opts *option.Options, ctx *BuildContext) error {
 		opts.Route.Final = moduleUtils.TagDirect
 	}
 
-	// 3. 构建并应用默认扩展拼图 (当用户没有完全接管路由时)
-	// 如果用户自己配了 rule_set，我们尽量把系统必备的加到后面。
-	if len(opts.Route.Rules) == 0 {
-		m.applyDefaultFragments(opts)
+	// 3. 构建并应用默认扩展拼图 (作为无条件兜底)
+	// 我们将生成的保底规则直接追加到用户自定义规则的后面。
+	// 这样用户在 profile.json 中配置的分流优先级最高。
+	if err := m.applyDefaultFragments(opts); err != nil {
+		return err
 	}
 
 	// 4. 清空特定模式下的所有非必要规则
@@ -86,13 +90,6 @@ func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 	})
 	rules = append(rules, map[string]any{"rule_set": []string{"geosite-ads", "anti-ad"}, "outbound": moduleUtils.TagBlock})
 
-	// 片段 5: 直连白名单
-	rules = append(rules, map[string]any{
-		"domain_suffix": []string{"wise.com", "schwab.com", "interactivebrokers.com", "cloudflare.com",
-			"5e1f8y2z3l9.shop", "sky.money", "ethena.fi"},
-		"outbound": moduleUtils.TagDirect,
-	})
-
 	// 片段 6: Apple 流量直连
 	ruleSets = append(ruleSets, map[string]any{
 		"tag":             "geosite-apple",
@@ -133,7 +130,8 @@ func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 	}
 
 	var generatedRoute option.RouteOptions
-	if err := singboxjson.Unmarshal(data, &generatedRoute); err != nil {
+	tx := include.Context(context.Background())
+	if err := singboxjson.UnmarshalContext(tx, data, &generatedRoute); err != nil {
 		return err
 	}
 

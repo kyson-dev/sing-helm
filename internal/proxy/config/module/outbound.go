@@ -23,9 +23,12 @@ func (m *OutboundModule) Name() string {
 
 func (m *OutboundModule) Apply(opts *option.Options, ctx *BuildContext) error {
 	processor := nodeProvider.NewOutboundProcessor()
+	providers := make([]nodeProvider.NodeProvider, 0, len(m.providers)+1)
+	providers = append(providers, nodeProvider.NewUserNodeProvider(opts.Outbounds))
+	providers = append(providers, m.providers...)
 
 	// 1. 从所有 Provider 获取节点
-	for _, provider := range m.providers {
+	for _, provider := range providers {
 		nodes, err := provider.GetNodes()
 		if err != nil {
 			return err
@@ -97,7 +100,51 @@ func (m *OutboundModule) Apply(opts *option.Options, ctx *BuildContext) error {
 	}
 
 	// 4. 将合并后的出站回填
-	opts.Outbounds = append(opts.Outbounds, filteredOutbounds...)
+	// 规则：
+	// - 硬编码/生成出站优先：与用户同名时舍弃用户定义
+	// - 用户其他自定义出站保留
+	userGeneratedTags := make(map[string]bool)
+	for _, tag := range processor.GetGroups()["user"] {
+		userGeneratedTags[tag] = true
+	}
+
+	generatedByTag := make(map[string]bool, len(filteredOutbounds))
+	for _, fo := range filteredOutbounds {
+		generatedByTag[fo.Tag] = true
+	}
+
+	preservedUserOutbounds := make([]option.Outbound, 0, len(opts.Outbounds))
+	for _, out := range opts.Outbounds {
+		// 同名时硬编码优先，丢弃用户定义
+		if generatedByTag[out.Tag] && !userGeneratedTags[out.Tag] {
+			continue
+		}
+
+		// 用户 selector/urltest 的 outbounds 为空数组时，自动填充全部实际节点。
+		if len(actualNodes) > 0 {
+			switch outOpts := out.Options.(type) {
+			case *option.SelectorOutboundOptions:
+				if len(outOpts.Outbounds) == 0 {
+					outOpts.Outbounds = append([]string(nil), actualNodes...)
+				}
+			case *option.URLTestOutboundOptions:
+				if len(outOpts.Outbounds) == 0 {
+					outOpts.Outbounds = append([]string(nil), actualNodes...)
+				}
+			}
+		}
+
+		preservedUserOutbounds = append(preservedUserOutbounds, out)
+	}
+
+	// 先保留用户剩余配置，再追加硬编码/生成出站（同名已在上面剔除用户项）。
+	opts.Outbounds = preservedUserOutbounds
+	for _, fo := range filteredOutbounds {
+		if userGeneratedTags[fo.Tag] {
+			continue
+		}
+		opts.Outbounds = append(opts.Outbounds, fo)
+	}
 
 	return nil
 }
