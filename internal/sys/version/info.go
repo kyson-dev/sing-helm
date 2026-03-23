@@ -3,7 +3,7 @@ package version
 import "fmt"
 
 var (
-	Tag    string = "dev"
+	Tag    string = "v0.2.0"
 	Commit string = "none"
 	Date   string = "unknow"
 )
