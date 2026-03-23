@@ -11,8 +11,7 @@ import (
 func TestInfo_String(t *testing.T) {
 	// Test Version info
 	v := version.Info{}
-	resut := v.String()
-
-	assert.Contains(t, resut, "sing-helm")
-	assert.Contains(t, resut, "dev")
+	result := v.String()
+	assert.Contains(t, result, "sing-helm")
+	assert.Contains(t, result, version.Tag)
 }
