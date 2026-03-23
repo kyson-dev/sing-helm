@@ -8,6 +8,8 @@
 
 # Test binary, built with `go test -c`
 *.test
+refactor.md
+serve_log.txt
 
 # Output of the go coverage tool, specifically when used with Litmus
 *.out
@@ -47,3 +49,6 @@ geoip.db
 geosite.db
 cache.db
 sing-helm
+
+.gemini/
+gha-creds-*.json
