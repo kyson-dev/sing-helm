@@ -52,3 +52,7 @@ sing-helm
 
 .gemini/
 gha-creds-*.json
+
+# Temporary files and directories
+.tmp/
+.tmp

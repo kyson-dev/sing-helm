@@ -1,3 +1,4 @@
+
 package module
 
 import (
@@ -61,6 +62,9 @@ func (m *RouteModule) Apply(opts *option.Options, ctx *BuildContext) error {
 func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 	var ruleSets []map[string]any
 	var rules []map[string]any
+
+	// 协议嗅探 (Sniffing) - 必须放在第一位进行协议和域名嗅探
+	rules = append(rules, map[string]any{"action": "sniff"})
 
 	// 片段 1: DNS 流量专门劫持 (在 TUN/Mixed 模式中，由 sing-box 本地解析)
 	// 必须在 ip_is_private 之前，否则会把 172.19.0.2:53 等 DNS 包提前放行到 direct，导致 DNS 劫持失效。
