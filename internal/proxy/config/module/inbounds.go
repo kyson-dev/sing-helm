@@ -120,7 +120,7 @@ func (m *TUNModule) Apply(opts *option.Options, ctx *BuildContext) error {
 		"auto_route":   true,
 		"strict_route": true,
 		//"stack":                      stack,
-		"address": []string{"172.19.0.1/30"},
+		"address":                    []string{"172.19.0.1/30"},
 		//"inet6_address":              "fd00::1/126",
 		"sniff":                      true,
 		"sniff_override_destination": true,

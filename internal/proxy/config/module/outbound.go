@@ -79,9 +79,11 @@ func (m *OutboundModule) Apply(opts *option.Options, ctx *BuildContext) error {
 		// 8. 添加 auto urltest
 		autoOutbound := option.Outbound{}
 		autoOutboundMap := map[string]any{
-			"type":      "urltest",
-			"tag":       moduleUtils.TagAuto,
-			"outbounds": actualNodes,
+			"type":         "urltest",
+			"tag":          moduleUtils.TagAuto,
+			"outbounds":    actualNodes,
+			"interval":     "3m",
+			"idle_timeout": "24h",
 		}
 		moduleUtils.ApplyMapToOutbound(&autoOutbound, autoOutboundMap)
 		filteredOutbounds = append(filteredOutbounds, autoOutbound)
