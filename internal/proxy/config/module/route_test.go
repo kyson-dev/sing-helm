@@ -57,6 +57,39 @@ func TestRouteApply_DNSHijackBeforePrivateDirect(t *testing.T) {
 	}
 }
 
+func TestRouteApply_GlobalKeepsSniff(t *testing.T) {
+	opts := &option.Options{}
+	m := &RouteModule{RouteMode: model.RouteModeGlobal}
+	if err := m.Apply(opts, NewBuildContext(nil)); err != nil {
+		t.Fatalf("apply route: %v", err)
+	}
+
+	raw, err := singboxjson.Marshal(opts.Route)
+	if err != nil {
+		t.Fatalf("marshal route: %v", err)
+	}
+	var routeMap map[string]any
+	if err := json.Unmarshal(raw, &routeMap); err != nil {
+		t.Fatalf("decode route: %v", err)
+	}
+
+	if routeMap["final"] != "proxy" {
+		t.Fatalf("global route final = %v, want proxy", routeMap["final"])
+	}
+
+	rules, ok := routeMap["rules"].([]any)
+	if !ok || len(rules) == 0 {
+		t.Fatalf("global route must keep sniff rule")
+	}
+	if len(rules) != 1 {
+		t.Fatalf("global route should keep only sniff rule, got %d rules", len(rules))
+	}
+	rule, ok := rules[0].(map[string]any)
+	if !ok || rule["action"] != "sniff" {
+		t.Fatalf("global route first rule = %#v, want sniff action", rules[0])
+	}
+}
+
 func protocolHasDNS(v any) bool {
 	switch p := v.(type) {
 	case string:

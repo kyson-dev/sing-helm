@@ -49,8 +49,11 @@ func (m *RouteModule) Apply(opts *option.Options, ctx *BuildContext) error {
 	}
 
 	// 4. 清空特定模式下的所有非必要规则
-	// 对于全局/直连，我们可以强制清空普通路由
-	if m.RouteMode == model.RouteModeGlobal || m.RouteMode == model.RouteModeDirect {
+	// 全局代理仍保留 sniff，否则新版本 sing-box 不会用探测出的域名覆盖目标地址。
+	if m.RouteMode == model.RouteModeGlobal {
+		opts.Route.Rules = keepSniffRules(opts.Route.Rules)
+	}
+	if m.RouteMode == model.RouteModeDirect {
 		opts.Route.Rules = nil
 	}
 
@@ -61,6 +64,9 @@ func (m *RouteModule) Apply(opts *option.Options, ctx *BuildContext) error {
 func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 	var ruleSets []map[string]any
 	var rules []map[string]any
+
+	// 协议嗅探 (Sniffing) - 必须放在第一位进行协议和域名嗅探
+	rules = append(rules, map[string]any{"action": "sniff"})
 
 	// 片段 1: DNS 流量专门劫持 (在 TUN/Mixed 模式中，由 sing-box 本地解析)
 	// 必须在 ip_is_private 之前，否则会把 172.19.0.2:53 等 DNS 包提前放行到 direct，导致 DNS 劫持失效。
@@ -141,4 +147,22 @@ func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 	opts.Route.AutoDetectInterface = generatedRoute.AutoDetectInterface
 
 	return nil
+}
+
+func keepSniffRules(rules []option.Rule) []option.Rule {
+	kept := rules[:0]
+	for _, rule := range rules {
+		raw, err := singboxjson.Marshal(rule)
+		if err != nil {
+			continue
+		}
+		var rm map[string]any
+		if err := singboxjson.Unmarshal(raw, &rm); err != nil {
+			continue
+		}
+		if rm["action"] == "sniff" {
+			kept = append(kept, rule)
+		}
+	}
+	return kept
 }
