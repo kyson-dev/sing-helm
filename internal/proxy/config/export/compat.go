@@ -66,8 +66,9 @@ func downgradeDNSServers(root map[string]any) {
 	}
 }
 
-// downgradeDNSDetour adds "detour": "direct" to DNS servers for v1.11.x
-// This is critical for proper DNS resolution on iOS v1.11.4
+// downgradeDNSDetour ensures local_dns has explicit "detour": "direct" in v1.11.x.
+// In sing-box 1.11.4 a DNS server without detour falls back to the default route;
+// local_dns (AliDNS) should always go direct, never through the proxy.
 func downgradeDNSDetour(root map[string]any) {
 	dns, ok := root["dns"].(map[string]any)
 	if !ok {
@@ -83,13 +84,7 @@ func downgradeDNSDetour(root map[string]any) {
 		if !ok {
 			continue
 		}
-
-		tag, _ := server["tag"].(string)
-
-		// Add detour: direct for local_dns and resolver_dns
-		// These need direct connection to avoid DNS resolution loops
-		if tag == "local_dns" || tag == "resolver_dns" {
-			// Only add if not already present
+		if server["tag"] == "local_dns" {
 			if _, hasDetour := server["detour"]; !hasDetour {
 				server["detour"] = "direct"
 			}
@@ -159,6 +154,12 @@ func applyPlatformCompat(root map[string]any, platform string) {
 	case "ios":
 		// Avoid embedding desktop cache paths and local API listeners in mobile exports.
 		delete(root, "experimental")
+		// 中国移动网络（5G/LTE）广泛使用 IPv6（DS-Lite、NAT64），
+		// ipv4_only 会导致 IPv6-only 服务解析失败，在部分蜂窝网络下严重影响连通性。
+		// iOS 使用 prefer_ipv4：有 IPv4 时优先返回，否则回退 IPv6。
+		if dns, ok := root["dns"].(map[string]any); ok {
+			dns["strategy"] = "prefer_ipv4"
+		}
 	}
 }
 
