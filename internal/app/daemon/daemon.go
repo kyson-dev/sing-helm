@@ -146,7 +146,15 @@ func (d *Daemon) cleanup() {
 	d.stopDNSProxy()
 }
 
-// startDNSProxy 启动 DNS 代理并将 macOS 系统 DNS 指向它。
+// startDNSProxy 启动 DNS 代理并将 macOS 系统 DNS 指向 127.0.0.1 防止 DNS 泄漏。
+//
+// macOS auto_route 只添加子范围路由（1/8, 2/7 ... 128/1），无法覆盖本地网络路由
+// （如 192.168.1.0/24 via en0），导致 DNS 查询直接走物理网卡绕过 TUN。
+// 设置系统 DNS 为 127.0.0.1 + 启动本地代理是最可靠的拦截方式，在所有模式下均需启动。
+//
+// TUN 模式：socksAddr 为空，DoH 请求走 TUN → proxy outbound 路由。
+// system/default 模式：socksAddr 指向 mixed 入站，DoH 经 SOCKS5 出站。
+//
 // opts.DNSPort == 0 时默认使用 53 端口（需要 root 权限）。
 // 该方法在 d.mu 锁外调用。
 func (d *Daemon) startDNSProxy(opts model.RunOptions) {
@@ -159,7 +167,13 @@ func (d *Daemon) startDNSProxy(opts model.RunOptions) {
 		dnsPort = 53
 	}
 	dnsListenAddr := fmt.Sprintf("%s:%d", listenAddr, dnsPort)
-	socksAddr := fmt.Sprintf("%s:%d", listenAddr, opts.MixedPort)
+
+	// TUN 模式下没有 mixed 入站，DoH 直接发出后经 TUN 路由到 proxy outbound。
+	// system/default 模式下通过 SOCKS5 (mixed 入站) 转发 DoH。
+	var socksAddr string
+	if opts.ProxyMode != model.ProxyModeTUN && opts.MixedPort > 0 {
+		socksAddr = fmt.Sprintf("%s:%d", listenAddr, opts.MixedPort)
+	}
 
 	p := sysnet.NewDNSProxy(dnsListenAddr, socksAddr)
 	if err := p.Start(); err != nil {

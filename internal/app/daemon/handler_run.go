@@ -65,10 +65,10 @@ func (d *Daemon) handleRun(ctx context.Context, payload map[string]any) ipc.Comm
 	d.state.RunOptions = runops
 	d.mu.Unlock()
 
-	// 非 TUN 模式：启动 DNS 代理防止系统级 DNS 泄漏（复用 startDNSProxy）
-	if runops.ProxyMode == model.ProxyModeSystem || runops.ProxyMode == model.ProxyModeDefault {
-		d.startDNSProxy(runops)
-	}
+	// 所有模式均启动 DNS 代理防止系统级 DNS 泄漏。
+	// TUN 模式下 macOS auto_route 不覆盖本地网络路由（192.168.x.x via en0），
+	// 系统 DNS 为路由器 IP 时查询会绕过 TUN 直接泄漏；设置系统 DNS 为 127.0.0.1 可修复。
+	d.startDNSProxy(runops)
 
 	logger.Info("Sing-box started successfully")
 	return ipc.CommandResult{Status: "ok", Data: map[string]any{
@@ -130,8 +130,9 @@ func (d *Daemon) applyRunOptions(ctx context.Context, state *RuntimeState) error
 		return errors.New("reload already in progress")
 	}
 	d.reloading = true
-	// 记录旧代理模式，用于 reload 后判断 DNS 代理的启停
+	// 记录当前 DNS 代理状态：是否运行、当前是否为 TUN 模式（无 socksAddr）
 	hasDNSProxy := d.dnsProxy != nil
+	oldIsTUN := hasDNSProxy && d.dnsProxy.SocksAddr == ""
 	d.mu.Unlock()
 	defer func() {
 		d.mu.Lock()
@@ -168,17 +169,15 @@ func (d *Daemon) applyRunOptions(ctx context.Context, state *RuntimeState) error
 		return err
 	}
 
-	// reload 成功后同步 DNS 代理状态：
-	// 切换到 TUN 模式 → 停止 DNS 代理并恢复系统 DNS
-	// 切换到 system/default 模式 → 启动 DNS 代理并配置系统 DNS
-	newMode := state.RunOptions.ProxyMode
-	needsDNSProxy := newMode == model.ProxyModeSystem || newMode == model.ProxyModeDefault
-	if needsDNSProxy != hasDNSProxy {
-		if needsDNSProxy {
-			d.startDNSProxy(state.RunOptions)
-		} else {
-			d.stopDNSProxy()
-		}
+	// reload 成功后同步 DNS 代理状态。
+	// 所有模式均需运行 DNS 代理，但 TUN 模式使用直连 DoH（无 socksAddr），
+	// 非 TUN 模式使用 SOCKS5 DoH（有 socksAddr）。
+	// 若模式在 TUN/非 TUN 之间切换，需重启代理以更新 socksAddr；否则保持不变。
+	newIsTUN := state.RunOptions.ProxyMode == model.ProxyModeTUN
+	needsRestart := !hasDNSProxy || (newIsTUN != oldIsTUN)
+	if needsRestart {
+		d.stopDNSProxy()
+		d.startDNSProxy(state.RunOptions)
 	}
 
 	d.mu.Lock()
