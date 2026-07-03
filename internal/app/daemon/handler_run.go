@@ -65,6 +65,11 @@ func (d *Daemon) handleRun(ctx context.Context, payload map[string]any) ipc.Comm
 	d.state.RunOptions = runops
 	d.mu.Unlock()
 
+	// 非 TUN 模式：启动 DNS 代理防止系统级 DNS 泄漏（复用 startDNSProxy）
+	if runops.ProxyMode == model.ProxyModeSystem || runops.ProxyMode == model.ProxyModeDefault {
+		d.startDNSProxy(runops)
+	}
+
 	logger.Info("Sing-box started successfully")
 	return ipc.CommandResult{Status: "ok", Data: map[string]any{
 		"proxy_mode": string(runops.ProxyMode),
@@ -116,7 +121,7 @@ func (d *Daemon) parseRunOptions(payload map[string]any) (model.RunOptions, erro
 	return runops, nil
 }
 
-// applyRunOptions 重新构建配置并 reload sing-box
+// applyRunOptions 重新构建配置并 reload sing-box，同时处理 DNS 代理的启停
 func (d *Daemon) applyRunOptions(ctx context.Context, state *RuntimeState) error {
 	// 检查并设置 reloading 标志，防止并发 reload
 	d.mu.Lock()
@@ -125,6 +130,8 @@ func (d *Daemon) applyRunOptions(ctx context.Context, state *RuntimeState) error
 		return errors.New("reload already in progress")
 	}
 	d.reloading = true
+	// 记录旧代理模式，用于 reload 后判断 DNS 代理的启停
+	hasDNSProxy := d.dnsProxy != nil
 	d.mu.Unlock()
 	defer func() {
 		d.mu.Lock()
@@ -133,6 +140,7 @@ func (d *Daemon) applyRunOptions(ctx context.Context, state *RuntimeState) error
 	}()
 
 	backupPath, _ := backupConfig(paths.Get().RawConfigFile)
+	// BuildConfig 会将 MixedPort 等回填到 state.RunOptions
 	if err := config.BuildConfig(paths.Get().RawConfigFile, &state.RunOptions); err != nil {
 		return err
 	}
@@ -159,6 +167,20 @@ func (d *Daemon) applyRunOptions(ctx context.Context, state *RuntimeState) error
 		}
 		return err
 	}
+
+	// reload 成功后同步 DNS 代理状态：
+	// 切换到 TUN 模式 → 停止 DNS 代理并恢复系统 DNS
+	// 切换到 system/default 模式 → 启动 DNS 代理并配置系统 DNS
+	newMode := state.RunOptions.ProxyMode
+	needsDNSProxy := newMode == model.ProxyModeSystem || newMode == model.ProxyModeDefault
+	if needsDNSProxy != hasDNSProxy {
+		if needsDNSProxy {
+			d.startDNSProxy(state.RunOptions)
+		} else {
+			d.stopDNSProxy()
+		}
+	}
+
 	d.mu.Lock()
 	d.state = state
 	d.mu.Unlock()

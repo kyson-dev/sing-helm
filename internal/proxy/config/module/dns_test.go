@@ -43,8 +43,9 @@ func TestDNSApply_SystemServerPriorityUserRulesFirst(t *testing.T) {
 	}
 
 	servers := m["servers"].([]any)
-	if len(servers) < 4 {
-		t.Fatalf("expected system(3)+user(1) servers, got %d", len(servers))
+	// system servers: local_dns + proxy_dns (resolver_dns removed by Fix 2)
+	if len(servers) < 3 {
+		t.Fatalf("expected system(2)+user(1) servers, got %d", len(servers))
 	}
 	firstTag := servers[0].(map[string]any)["tag"].(string)
 	if firstTag != "local_dns" {

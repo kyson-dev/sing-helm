@@ -160,7 +160,13 @@ func keepSniffRules(rules []option.Rule) []option.Rule {
 		if err := singboxjson.Unmarshal(raw, &rm); err != nil {
 			continue
 		}
-		if rm["action"] == "sniff" {
+		action, _ := rm["action"].(string)
+		if action == "sniff" || action == "hijack-dns" {
+			kept = append(kept, rule)
+			continue
+		}
+		// Preserve AliDNS direct-bypass so bootstrap DoH to 223.5.5.5 stays direct.
+		if _, hasCIDR := rm["ip_cidr"]; hasCIDR {
 			kept = append(kept, rule)
 		}
 	}

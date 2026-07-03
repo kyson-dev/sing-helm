@@ -22,27 +22,20 @@ func (m *DNSModule) Apply(opts *option.Options, ctx *BuildContext) error {
 		opts.DNS = &option.DNSOptions{}
 	}   
 
-	// 使用 map 方式创建 DNS 配置
-	// local_dns 不需要 detour，默认就是直连
+	// 使用 IP 地址直接连接 DoH 服务器，避免引导解析（resolver_dns）发出明文 UDP DNS 查询。
+	// 223.5.5.5 = AliDNS DoH IP，8.8.8.8 = Google DNS DoH IP，两者均支持 IP 直连。
 	dnsMap := map[string]any{
 		"servers": []map[string]any{
 			{
-				"tag":             "local_dns",
-				"type":            "https",
-				"server":          "dns.alidns.com",
-				"domain_resolver": "resolver_dns",
+				"tag":    "local_dns",
+				"type":   "https",
+				"server": "223.5.5.5", // IP 直连，无需 domain_resolver，无明文 UDP 引导查询
 			},
 			{
-				"tag":             "proxy_dns",
-				"type":            "https",
-				"server":          "dns.google",
-				"domain_resolver": "resolver_dns",
-				"detour":          moduleUtils.TagProxy,
-			},
-			{
-				"tag":    "resolver_dns",
-				"type":   "udp",
-				"server": "223.5.5.5",
+				"tag":    "proxy_dns",
+				"type":   "https",
+				"server": "8.8.8.8", // IP 直连，无需 domain_resolver
+				"detour": moduleUtils.TagProxy,
 			},
 		},
 		"rules": []map[string]any{

@@ -63,17 +63,25 @@ func DefaultModules(opts *model.RunOptions) []module.ConfigModule {
 			&module.DNSModule{},
 		)
 	case model.ProxyModeSystem:
-		modules = append(modules, &module.MixedModule{
-			SetSystemProxy: true,
-			ListenAddr:     opts.ListenAddr,
-			Port:           opts.MixedPort,
-		})
+		// DNSModule 为通过 mixed 入站的显式代理流量提供 DNS 路由。
+		// 系统级 DNS 泄漏由 daemon 层启动的独立 DNS 代理进程（sysnet.DNSProxy）处理。
+		modules = append(modules,
+			&module.MixedModule{
+				SetSystemProxy: true,
+				ListenAddr:     opts.ListenAddr,
+				Port:           opts.MixedPort,
+			},
+			&module.DNSModule{},
+		)
 	case model.ProxyModeDefault:
-		modules = append(modules, &module.MixedModule{
-			SetSystemProxy: false,
-			ListenAddr:     opts.ListenAddr,
-			Port:           opts.MixedPort,
-		})
+		modules = append(modules,
+			&module.MixedModule{
+				SetSystemProxy: false,
+				ListenAddr:     opts.ListenAddr,
+				Port:           opts.MixedPort,
+			},
+			&module.DNSModule{},
+		)
 	}
 
 	modules = append(modules,

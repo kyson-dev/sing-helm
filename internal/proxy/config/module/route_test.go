@@ -81,12 +81,24 @@ func TestRouteApply_GlobalKeepsSniff(t *testing.T) {
 	if !ok || len(rules) == 0 {
 		t.Fatalf("global route must keep sniff rule")
 	}
-	if len(rules) != 1 {
-		t.Fatalf("global route should keep only sniff rule, got %d rules", len(rules))
-	}
-	rule, ok := rules[0].(map[string]any)
-	if !ok || rule["action"] != "sniff" {
+	// Global mode keeps: sniff, hijack-dns, and ip_cidr (AliDNS bypass).
+	// Verify the first rule is sniff and hijack-dns is present.
+	firstRule, ok := rules[0].(map[string]any)
+	if !ok || firstRule["action"] != "sniff" {
 		t.Fatalf("global route first rule = %#v, want sniff action", rules[0])
+	}
+	hasHijackDNS := false
+	for _, r := range rules {
+		rm, ok := r.(map[string]any)
+		if !ok {
+			continue
+		}
+		if rm["action"] == "hijack-dns" {
+			hasHijackDNS = true
+		}
+	}
+	if !hasHijackDNS {
+		t.Fatalf("global route must keep hijack-dns rule to prevent DNS leaks")
 	}
 }
 

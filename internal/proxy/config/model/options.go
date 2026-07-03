@@ -29,6 +29,7 @@ type RunOptions struct {
 	APIPort    int       `json:"api_port"`              // Clash API 端口，0 表示自动获取
 	MixedPort  int       `json:"mixed_port,omitempty"`  // Mixed 入站端口，0 表示自动获取
 	ListenAddr string    `json:"listen_addr,omitempty"` // 监听地址
+	DNSPort    int       `json:"dns_port,omitempty"`    // DNS 入站端口（非 TUN 模式，0 = 53，需 root）
 }
 
 // DefaultRunOptions 返回默认运行参数
@@ -37,6 +38,7 @@ func DefaultRunOptions() RunOptions {
 		ProxyMode:  ProxyModeSystem,
 		RouteMode:  RouteModeRule,
 		ListenAddr: "127.0.0.1",
+		DNSPort: 53,
 	}
 }
 
