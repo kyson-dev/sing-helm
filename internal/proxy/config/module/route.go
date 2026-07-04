@@ -111,17 +111,6 @@ func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 	})
 	rules = append(rules, map[string]any{"rule_set": []string{"geosite-ads", "anti-ad"}, "outbound": moduleUtils.TagBlock})
 
-
-	// 片段 5.5: 非中国大陆域名强制代理 (防止海外域名被 IP 查表误判走直连)
-	ruleSets = append(ruleSets, map[string]any{
-		"tag":             "geosite-geolocation-!cn",
-		"type":            "remote",
-		"format":          "binary",
-		"url":             "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-geolocation-!cn.srs",
-		"download_detour": moduleUtils.TagProxy,
-	})
-	rules = append(rules, map[string]any{"rule_set": []string{"geosite-geolocation-!cn"}, "outbound": moduleUtils.TagProxy})
-
 	// 片段 6: Apple 流量直连
 	ruleSets = append(ruleSets, map[string]any{
 		"tag":             "geosite-apple",
@@ -133,19 +122,12 @@ func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 	rules = append(rules, map[string]any{"rule_set": []string{"geosite-apple"}, "outbound": moduleUtils.TagDirect})
 
 
-	// 片段 7: 国内直连 (CN 路由分流)
+	// 片段 7: 国内直连 (CN 路由分流，纯域名规则集，均经过上游 @-!cn 过滤，可信)
 	ruleSets = append(ruleSets, map[string]any{
 		"tag":             "geosite-cn",
 		"type":            "remote",
 		"format":          "binary",
 		"url":             "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-cn.srs",
-		"download_detour": moduleUtils.TagProxy,
-	})
-	ruleSets = append(ruleSets, map[string]any{
-		"tag":             "geoip-cn",
-		"type":            "remote",
-		"format":          "binary",
-		"url":             "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-cn.srs",
 		"download_detour": moduleUtils.TagProxy,
 	})
 
@@ -157,7 +139,7 @@ func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 	// proxy_dns（见 dns.go），导致每次换 CDN 节点都要多一次跨境代理 DNS 往返，实测造成明显卡顿。
 	// 这里按域名显式补上，配合 dns.go 里的同名规则，从根源避免这次多余的跨境解析。
 	commonCNServices := []string{"bilibili", "iqiyi", "youku", "sina", "zhihu", "xiaohongshu", "douyin", "kuaishou", "sohu", "kugou", "kuwo", "acfun"}
-	directRuleSetTags := []string{"geosite-cn", "geoip-cn"}
+	directDomainRuleSetTags := []string{"geosite-cn"}
 	for _, tag := range commonCNServices {
 		ruleSetTag := "geosite-" + tag
 		ruleSets = append(ruleSets, map[string]any{
@@ -167,9 +149,38 @@ func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 			"url":             "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/" + ruleSetTag + ".srs",
 			"download_detour": moduleUtils.TagProxy,
 		})
-		directRuleSetTags = append(directRuleSetTags, ruleSetTag)
+		directDomainRuleSetTags = append(directDomainRuleSetTags, ruleSetTag)
 	}
-	rules = append(rules, map[string]any{"rule_set": directRuleSetTags, "outbound": moduleUtils.TagDirect})
+	rules = append(rules, map[string]any{"rule_set": directDomainRuleSetTags, "outbound": moduleUtils.TagDirect})
+
+	// 片段 8: 非中国大陆域名强制代理 (防止海外域名被 IP 查表误判走直连)
+	// 必须放在上面 apple/cn 域名直连规则之后、geoip-cn 之前：
+	// 1. geolocation-!cn 通过 category-companies 间接 include:apple，未经过滤地把整个
+	//    apple 域名列表也纳入了"非中国大陆"名单，所以必须晚于 apple/cn 直连规则，否则
+	//    first-match-wins 会让这条规则抢先命中，Apple 流量被错误地强制代理。
+	// 2. geoip-cn 是纯 IP 地理库，存在误判风险（如某些跨境 CDN 的部分节点 IP 被归类为
+	//    中国大陆），而 geosite 域名分类更可信；必须早于 geoip-cn，用域名判断结果覆盖
+	//    掉可能错误的 IP 地理判断，这也是这条规则最初被引入的目的——如果排在 geoip-cn
+	//    之后，就和什么都不做（直接落到下面 final: proxy）没有区别了。
+	ruleSets = append(ruleSets, map[string]any{
+		"tag":             "geosite-geolocation-!cn",
+		"type":            "remote",
+		"format":          "binary",
+		"url":             "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-geolocation-!cn.srs",
+		"download_detour": moduleUtils.TagProxy,
+	})
+	rules = append(rules, map[string]any{"rule_set": []string{"geosite-geolocation-!cn"}, "outbound": moduleUtils.TagProxy})
+
+	// 片段 9: 国内 IP 段兜底直连 (纯 IP 地理库，只兜底 geosite-cn/apple/!cn 均未命中的域名，
+	// 或未经 DNS、直接以字面量 IP 连接的流量)
+	ruleSets = append(ruleSets, map[string]any{
+		"tag":             "geoip-cn",
+		"type":            "remote",
+		"format":          "binary",
+		"url":             "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-cn.srs",
+		"download_detour": moduleUtils.TagProxy,
+	})
+	rules = append(rules, map[string]any{"rule_set": []string{"geoip-cn"}, "outbound": moduleUtils.TagDirect})
 
 	// 此时组合成一个整体 map 进行反序列化 (为了兼容 sing-box 的 rule 抽象类型)
 	routeMap := map[string]any{

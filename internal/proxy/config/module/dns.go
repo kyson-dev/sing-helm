@@ -62,16 +62,13 @@ func (m *DNSModule) Apply(opts *option.Options, ctx *BuildContext) error {
 				"query_type": []string{"A", "AAAA"},
 				"server":     "dns_fakeip",
 			},
-			// 非中国大陆域名强制代理 (防止海外域名被 IP 查表误判走直连)
-			{
-				"rule_set": []string{"geosite-geolocation-!cn"},
-				"action":   "route",
-				"server":   "proxy_dns",
-			},
 			// DNS解析模块不应该设置ip集，它本来就是输入域名输出ip的。
 			// geosite-cn 未收录的常见国内服务（B站/爱奇艺/优酷等，见 route.go 里的详细说明）
 			// 显式补充到 local_dns，避免这些域名解析退化到 final: proxy_dns 走跨境代理，
 			// final 兜底策略本身保持不变。
+			// 必须放在下面的 !cn 规则之前：geolocation-!cn 通过 category-companies 间接
+			// include:apple，未经过滤地把整个 apple 域名列表也纳入了"非中国大陆"名单，
+			// 若 !cn 规则先命中，apple 域名会被错误路由到 proxy_dns。
 			{
 				"rule_set": []string{
 					"geosite-cn", "geosite-apple",
@@ -81,6 +78,12 @@ func (m *DNSModule) Apply(opts *option.Options, ctx *BuildContext) error {
 				},
 				"action": "route",
 				"server": "local_dns",
+			},
+			// 非中国大陆域名强制代理 (防止海外域名被 IP 查表误判走直连)
+			{
+				"rule_set": []string{"geosite-geolocation-!cn"},
+				"action":   "route",
+				"server":   "proxy_dns",
 			},
 		},
 		"final": "proxy_dns",
