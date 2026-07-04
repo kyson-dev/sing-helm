@@ -43,9 +43,9 @@ func TestDNSApply_SystemServerPriorityUserRulesFirst(t *testing.T) {
 	}
 
 	servers := m["servers"].([]any)
-	// system servers: local_dns + proxy_dns (resolver_dns removed by Fix 2)
-	if len(servers) < 3 {
-		t.Fatalf("expected system(2)+user(1) servers, got %d", len(servers))
+	// system servers: local_dns + proxy_dns + dns_fakeip
+	if len(servers) < 4 {
+		t.Fatalf("expected system(3)+user(1) servers, got %d", len(servers))
 	}
 	firstTag := servers[0].(map[string]any)["tag"].(string)
 	if firstTag != "local_dns" {
@@ -62,7 +62,7 @@ func TestDNSApply_SystemServerPriorityUserRulesFirst(t *testing.T) {
 	}
 
 	rules := m["rules"].([]any)
-	if len(rules) != 4 {
+	if len(rules) != 5 {
 		t.Fatalf("expected user rules + default rules, got %d", len(rules))
 	}
 	firstRule := rules[0].(map[string]any)
@@ -73,8 +73,8 @@ func TestDNSApply_SystemServerPriorityUserRulesFirst(t *testing.T) {
 	if m["final"] != "proxy_dns" {
 		t.Fatalf("expected final forced to proxy_dns, got %v", m["final"])
 	}
-	if m["strategy"] != "ipv4_only" {
-		t.Fatalf("expected strategy forced to ipv4_only, got %v", m["strategy"])
+	if m["strategy"] != "prefer_ipv4" {
+		t.Fatalf("expected strategy forced to prefer_ipv4, got %v", m["strategy"])
 	}
 }
 

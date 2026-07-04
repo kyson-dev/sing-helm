@@ -8,10 +8,46 @@ import (
 
 // applyCompatForV1114 applies explicit compatibility transforms for sing-box 1.11.4.
 func applyCompatForV1114(root map[string]any) {
+	downgradeFakeIPServer(root)
 	downgradeDNSServers(root)
 	downgradeDNSDetour(root)
 	downgradeRuleSets(root)
 	downgradeSelectorOutbounds(root)
+}
+
+// downgradeFakeIPServer extracts the v1.12+ type:"fakeip" DNS server's inline
+// inet4_range/inet6_range into v1.11.x's top-level dns.fakeip block. Must run
+// before downgradeDNSServers, which converts the server itself into the legacy
+// "address":"fakeip" form and would otherwise leave inet4_range/inet6_range
+// dangling on a server object where v1.11.x doesn't expect them.
+func downgradeFakeIPServer(root map[string]any) {
+	dns, ok := root["dns"].(map[string]any)
+	if !ok {
+		return
+	}
+	servers, ok := dns["servers"].([]any)
+	if !ok {
+		return
+	}
+	for _, entry := range servers {
+		server, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		if server["type"] != "fakeip" {
+			continue
+		}
+		fakeip := map[string]any{"enabled": true}
+		if inet4Range, hasInet4 := server["inet4_range"]; hasInet4 {
+			fakeip["inet4_range"] = inet4Range
+			delete(server, "inet4_range")
+		}
+		if inet6Range, hasInet6 := server["inet6_range"]; hasInet6 {
+			fakeip["inet6_range"] = inet6Range
+			delete(server, "inet6_range")
+		}
+		dns["fakeip"] = fakeip
+	}
 }
 
 // downgradeDNSServers converts v1.12+ DNS server format to v1.11.x format
