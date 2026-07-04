@@ -43,6 +43,12 @@ func (m *DNSModule) Apply(opts *option.Options, ctx *BuildContext) error {
 				"rule_set": []string{"geosite-ads", "anti-ad"},
 				"action":   "reject",
 			},
+			// 非中国大陆域名强制代理 (防止海外域名被 IP 查表误判走直连)
+			{
+				"rule_set": []string{"geosite-geolocation-!cn"},
+				"action":   "route",
+				"server":   "proxy_dns",
+			},
 			// DNS解析模块不应该设置ip集，它本来就是输入域名输出ip的。
 			{
 				"rule_set": []string{"geosite-cn", "geosite-apple"},

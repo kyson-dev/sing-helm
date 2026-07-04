@@ -122,3 +122,41 @@ func protocolHasDNS(v any) bool {
 	}
 	return false
 }
+
+func TestRouteApply_IPv6Block(t *testing.T) {
+	opts := &option.Options{}
+	m := &RouteModule{RouteMode: model.RouteModeRule}
+	if err := m.Apply(opts, NewBuildContext(nil)); err != nil {
+		t.Fatalf("apply route: %v", err)
+	}
+
+	raw, err := singboxjson.Marshal(opts.Route)
+	if err != nil {
+		t.Fatalf("marshal route: %v", err)
+	}
+	var routeMap map[string]any
+	if err := json.Unmarshal(raw, &routeMap); err != nil {
+		t.Fatalf("decode route: %v", err)
+	}
+
+	rules, ok := routeMap["rules"].([]any)
+	if !ok || len(rules) == 0 {
+		t.Fatalf("route rules missing")
+	}
+
+	hasIPv6Block := false
+	for _, rule := range rules {
+		rm, ok := rule.(map[string]any)
+		if !ok {
+			continue
+		}
+		if ipVer, _ := rm["ip_version"].(float64); ipVer == 6 && rm["outbound"] == "block" {
+			hasIPv6Block = true
+			break
+		}
+	}
+
+	if !hasIPv6Block {
+		t.Fatalf("expected IPv6 block rule but not found")
+	}
+}

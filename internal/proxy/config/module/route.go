@@ -80,6 +80,9 @@ func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 	// 片段 3: NTP 直连
 	rules = append(rules, map[string]any{"protocol": []string{"ntp"}, "outbound": moduleUtils.TagDirect})
 
+	// IPv6 拦截 (防止因代理节点不支持 IPv6 或本地无物理 IPv6 导致连接报错与泄漏)
+	rules = append(rules, map[string]any{"ip_version": 6, "outbound": moduleUtils.TagBlock})
+
 	// 片段 4: 去广告模块
 	ruleSets = append(ruleSets, map[string]any{
 		"tag":             "geosite-ads",
@@ -97,6 +100,17 @@ func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 	})
 	rules = append(rules, map[string]any{"rule_set": []string{"geosite-ads", "anti-ad"}, "outbound": moduleUtils.TagBlock})
 
+
+	// 片段 5.5: 非中国大陆域名强制代理 (防止海外域名被 IP 查表误判走直连)
+	ruleSets = append(ruleSets, map[string]any{
+		"tag":             "geosite-geolocation-!cn",
+		"type":            "remote",
+		"format":          "binary",
+		"url":             "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-geolocation-!cn.srs",
+		"download_detour": moduleUtils.TagProxy,
+	})
+	rules = append(rules, map[string]any{"rule_set": []string{"geosite-geolocation-!cn"}, "outbound": moduleUtils.TagProxy})
+
 	// 片段 6: Apple 流量直连
 	ruleSets = append(ruleSets, map[string]any{
 		"tag":             "geosite-apple",
@@ -106,6 +120,7 @@ func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 		"download_detour": moduleUtils.TagProxy,
 	})
 	rules = append(rules, map[string]any{"rule_set": []string{"geosite-apple"}, "outbound": moduleUtils.TagDirect})
+
 
 	// 片段 7: 国内直连 (CN 路由分流)
 	ruleSets = append(ruleSets, map[string]any{
