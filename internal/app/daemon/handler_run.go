@@ -65,6 +65,8 @@ func (d *Daemon) handleRun(ctx context.Context, payload map[string]any) ipc.Comm
 	d.state.RunOptions = runops
 	d.mu.Unlock()
 
+	d.syncSystemDNS(runops.ProxyMode)
+
 	logger.Info("Sing-box started successfully")
 	return ipc.CommandResult{Status: "ok", Data: map[string]any{
 		"proxy_mode": string(runops.ProxyMode),
@@ -164,6 +166,8 @@ func (d *Daemon) applyRunOptions(ctx context.Context, state *RuntimeState) error
 	d.mu.Lock()
 	d.state = state
 	d.mu.Unlock()
+
+	d.syncSystemDNS(state.RunOptions.ProxyMode)
 	return nil
 }
 
