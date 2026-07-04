@@ -150,13 +150,13 @@ func TestRouteApply_IPv6Block(t *testing.T) {
 		if !ok {
 			continue
 		}
-		if ipVer, _ := rm["ip_version"].(float64); ipVer == 6 && rm["outbound"] == "block" {
+		if ipVer, _ := rm["ip_version"].(float64); ipVer == 6 && rm["action"] == "reject" {
 			hasIPv6Block = true
 			break
 		}
 	}
 
 	if !hasIPv6Block {
-		t.Fatalf("expected IPv6 block rule but not found")
+		t.Fatalf("expected IPv6 reject rule but not found")
 	}
 }

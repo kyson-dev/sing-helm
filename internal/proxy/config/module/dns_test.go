@@ -62,7 +62,7 @@ func TestDNSApply_SystemServerPriorityUserRulesFirst(t *testing.T) {
 	}
 
 	rules := m["rules"].([]any)
-	if len(rules) != 3 {
+	if len(rules) != 4 {
 		t.Fatalf("expected user rules + default rules, got %d", len(rules))
 	}
 	firstRule := rules[0].(map[string]any)

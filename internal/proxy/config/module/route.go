@@ -80,8 +80,8 @@ func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 	// 片段 3: NTP 直连
 	rules = append(rules, map[string]any{"protocol": []string{"ntp"}, "outbound": moduleUtils.TagDirect})
 
-	// IPv6 拦截 (防止因代理节点不支持 IPv6 或本地无物理 IPv6 导致连接报错与泄漏)
-	rules = append(rules, map[string]any{"ip_version": 6, "outbound": moduleUtils.TagBlock})
+	// IPv6 拦截 (使用 reject 返回 TCP RST，使客户端能自动回退到 IPv4，避免 EPERM 错误)
+	rules = append(rules, map[string]any{"ip_version": 6, "action": "reject"})
 
 	// 片段 4: 去广告模块
 	ruleSets = append(ruleSets, map[string]any{
