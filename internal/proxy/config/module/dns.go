@@ -20,7 +20,7 @@ func (m *DNSModule) Name() string {
 func (m *DNSModule) Apply(opts *option.Options, ctx *BuildContext) error {
 	if opts.DNS == nil {
 		opts.DNS = &option.DNSOptions{}
-	}   
+	}
 
 	// 使用 IP 地址直接连接 DoH 服务器，避免引导解析（resolver_dns）发出明文 UDP DNS 查询。
 	// 223.5.5.5 = AliDNS DoH IP，8.8.8.8 = Google DNS DoH IP，两者均支持 IP 直连。
@@ -43,8 +43,9 @@ func (m *DNSModule) Apply(opts *option.Options, ctx *BuildContext) error {
 				"rule_set": []string{"geosite-ads", "anti-ad"},
 				"action":   "reject",
 			},
+			// DNS解析模块不应该设置ip集，它本来就是输入域名输出ip的。
 			{
-				"rule_set": []string{"geosite-cn", "geoip-cn"},
+				"rule_set": []string{"geosite-cn", "geosite-apple"},
 				"action":   "route",
 				"server":   "local_dns",
 			},
