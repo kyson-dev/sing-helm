@@ -6,13 +6,11 @@ import (
 	"os"
 	"sync"
 
-	"github.com/kyson-dev/sing-helm/internal/proxy/config/model"
 	"github.com/kyson-dev/sing-helm/internal/proxy/engine"
 	"github.com/kyson-dev/sing-helm/internal/sys/ipc"
 	"github.com/kyson-dev/sing-helm/internal/sys/lock"
 	"github.com/kyson-dev/sing-helm/internal/sys/logger"
 	"github.com/kyson-dev/sing-helm/internal/sys/paths"
-	"github.com/kyson-dev/sing-helm/internal/sys/sysnet"
 )
 
 // ServiceRunner abstracts the sing-box engine lifecycle.
@@ -32,7 +30,6 @@ type Daemon struct {
 	running        bool
 	reloading      bool
 	state          *RuntimeState
-	dnsProxy       *sysnet.DNSProxy // non-nil when DNS proxy is active (system/default mode)
 }
 
 // NewDaemon builds a daemon controller.
@@ -141,74 +138,6 @@ func (d *Daemon) cleanup() {
 		}
 	}
 	d.mu.Unlock()
-
-	// stopDNSProxy 涉及 OS 调用（networksetup），在锁外执行避免长时间持锁
-	d.stopDNSProxy()
-}
-
-// startDNSProxy 启动 DNS 代理并将 macOS 系统 DNS 指向 127.0.0.1 防止 DNS 泄漏。
-//
-// macOS auto_route 只添加子范围路由（1/8, 2/7 ... 128/1），无法覆盖本地网络路由
-// （如 192.168.1.0/24 via en0），导致 DNS 查询直接走物理网卡绕过 TUN。
-// 设置系统 DNS 为 127.0.0.1 + 启动本地代理是最可靠的拦截方式，在所有模式下均需启动。
-//
-// TUN 模式：socksAddr 为空，DoH 请求走 TUN → proxy outbound 路由。
-// system/default 模式：socksAddr 指向 mixed 入站，DoH 经 SOCKS5 出站。
-//
-// opts.DNSPort == 0 时默认使用 53 端口（需要 root 权限）。
-// 该方法在 d.mu 锁外调用。
-func (d *Daemon) startDNSProxy(opts model.RunOptions) {
-	listenAddr := opts.ListenAddr
-	if listenAddr == "" {
-		listenAddr = "127.0.0.1"
-	}
-	dnsPort := opts.DNSPort
-	if dnsPort == 0 {
-		dnsPort = 53
-	}
-	dnsListenAddr := fmt.Sprintf("%s:%d", listenAddr, dnsPort)
-
-	// TUN 模式下没有 mixed 入站，DoH 直接发出后经 TUN 路由到 proxy outbound。
-	// system/default 模式下通过 SOCKS5 (mixed 入站) 转发 DoH。
-	var socksAddr string
-	if opts.ProxyMode != model.ProxyModeTUN && opts.MixedPort > 0 {
-		socksAddr = fmt.Sprintf("%s:%d", listenAddr, opts.MixedPort)
-	}
-
-	p := sysnet.NewDNSProxy(dnsListenAddr, socksAddr)
-	if err := p.Start(); err != nil {
-		logger.Error("Failed to start DNS proxy (port 53 requires root)", "error", err)
-		return
-	}
-
-	d.mu.Lock()
-	d.dnsProxy = p
-	d.mu.Unlock()
-
-	if err := sysnet.SetSystemDNS(listenAddr); err != nil {
-		logger.Error("Failed to configure macOS system DNS", "error", err)
-	} else {
-		logger.Info("macOS system DNS → sing-helm DNS proxy", "listen", dnsListenAddr, "socks", socksAddr)
-	}
-}
-
-// stopDNSProxy 停止 DNS 代理并恢复 macOS 系统 DNS 为 DHCP 自动获取。
-// 若代理未运行则为空操作。该方法在 d.mu 锁外调用。
-func (d *Daemon) stopDNSProxy() {
-	d.mu.Lock()
-	p := d.dnsProxy
-	d.dnsProxy = nil
-	d.mu.Unlock()
-
-	if p == nil {
-		return
-	}
-	p.Stop()
-	if err := sysnet.RestoreSystemDNS(); err != nil {
-		logger.Error("Failed to restore macOS system DNS", "error", err)
-	} else {
-		logger.Info("macOS system DNS restored to DHCP")
-	}
 }
 
 func (d *Daemon) newService() ServiceRunner {

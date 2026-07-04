@@ -64,7 +64,6 @@ func DefaultModules(opts *model.RunOptions) []module.ConfigModule {
 		)
 	case model.ProxyModeSystem:
 		// DNSModule 为通过 mixed 入站的显式代理流量提供 DNS 路由。
-		// 系统级 DNS 泄漏由 daemon 层启动的独立 DNS 代理进程（sysnet.DNSProxy）处理。
 		modules = append(modules,
 			&module.MixedModule{
 				SetSystemProxy: true,

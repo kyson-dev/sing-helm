@@ -1,5 +1,7 @@
 # Sing-Helm
 
+ 当前代理项目我需要你深度审查dns和路由的优先级设计，以及使用的规则集是不是合适有没有更优秀的需不需改。现在的逻辑是1.让广告规则在最前面拒绝，切设置dns同步拒绝解析，2.接着是确定性的被gfw阻止的域名明确要求代理，在dns同步设置代理解析 3.解这就是国内的规则集和ip设置为直连，同步设置国内域名的直连解析 4.其它的情况路由和dns都用默认的代理模式
+
 > **A CLI-first, lightweight manager for [sing-box](https://github.com/sagernet/sing-box).**  
 > Helm your network traffic with ease.
 
