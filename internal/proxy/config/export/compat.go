@@ -13,6 +13,7 @@ func applyCompatForV1114(root map[string]any) {
 	downgradeDNSDetour(root)
 	downgradeRuleSets(root)
 	downgradeSelectorOutbounds(root)
+	downgradeDefaultDomainResolver(root)
 }
 
 // downgradeFakeIPServer extracts the v1.12+ type:"fakeip" DNS server's inline
@@ -161,6 +162,16 @@ func downgradeRuleSets(root map[string]any) {
 			}
 		}
 	}
+}
+
+// downgradeDefaultDomainResolver strips route.default_domain_resolver, a
+// v1.12+ field that v1.11.x rejects under DisallowUnknownFields.
+func downgradeDefaultDomainResolver(root map[string]any) {
+	route, ok := root["route"].(map[string]any)
+	if !ok {
+		return
+	}
+	delete(route, "default_domain_resolver")
 }
 
 // downgradeSelectorOutbounds removes v1.12+ fields from selector/urltest outbounds

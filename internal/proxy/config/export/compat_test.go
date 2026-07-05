@@ -24,6 +24,28 @@ func TestApplyCompatForV1114_KeepTunAddress(t *testing.T) {
 	}
 }
 
+func TestApplyCompatForV1114_StripsDefaultDomainResolver(t *testing.T) {
+	root := map[string]any{
+		"route": map[string]any{
+			"final":                   "proxy",
+			"default_domain_resolver": "local_dns",
+		},
+	}
+
+	applyCompatForV1114(root)
+
+	route, ok := root["route"].(map[string]any)
+	if !ok {
+		t.Fatalf("route missing")
+	}
+	if _, ok := route["default_domain_resolver"]; ok {
+		t.Fatalf("expected default_domain_resolver to be stripped for v1.11.4")
+	}
+	if route["final"] != "proxy" {
+		t.Fatalf("expected other route fields to be preserved, got %#v", route)
+	}
+}
+
 func firstInboundAsMap(t *testing.T, root map[string]any) map[string]any {
 	t.Helper()
 

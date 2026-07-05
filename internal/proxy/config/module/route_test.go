@@ -102,6 +102,43 @@ func TestRouteApply_GlobalKeepsSniff(t *testing.T) {
 	}
 }
 
+func TestRouteApply_DefaultDomainResolverPointsToLocalDNS(t *testing.T) {
+	opts := &option.Options{}
+	m := &RouteModule{RouteMode: model.RouteModeRule}
+	if err := m.Apply(opts, NewBuildContext(nil)); err != nil {
+		t.Fatalf("apply route: %v", err)
+	}
+
+	raw, err := singboxjson.Marshal(opts.Route)
+	if err != nil {
+		t.Fatalf("marshal route: %v", err)
+	}
+	var routeMap map[string]any
+	if err := json.Unmarshal(raw, &routeMap); err != nil {
+		t.Fatalf("decode route: %v", err)
+	}
+
+	if routeMap["default_domain_resolver"] != "local_dns" {
+		t.Fatalf("default_domain_resolver = %v, want local_dns", routeMap["default_domain_resolver"])
+	}
+}
+
+func TestRouteApply_UserDefaultDomainResolverIsPreserved(t *testing.T) {
+	opts := &option.Options{
+		Route: &option.RouteOptions{
+			DefaultDomainResolver: &option.DomainResolveOptions{Server: "custom_dns"},
+		},
+	}
+	m := &RouteModule{RouteMode: model.RouteModeRule}
+	if err := m.Apply(opts, NewBuildContext(nil)); err != nil {
+		t.Fatalf("apply route: %v", err)
+	}
+
+	if opts.Route.DefaultDomainResolver == nil || opts.Route.DefaultDomainResolver.Server != "custom_dns" {
+		t.Fatalf("user default_domain_resolver was overwritten: %#v", opts.Route.DefaultDomainResolver)
+	}
+}
+
 func protocolHasDNS(v any) bool {
 	switch p := v.(type) {
 	case string:

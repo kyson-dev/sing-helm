@@ -30,6 +30,17 @@ func (m *RouteModule) Apply(opts *option.Options, ctx *BuildContext) error {
 		opts.Route.Final = moduleUtils.TagProxy
 	}
 
+	// 1.5 默认域名解析器：解析"出站节点自身 server 字段的域名"（如订阅节点用域名
+	// 而非 IP）。必须指向 local_dns（直连），不能指向 proxy_dns——proxy_dns 的
+	// detour 是 proxy selector，若代理节点自己的域名也要经它解析，会形成"先连上
+	// 代理才能解析域名、先解析域名才能连上代理"的自引用死循环，在冷启动或
+	// urltest 切换到未连接节点时必然卡死。sing-box 1.13.x 下 dns.servers 数量
+	// >= 2 时不设置本项只是 deprecated 警告，1.14.0 起会成为硬性报错
+	// （domain_resolver missing for domain server address）。
+	if opts.Route.DefaultDomainResolver == nil {
+		opts.Route.DefaultDomainResolver = &option.DomainResolveOptions{Server: moduleUtils.TagLocalDNS}
+	}
+
 	// 2. 将全局/直连模式转化为更高级别的劫持
 	switch m.RouteMode {
 	case model.RouteModeGlobal:

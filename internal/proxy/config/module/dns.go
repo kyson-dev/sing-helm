@@ -27,12 +27,12 @@ func (m *DNSModule) Apply(opts *option.Options, ctx *BuildContext) error {
 	dnsMap := map[string]any{
 		"servers": []map[string]any{
 			{
-				"tag":    "local_dns",
+				"tag":    moduleUtils.TagLocalDNS,
 				"type":   "https",
 				"server": "223.5.5.5", // IP 直连，无需 domain_resolver，无明文 UDP 引导查询
 			},
 			{
-				"tag":    "proxy_dns",
+				"tag":    moduleUtils.TagProxyDNS,
 				"type":   "https",
 				"server": "8.8.8.8", // IP 直连，无需 domain_resolver
 				"detour": moduleUtils.TagProxy,
@@ -78,12 +78,12 @@ func (m *DNSModule) Apply(opts *option.Options, ctx *BuildContext) error {
 			{
 				"query_type": []string{"PTR"},
 				"action":     "route",
-				"server":     "local_dns",
+				"server":     moduleUtils.TagLocalDNS,
 			},
 			{
 				"domain_suffix": []string{".local", ".lan", ".home.arpa", "localhost"},
 				"action":        "route",
-				"server":        "local_dns",
+				"server":        moduleUtils.TagLocalDNS,
 			},
 			// DNS解析模块不应该设置ip集，它本来就是输入域名输出ip的。
 			// tag 与 route.go 的白名单规则共用同一份 rule_set 定义（meta-rules-dat 的
@@ -93,7 +93,7 @@ func (m *DNSModule) Apply(opts *option.Options, ctx *BuildContext) error {
 			{
 				"rule_set": []string{"geosite-cn", "geosite-apple"},
 				"action":   "route",
-				"server":   "local_dns",
+				"server":   moduleUtils.TagLocalDNS,
 			},
 		},
 		"final": "proxy_dns",
