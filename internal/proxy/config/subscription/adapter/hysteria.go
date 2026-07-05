@@ -5,6 +5,7 @@ import (
 	"net/url"
 
 	"github.com/kyson-dev/sing-helm/internal/proxy/config/model"
+	"github.com/kyson-dev/sing-helm/internal/sys/logger"
 )
 
 // HysteriaAdapter handles Hysteria protocol
@@ -175,6 +176,26 @@ func (a *Hysteria2Adapter) FromURI(uriStr string) (model.Node, error) {
 	if query.Get("insecure") == "1" {
 		tls["insecure"] = true
 	}
+
+	if obfsType := query.Get("obfs"); obfsType != "" {
+		outbound["obfs"] = map[string]any{
+			"type":     obfsType,
+			"password": query.Get("obfs-password"),
+		}
+	}
+
+	// pinSHA256 hashes the whole certificate (Hysteria2's own pinning scheme),
+	// while sing-box's certificate_public_key_sha256 hashes only the SPKI —
+	// the two aren't interchangeable, so pinSHA256 alone can't be translated.
+	// pubKeySHA256 is our own subscription's pre-derived SPKI hash for the
+	// same certificate; fall back to insecure when it's absent.
+	if pubKeySHA256 := query.Get("pubKeySHA256"); pubKeySHA256 != "" {
+		tls["certificate_public_key_sha256"] = pubKeySHA256
+	} else if query.Get("pinSHA256") != "" {
+		logger.Debug("hysteria2 pinSHA256 present without pubKeySHA256, falling back to insecure", "server", server)
+		tls["insecure"] = true
+	}
+
 	outbound["tls"] = tls
 
 	return model.Node{
