@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"github.com/kyson-dev/sing-helm/internal/sys/logger"
 	"github.com/kyson-dev/sing-helm/internal/sys/version"
 	"github.com/spf13/cobra"
 )
@@ -14,7 +13,7 @@ func newVersionCommand() *cobra.Command {
 			// 不需要任何环境检查
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			logger.Info((&version.Info{}).String())
+			cmd.Println((&version.Info{}).String())
 		},
 	}
 }

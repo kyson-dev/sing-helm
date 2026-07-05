@@ -50,10 +50,19 @@ func (m *DNSModule) Apply(opts *option.Options, ctx *BuildContext) error {
 		},
 		"rules": []map[string]any{
 			{
-				"rule_set": []string{"geosite-ads", "anti-ad"},
+				"rule_set": []string{"geosite-ads"},
 				"action":   "reject",
 			},
-			// 必须放在 cn/apple/!cn 分流规则之前：命中的查询在“面向客户端”的
+			// 现代浏览器发起 A/AAAA 查询时会并发发出 HTTPS/SVCB (type 65/64) 查询做
+			// ALPN/ECH 协商。这类查询不在下面的 A/AAAA 过滤范围内，会穿透到
+			// local_dns/proxy_dns 走真实网络解析；由于 A/AAAA 已经立刻拿到 fake-ip，
+			// 浏览器却要等这次真实查询返回才继续握手，实测会造成几百毫秒到数秒的
+			// 卡顿（网络波动时甚至 10s 超时）。直接拒绝，浏览器会退回用 fake-ip 建连。
+			{
+				"query_type": []string{"HTTPS", "SVCB"},
+				"action":     "reject",
+			},
+			// 必须放在 cn/apple 分流规则之前：命中的查询在“面向客户端”的
 			// 那一次解析中会直接拿到 fake-ip；而 sing-box 内部为出站拨号做的
 			// 第二次解析 (allowFakeIP=false) 会自动跳过这条规则，落到下面的
 			// local_dns/proxy_dns 分流规则上，拿到真实地址——两次解析互不冲突，
@@ -62,28 +71,29 @@ func (m *DNSModule) Apply(opts *option.Options, ctx *BuildContext) error {
 				"query_type": []string{"A", "AAAA"},
 				"server":     "dns_fakeip",
 			},
-			// DNS解析模块不应该设置ip集，它本来就是输入域名输出ip的。
-			// geosite-cn 未收录的常见国内服务（B站/爱奇艺/优酷等，见 route.go 里的详细说明）
-			// 显式补充到 local_dns，避免这些域名解析退化到 final: proxy_dns 走跨境代理，
-			// final 兜底策略本身保持不变。
-			// 必须放在下面的 !cn 规则之前：geolocation-!cn 通过 category-companies 间接
-			// include:apple，未经过滤地把整个 apple 域名列表也纳入了"非中国大陆"名单，
-			// 若 !cn 规则先命中，apple 域名会被错误路由到 proxy_dns。
+			// PTR（反向解析）及局域网私有域名：不在 geosite-cn/apple 名单里，若落到
+			// 下面 final: proxy_dns，会拿私网地址/mDNS 域名去问公网 DNS，必然失败，
+			// 实测每次都要等满 10s 超时——常见于 macOS/iOS 的 Bonjour 局域网设备发现
+			// (AirDrop、打印机、NAS 等)。这里强制走本地直连 DNS。
 			{
-				"rule_set": []string{
-					"geosite-cn", "geosite-apple",
-					"geosite-bilibili", "geosite-iqiyi", "geosite-youku", "geosite-sina",
-					"geosite-zhihu", "geosite-xiaohongshu", "geosite-douyin", "geosite-kuaishou",
-					"geosite-sohu", "geosite-kugou", "geosite-kuwo", "geosite-acfun",
-				},
-				"action": "route",
-				"server": "local_dns",
+				"query_type": []string{"PTR"},
+				"action":     "route",
+				"server":     "local_dns",
 			},
-			// 非中国大陆域名强制代理 (防止海外域名被 IP 查表误判走直连)
 			{
-				"rule_set": []string{"geosite-geolocation-!cn"},
+				"domain_suffix": []string{".local", ".lan", ".home.arpa", "localhost"},
+				"action":        "route",
+				"server":        "local_dns",
+			},
+			// DNS解析模块不应该设置ip集，它本来就是输入域名输出ip的。
+			// tag 与 route.go 的白名单规则共用同一份 rule_set 定义（meta-rules-dat 的
+			// geosite-cn/geosite-apple），命中的域名交给 AliDoH 解析；未命中的一律落到
+			// 下面的 final: proxy_dns，走代理侧 DoH 解析（不再需要额外的 !cn 规则，效果和
+			// final 完全重复）。
+			{
+				"rule_set": []string{"geosite-cn", "geosite-apple"},
 				"action":   "route",
-				"server":   "proxy_dns",
+				"server":   "local_dns",
 			},
 		},
 		"final": "proxy_dns",

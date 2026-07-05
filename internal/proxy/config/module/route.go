@@ -72,21 +72,77 @@ func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 	// 必须在 ip_is_private 之前，否则会把 172.19.0.2:53 等 DNS 包提前放行到 direct，导致 DNS 劫持失效。
 	rules = append(rules, map[string]any{"protocol": []string{"dns"}, "action": "hijack-dns"})
 
+	// 针对 ali dns 放行（因为在 DNS 模块中配置了国内直接去 ali 解析，避免循环）
+	// 字面量 IP 匹配 metadata.Destination.Addr，不依赖 resolve，放在哪里都一样。
+	rules = append(rules, map[string]any{"ip_cidr": []string{"223.5.5.5/32", "223.6.6.6/32", "2400:3200::/32"}, "outbound": moduleUtils.TagDirect})
+
+	// 片段 2: NTP 直连
+	rules = append(rules, map[string]any{"protocol": []string{"ntp"}, "outbound": moduleUtils.TagDirect})
+
+
+	// ============ 片段 3: 白名单（来自 meta-rules-dat，优先于广告拦截）============
+	// 不再使用 SagerNet 的 geosite-cn/geoip-cn/geolocation-!cn：经实测确认历史上
+	// www.gstatic.com 被误直连，命中的是 SagerNet geosite-cn 这个域名规则集
+	// （geoip-cn 对日志中出现的所有 Google/GitHub IP 均未命中，是无辜的）。改用
+	// meta-rules-dat（mihomo 团队维护，原生发布 sing-box .srs，按公司/产品拆分，
+	// 已实测 www.gstatic.com/google.com/github.com 在其 cn.srs 中均为干净）。
+	// 以后新增名单，只应在这里逐条添加具体规则集，不允许重新引入任何"大类"。
+
+	// 海外强制代理白名单 -> 代理。放在最前面，防止被下面的国内白名单或广告规则
+	// 集意外误伤（历史事故：gstatic.com 被误直连、github.com 被广告规则集误判
+	// block，均导致本该走代理的连接白白等满超时或 EPERM）。
+	// 这里只用域名规则集，故意不带 geoip-google：域名匹配不需要真实 IP，可以在
+	// 下面的 resolve 之前就直接命中，让已知域名零延迟分流；geoip-google 的 IP
+	// 兜底放到 resolve 之后单独处理（见片段 6），避免为了它把 resolve 提前到
+	// 所有连接都要付出一次真实 DNS 往返的位置。
+	ruleSets = append(ruleSets, metaGeositeRuleSet("google"), metaGeositeRuleSet("github"))
+	rules = append(rules, map[string]any{
+		"rule_set": []string{"geosite-google", "geosite-github"},
+		"outbound": moduleUtils.TagProxy,
+	})
+
+	// 国内/苹果直连白名单 -> 直连。只用域名规则集 cn（不引入对应的 geoip-cn）：
+	// fake-ip 模式下规则匹配前已把目的地址还原成域名，IP 库能多覆盖的场景很小
+	// （只有绕过 DNS 直拨字面量 IP 的流量），却要背上跨境 CDN/Anycast IP 误判的
+	// 风险，不值得。
+	ruleSets = append(ruleSets, metaGeositeRuleSet("apple"), metaGeositeRuleSet("cn"))
+	rules = append(rules, map[string]any{
+		"rule_set": []string{"geosite-apple", "geosite-cn"},
+		"outbound": moduleUtils.TagDirect,
+	})
+
+	// ============ 片段 5: 去广告（放在白名单之后，避免误伤上面已确认的服务）============
+	ruleSets = append(ruleSets, map[string]any{
+		"tag":             "geosite-ads",
+		"type":            "remote",
+		"format":          "binary",
+		"url":             "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/category-ads-all.srs",
+		"download_detour": moduleUtils.TagProxy,
+	})
+
+	// 用 reject 而非 block outbound：block 在 macOS TUN 下会以 EPERM 的形式
+	// 抛出给客户端（而不是干净的 TCP RST/ICMP 不可达），部分 App 对 EPERM 的
+	// 处理比对正常连接失败更差，实测日志中出现上千次 EPERM。这里复用 IPv6
+	// 字面量拦截规则（片段 3 末尾）已经验证过的做法，保持处理方式一致。
+	rules = append(rules, map[string]any{"rule_set": []string{"geosite-ads"}, "action": "reject"})
+
+	// ============ 片段 6: resolve + IP 兜底 ============
+	// 只有上面所有域名规则集都没命中的连接才会走到这里。resolve 曾经放在
+	// 片段 1 最前面，导致每一条连接（包括本来靠域名就能零延迟分流的
+	// google/github/apple/cn 流量）都要先付出一次真实 DNS 往返延迟——实测日志
+	// 中 clients2.google.com 等域名的建连曾因此被拖慢 700ms~1.7s。挪到这里后，
+	// 只有域名匹配不到的流量（未知域名、局域网域名等）才需要这次真实解析。
+	//
 	// fake-ip 流量到这里时 metadata.Destination 已经被 matchRule 还原成域名，
-	// ip_is_private / ip_cidr（含下面的 geoip-cn）这类基于 IP 的规则只会在
+	// ip_is_private / ip_cidr（含下面的 geoip-google）这类基于 IP 的规则只会在
 	// metadata.Destination.Addr 无效时退回检查 metadata.DestinationAddresses——
 	// 而这个字段只有 resolve 动作才会填充，不加这一步这些规则会直接失效。
 	// 对字面量 IP 流量（未走 DNS）是完全无操作、零开销的。
 	rules = append(rules, map[string]any{"action": "resolve"})
 
-	// 针对 ali dns 放行（因为在 DNS 模块中配置了国内直接去 ali 解析，避免循环）
-	rules = append(rules, map[string]any{"ip_cidr": []string{"223.5.5.5/32", "223.6.6.6/32", "2400:3200::/32"}, "outbound": moduleUtils.TagDirect})
-
-	// 片段 2: 局域网直连
+	// 局域网域名 (nas.local、router.lan 等) 不在上面任何 geosite 白名单里，靠这里
+	// resolve 出的真实私网 IP 兜底直连；不会因为 resolve 挪到后面而失效。
 	rules = append(rules, map[string]any{"ip_is_private": true, "outbound": moduleUtils.TagDirect})
-
-	// 片段 3: NTP 直连
-	rules = append(rules, map[string]any{"protocol": []string{"ntp"}, "outbound": moduleUtils.TagDirect})
 
 	// IPv6 字面量兜底拦截：DNS 模块已启用 fake-ip，凡是经过域名解析的流量，
 	// matchRule 会先把目的地址还原成域名再匹配规则，这条规则根本碰不到；
@@ -94,93 +150,17 @@ func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 	// 返回 TCP RST（而不是静默丢包），让这类流量能尽快失败/回退，避免 EPERM 错误。
 	rules = append(rules, map[string]any{"ip_version": 6, "action": "reject"})
 
-	// 片段 4: 去广告模块
-	ruleSets = append(ruleSets, map[string]any{
-		"tag":             "geosite-ads",
-		"type":            "remote",
-		"format":          "binary",
-		"url":             "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-category-ads-all.srs",
-		"download_detour": moduleUtils.TagProxy,
-	})
-	ruleSets = append(ruleSets, map[string]any{
-		"tag":             "anti-ad",
-		"type":            "remote",
-		"format":          "binary",
-		"url":             "https://raw.githubusercontent.com/privacy-protection-tools/anti-ad.github.io/master/docs/anti-ad-sing-box.srs",
-		"download_detour": moduleUtils.TagProxy,
-	})
-	rules = append(rules, map[string]any{"rule_set": []string{"geosite-ads", "anti-ad"}, "outbound": moduleUtils.TagBlock})
+	// geoip-google 兜底：极少数不在 geosite-google 名单里的 Google 域名，或绕过
+	// DNS 直接拨字面量 IP 的流量，只要目的地址落在 Google IP 段也强制代理——
+	// 误判代价只是多走一次代理，没有实际损失。
+	ruleSets = append(ruleSets, metaGeoipRuleSet("google"))
+	rules = append(rules, map[string]any{"rule_set": []string{"geoip-google"}, "outbound": moduleUtils.TagProxy})
 
-	// 片段 6: Apple 流量直连
-	ruleSets = append(ruleSets, map[string]any{
-		"tag":             "geosite-apple",
-		"type":            "remote",
-		"format":          "binary",
-		"url":             "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-apple.srs",
-		"download_detour": moduleUtils.TagProxy,
-	})
-	rules = append(rules, map[string]any{"rule_set": []string{"geosite-apple"}, "outbound": moduleUtils.TagDirect})
-
-
-	// 片段 7: 国内直连 (CN 路由分流，纯域名规则集，均经过上游 @-!cn 过滤，可信)
-	ruleSets = append(ruleSets, map[string]any{
-		"tag":             "geosite-cn",
-		"type":            "remote",
-		"format":          "binary",
-		"url":             "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-cn.srs",
-		"download_detour": moduleUtils.TagProxy,
-	})
-
-	// 片段 7.5: geosite-cn 未收录的常见国内服务补充名单。
-	// geosite-cn 只聚合了 v2fly domain-list-community 的 tld-cn + geolocation-cn 两个分类，
-	// 哔哩哔哩、爱奇艺、优酷等站点根本不在这两个分类里（上游单独维护了对应分类，但没被 include
-	// 进 cn/geolocation-cn）。这些站点又大量使用动态命名的 CDN 节点域名，域名规则命中不到时，
-	// 只能靠下面 geoip-cn 兜底：连接本身仍会正确走 direct，但 DNS 模块里同名域名解析会先落到
-	// proxy_dns（见 dns.go），导致每次换 CDN 节点都要多一次跨境代理 DNS 往返，实测造成明显卡顿。
-	// 这里按域名显式补上，配合 dns.go 里的同名规则，从根源避免这次多余的跨境解析。
-	commonCNServices := []string{"bilibili", "iqiyi", "youku", "sina", "zhihu", "xiaohongshu", "douyin", "kuaishou", "sohu", "kugou", "kuwo", "acfun"}
-	directDomainRuleSetTags := []string{"geosite-cn"}
-	for _, tag := range commonCNServices {
-		ruleSetTag := "geosite-" + tag
-		ruleSets = append(ruleSets, map[string]any{
-			"tag":             ruleSetTag,
-			"type":            "remote",
-			"format":          "binary",
-			"url":             "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/" + ruleSetTag + ".srs",
-			"download_detour": moduleUtils.TagProxy,
-		})
-		directDomainRuleSetTags = append(directDomainRuleSetTags, ruleSetTag)
-	}
-	rules = append(rules, map[string]any{"rule_set": directDomainRuleSetTags, "outbound": moduleUtils.TagDirect})
-
-	// 片段 8: 非中国大陆域名强制代理 (防止海外域名被 IP 查表误判走直连)
-	// 必须放在上面 apple/cn 域名直连规则之后、geoip-cn 之前：
-	// 1. geolocation-!cn 通过 category-companies 间接 include:apple，未经过滤地把整个
-	//    apple 域名列表也纳入了"非中国大陆"名单，所以必须晚于 apple/cn 直连规则，否则
-	//    first-match-wins 会让这条规则抢先命中，Apple 流量被错误地强制代理。
-	// 2. geoip-cn 是纯 IP 地理库，存在误判风险（如某些跨境 CDN 的部分节点 IP 被归类为
-	//    中国大陆），而 geosite 域名分类更可信；必须早于 geoip-cn，用域名判断结果覆盖
-	//    掉可能错误的 IP 地理判断，这也是这条规则最初被引入的目的——如果排在 geoip-cn
-	//    之后，就和什么都不做（直接落到下面 final: proxy）没有区别了。
-	ruleSets = append(ruleSets, map[string]any{
-		"tag":             "geosite-geolocation-!cn",
-		"type":            "remote",
-		"format":          "binary",
-		"url":             "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-geolocation-!cn.srs",
-		"download_detour": moduleUtils.TagProxy,
-	})
-	rules = append(rules, map[string]any{"rule_set": []string{"geosite-geolocation-!cn"}, "outbound": moduleUtils.TagProxy})
-
-	// 片段 9: 国内 IP 段兜底直连 (纯 IP 地理库，只兜底 geosite-cn/apple/!cn 均未命中的域名，
-	// 或未经 DNS、直接以字面量 IP 连接的流量)
-	ruleSets = append(ruleSets, map[string]any{
-		"tag":             "geoip-cn",
-		"type":            "remote",
-		"format":          "binary",
-		"url":             "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-cn.srs",
-		"download_detour": moduleUtils.TagProxy,
-	})
-	rules = append(rules, map[string]any{"rule_set": []string{"geoip-cn"}, "outbound": moduleUtils.TagDirect})
+	// ============ 片段 7: 默认代理 ============
+	// 未命中以上任何规则的流量，落到 RouteModule.Apply 里设置的 final: proxy。
+	// 不再有 geoip-cn 兜底直连：这是整套规则里误判率最高的信号来源，删除之后，
+	// 任何没被白名单显式认领的流量默认代理，代价只是慢一点，不会再出现
+	// "误判走直连、实际连不通、白等 5 秒超时" 这类硬失败。
 
 	// 此时组合成一个整体 map 进行反序列化 (为了兼容 sing-box 的 rule 抽象类型)
 	routeMap := map[string]any{
@@ -205,6 +185,28 @@ func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 	opts.Route.AutoDetectInterface = generatedRoute.AutoDetectInterface
 
 	return nil
+}
+
+// metaGeositeRuleSet 引用 meta-rules-dat 按公司/产品维护的域名规则集
+func metaGeositeRuleSet(name string) map[string]any {
+	return map[string]any{
+		"tag":             "geosite-" + name,
+		"type":            "remote",
+		"format":          "binary",
+		"url":             "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/" + name + ".srs",
+		"download_detour": moduleUtils.TagProxy,
+	}
+}
+
+// metaGeoipRuleSet 引用 meta-rules-dat 按公司/产品维护的 IP 规则集
+func metaGeoipRuleSet(name string) map[string]any {
+	return map[string]any{
+		"tag":             "geoip-" + name,
+		"type":            "remote",
+		"format":          "binary",
+		"url":             "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/" + name + ".srs",
+		"download_detour": moduleUtils.TagProxy,
+	}
 }
 
 func keepSniffRules(rules []option.Rule) []option.Rule {
