@@ -90,6 +90,9 @@ func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 	// 片段 2: NTP 直连
 	rules = append(rules, map[string]any{"protocol": []string{"ntp"}, "outbound": moduleUtils.TagDirect})
 
+	// 片段 2.1: ICMP 直连（避免代理出站不支持 ICMP 导致报错）
+	rules = append(rules, map[string]any{"protocol": []string{"icmp"}, "outbound": moduleUtils.TagDirect})
+
 
 	// ============ 片段 3: 白名单（来自 meta-rules-dat，优先于广告拦截）============
 	// 不再使用 SagerNet 的 geosite-cn/geoip-cn/geolocation-!cn：经实测确认历史上
