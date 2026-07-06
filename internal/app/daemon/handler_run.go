@@ -12,6 +12,7 @@ import (
 	"github.com/kyson-dev/sing-helm/internal/sys/ipc"
 	"github.com/kyson-dev/sing-helm/internal/sys/logger"
 	"github.com/kyson-dev/sing-helm/internal/sys/paths"
+	"github.com/kyson-dev/sing-helm/internal/sys/sysnet"
 )
 
 // handleRun 处理 IPC run 命令，启动 sing-box 服务
@@ -143,6 +144,22 @@ func (d *Daemon) applyRunOptions(ctx context.Context, state *RuntimeState) error
 		err := errors.New("service not available")
 		return err
 	}
+
+	// TUN 模式下 reload 只是在同一进程内 Close 旧 box 再 Start 新 box，proxy_mode 本身
+	// 不变时 syncSystemDNS 会因为 mode == prev 而直接跳过，不会触发 networksetup 的
+	// DNS 变更事件。而这个事件正是 macOS 感知到新 TUN 接口、刷新路由/接口监听状态的
+	// 关键一步——完整的 stop+start 之所以能修复断网，就是因为 stop 时 RestoreSystemDNS
+	// 和 start 时 SetSystemDNS 各触发了一次该事件。这里强制复位 dnsMode，让 reload 后的
+	// syncSystemDNS 重新走一遍 restore -> re-apply,和 stop+start 保持一致。
+	if state.RunOptions.ProxyMode == model.ProxyModeTUN {
+		d.mu.Lock()
+		d.dnsMode = ""
+		d.mu.Unlock()
+		if err := sysnet.RestoreSystemDNS(); err != nil {
+			logger.Error("Failed to restore system DNS before reload", "error", err)
+		}
+	}
+
 	if err := d.service.ReloadFromFile(ctx, paths.Get().RawConfigFile); err != nil {
 		var reloadErr *engine.ReloadError
 		if errors.As(err, &reloadErr) && reloadErr.Stage == engine.ReloadStageStart {
