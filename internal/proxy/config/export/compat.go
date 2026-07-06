@@ -14,6 +14,7 @@ func applyCompatForV1114(root map[string]any) {
 	downgradeRuleSets(root)
 	downgradeSelectorOutbounds(root)
 	downgradeDefaultDomainResolver(root)
+	downgradeOutboundTLS(root)
 }
 
 // downgradeFakeIPServer extracts the v1.12+ type:"fakeip" DNS server's inline
@@ -192,6 +193,34 @@ func downgradeSelectorOutbounds(root map[string]any) {
 		if typ == "selector" || typ == "urltest" {
 			delete(outbound, "default")
 		}
+	}
+}
+
+// downgradeOutboundTLS strips certificate_public_key_sha256 (added in sing-box
+// v1.13.0) from outbound tls blocks for v1.11.4, which rejects it under
+// DisallowUnknownFields. Since pinning can't be enforced, fall back to
+// insecure so the connection still succeeds, matching the same fallback used
+// when the adapter can't derive a pin in the first place.
+func downgradeOutboundTLS(root map[string]any) {
+	outbounds, ok := root["outbounds"].([]any)
+	if !ok {
+		return
+	}
+
+	for _, entry := range outbounds {
+		outbound, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		tls, ok := outbound["tls"].(map[string]any)
+		if !ok {
+			continue
+		}
+		if _, hasPin := tls["certificate_public_key_sha256"]; !hasPin {
+			continue
+		}
+		delete(tls, "certificate_public_key_sha256")
+		tls["insecure"] = true
 	}
 }
 

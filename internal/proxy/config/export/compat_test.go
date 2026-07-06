@@ -46,6 +46,42 @@ func TestApplyCompatForV1114_StripsDefaultDomainResolver(t *testing.T) {
 	}
 }
 
+func TestApplyCompatForV1114_StripsCertificatePublicKeySHA256(t *testing.T) {
+	root := map[string]any{
+		"outbounds": []any{
+			map[string]any{
+				"type": "hysteria2",
+				"tag":  "proxy",
+				"tls": map[string]any{
+					"enabled":                       true,
+					"certificate_public_key_sha256": "dGVzdGtleQ==",
+				},
+			},
+		},
+	}
+
+	applyCompatForV1114(root)
+
+	outbounds, ok := root["outbounds"].([]any)
+	if !ok || len(outbounds) == 0 {
+		t.Fatalf("outbounds missing")
+	}
+	outbound, ok := outbounds[0].(map[string]any)
+	if !ok {
+		t.Fatalf("outbound[0] is not an object")
+	}
+	tls, ok := outbound["tls"].(map[string]any)
+	if !ok {
+		t.Fatalf("tls missing")
+	}
+	if _, ok := tls["certificate_public_key_sha256"]; ok {
+		t.Fatalf("expected certificate_public_key_sha256 to be stripped for v1.11.4")
+	}
+	if tls["insecure"] != true {
+		t.Fatalf("expected insecure fallback to be set, got %#v", tls["insecure"])
+	}
+}
+
 func firstInboundAsMap(t *testing.T, root map[string]any) map[string]any {
 	t.Helper()
 
