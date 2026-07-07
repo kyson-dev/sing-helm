@@ -35,6 +35,7 @@ func (m *DNSModule) Apply(opts *option.Options, ctx *BuildContext) error {
 				"tag":    moduleUtils.TagProxyDNS,
 				"type":   "https",
 				"server": "8.8.8.8", // IP 直连，无需 domain_resolver
+				"detour": moduleUtils.TagProxy,
 			},
 			// fake-ip：客户端拿到的始终是这个池子里的占位地址，真实解析推迟到
 			// 出站拨号时才发生（见下方 rules 注释），从而让 sing-box 自己的
