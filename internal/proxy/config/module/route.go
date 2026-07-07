@@ -71,17 +71,39 @@ func (m *RouteModule) Apply(opts *option.Options, ctx *BuildContext) error {
 	return nil
 }
 
+// buildRouteFragment 将 rule_set/rules 的 map 描述通过 sing-box 的 context-aware
+// JSON 反序列化，转成带类型的 RuleSet/Rule 切片（action 等多态字段需要 include.Context
+// 才能正确解析出具体类型，不能手写结构体字面量）。
+func buildRouteFragment(ruleSetSpecs, ruleSpecs []map[string]any) ([]option.RuleSet, []option.Rule, error) {
+	data, err := singboxjson.Marshal(map[string]any{
+		"rule_set": ruleSetSpecs,
+		"rules":    ruleSpecs,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var parsed option.RouteOptions
+	tx := include.Context(context.Background())
+	if err := singboxjson.UnmarshalContext(tx, data, &parsed); err != nil {
+		return nil, nil, err
+	}
+	return parsed.RuleSet, parsed.Rules, nil
+}
+
 // applyDefaultFragments 组装默认的开箱即用路由规则
 func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
+	// 协议嗅探 (Sniffing) 和 DNS 劫持必须排在包括用户 profile.json 规则在内的所有域名
+	// 规则之前才有意义：sniff 补全 metadata.Domain，hijack-dns 必须在 ip_is_private 之前
+	// 拦下 DNS 包，否则会被提前放行到 direct 导致 DNS 劫持失效。这两条单独生成、单独插入
+	// 用户规则之前，不与下面的保底规则混在一份列表里切片，避免下标错位。
+	leadingRuleSpecs := []map[string]any{
+		{"action": "sniff"},
+		{"protocol": []string{"dns"}, "action": "hijack-dns"},
+	}
+
 	var ruleSets []map[string]any
 	var rules []map[string]any
-
-	// 协议嗅探 (Sniffing) - 必须放在第一位进行协议和域名嗅探
-	rules = append(rules, map[string]any{"action": "sniff"})
-
-	// 片段 1: DNS 流量专门劫持 (在 TUN/Mixed 模式中，由 sing-box 本地解析)
-	// 必须在 ip_is_private 之前，否则会把 172.19.0.2:53 等 DNS 包提前放行到 direct，导致 DNS 劫持失效。
-	rules = append(rules, map[string]any{"protocol": []string{"dns"}, "action": "hijack-dns"})
 
 	// 针对 ali dns 放行（因为在 DNS 模块中配置了国内直接去 ali 解析，避免循环）
 	// 字面量 IP 匹配 metadata.Destination.Addr，不依赖 resolve，放在哪里都一样。
@@ -162,7 +184,7 @@ func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 	// matchRule 会先把目的地址还原成域名再匹配规则，这条规则根本碰不到；
 	// 它只会命中极少数绕过 DNS、直接连字面量 IPv6 地址的流量。用 reject
 	// 返回 TCP RST（而不是静默丢包），让这类流量能尽快失败/回退，避免 EPERM 错误。
-	rules = append(rules, map[string]any{"ip_version": 6, "action": "reject"})
+	//rules = append(rules, map[string]any{"ip_version": 6, "action": "reject"})
 
 	// geoip-google 兜底：极少数不在 geosite-google 名单里的 Google 域名，或绕过
 	// DNS 直接拨字面量 IP 的流量，只要目的地址落在 Google IP 段也强制代理——
@@ -170,33 +192,33 @@ func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 	ruleSets = append(ruleSets, metaGeoipRuleSet("google"))
 	rules = append(rules, map[string]any{"rule_set": []string{"geoip-google"}, "outbound": moduleUtils.TagProxy})
 
+	// geoip-cn 兜底：sniff 顺序修复 + dns.reverse_mapping 上线后，只有真正拿不到域名的
+	// 连接（未走 DNS 的裸 IP、UDP 首包等）才会落到这里；直连一个国内 IP 段判断出错，
+	// 代价可控（连不通时最坏也只是这一条连接失败，不影响其它流量），比"这类流量默认
+	// 全部代理"更符合"国内 app 不该必须经代理才能用"的预期。历史上移除它是因为它排在
+	// 域名白名单之前时拦截过 www.gstatic.com 这类误判；现在它排在所有域名规则、resolve
+	// 之后，只兜底裸 IP，误判面已大幅收窄。
+	ruleSets = append(ruleSets, metaGeoipRuleSet("cn"))
+	rules = append(rules, map[string]any{"rule_set": []string{"geoip-cn"}, "outbound": moduleUtils.TagDirect})
+
 	// ============ 片段 7: 默认代理 ============
 	// 未命中以上任何规则的流量，落到 RouteModule.Apply 里设置的 final: proxy。
-	// 不再有 geoip-cn 兜底直连：这是整套规则里误判率最高的信号来源，删除之后，
-	// 任何没被白名单显式认领的流量默认代理，代价只是慢一点，不会再出现
-	// "误判走直连、实际连不通、白等 5 秒超时" 这类硬失败。
 
-	// 此时组合成一个整体 map 进行反序列化 (为了兼容 sing-box 的 rule 抽象类型)
-	routeMap := map[string]any{
-		"rule_set":              ruleSets,
-		"rules":                 rules,
-		"auto_detect_interface": true,
+	_, leadingRules, err := buildRouteFragment(nil, leadingRuleSpecs)
+	if err != nil {
+		return err
 	}
-
-	data, err := singboxjson.Marshal(routeMap)
+	generatedRuleSets, trailingRules, err := buildRouteFragment(ruleSets, rules)
 	if err != nil {
 		return err
 	}
 
-	var generatedRoute option.RouteOptions
-	tx := include.Context(context.Background())
-	if err := singboxjson.UnmarshalContext(tx, data, &generatedRoute); err != nil {
-		return err
-	}
-
-	opts.Route.RuleSet = append(opts.Route.RuleSet, generatedRoute.RuleSet...)
-	opts.Route.Rules = append(opts.Route.Rules, generatedRoute.Rules...)
-	opts.Route.AutoDetectInterface = generatedRoute.AutoDetectInterface
+	// leading（sniff/hijack-dns）和 trailing（保底规则）是两次独立生成的结果，
+	// 用户规则原样插在两者中间：不再依赖对同一份列表切片取下标，以后往 trailing
+	// 开头加规则也不会误伤 leading 的内容。
+	opts.Route.RuleSet = append(opts.Route.RuleSet, generatedRuleSets...)
+	opts.Route.Rules = append(append(append([]option.Rule{}, leadingRules...), opts.Route.Rules...), trailingRules...)
+	opts.Route.AutoDetectInterface = true
 
 	return nil
 }
@@ -241,6 +263,10 @@ func keepSniffRules(rules []option.Rule) []option.Rule {
 		}
 		// Preserve AliDNS direct-bypass so bootstrap DoH to 223.5.5.5 stays direct.
 		if _, hasCIDR := rm["ip_cidr"]; hasCIDR {
+			kept = append(kept, rule)
+		}
+		// 保留局域网私网直连规则，防止全局代理模式下局域网设备断连
+		if isPrivate, _ := rm["ip_is_private"].(bool); isPrivate {
 			kept = append(kept, rule)
 		}
 	}
