@@ -184,7 +184,7 @@ func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 	// matchRule 会先把目的地址还原成域名再匹配规则，这条规则根本碰不到；
 	// 它只会命中极少数绕过 DNS、直接连字面量 IPv6 地址的流量。用 reject
 	// 返回 TCP RST（而不是静默丢包），让这类流量能尽快失败/回退，避免 EPERM 错误。
-	rules = append(rules, map[string]any{"ip_version": 6, "action": "reject"})
+	//rules = append(rules, map[string]any{"ip_version": 6, "action": "reject"})
 
 	// geoip-google 兜底：极少数不在 geosite-google 名单里的 Google 域名，或绕过
 	// DNS 直接拨字面量 IP 的流量，只要目的地址落在 Google IP 段也强制代理——
@@ -263,6 +263,10 @@ func keepSniffRules(rules []option.Rule) []option.Rule {
 		}
 		// Preserve AliDNS direct-bypass so bootstrap DoH to 223.5.5.5 stays direct.
 		if _, hasCIDR := rm["ip_cidr"]; hasCIDR {
+			kept = append(kept, rule)
+		}
+		// 保留局域网私网直连规则，防止全局代理模式下局域网设备断连
+		if isPrivate, _ := rm["ip_is_private"].(bool); isPrivate {
 			kept = append(kept, rule)
 		}
 	}

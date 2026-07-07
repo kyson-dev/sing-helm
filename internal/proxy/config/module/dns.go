@@ -28,8 +28,8 @@ func (m *DNSModule) Apply(opts *option.Options, ctx *BuildContext) error {
 		"servers": []map[string]any{
 			{
 				"tag":    moduleUtils.TagLocalDNS,
-				"type":   "https",
-				"server": "223.5.5.5", // IP 直连，无需 domain_resolver，无明文 UDP 引导查询
+				"type":   "udp",
+				"server": "223.5.5.5", // 使用 UDP 直连，避开 TLS 握手与系统时间校验失败导致的冷启动死锁
 			},
 			{
 				"tag":    moduleUtils.TagProxyDNS,

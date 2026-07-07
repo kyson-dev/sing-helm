@@ -332,7 +332,7 @@ func TestRouteApply_IPv6Block(t *testing.T) {
 		}
 	}
 
-	if !hasIPv6Block {
-		t.Fatalf("expected IPv6 reject rule but not found")
+	if hasIPv6Block {
+		t.Fatalf("expected no IPv6 reject rule, but found one")
 	}
 }
