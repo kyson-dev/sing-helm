@@ -35,7 +35,6 @@ func (m *DNSModule) Apply(opts *option.Options, ctx *BuildContext) error {
 				"tag":    moduleUtils.TagProxyDNS,
 				"type":   "https",
 				"server": "8.8.8.8", // IP 直连，无需 domain_resolver
-				"detour": moduleUtils.TagProxy,
 			},
 			// fake-ip：客户端拿到的始终是这个池子里的占位地址，真实解析推迟到
 			// 出站拨号时才发生（见下方 rules 注释），从而让 sing-box 自己的
@@ -101,6 +100,14 @@ func (m *DNSModule) Apply(opts *option.Options, ctx *BuildContext) error {
 		// 生成 AAAA 占位地址，也让出站拨号阶段的真实解析同时拿到 v4/v6，
 		// 交给 dialer 的 Happy Eyeballs 去竞速，而不是在 DNS 层就切断 v6。
 		"strategy": "prefer_ipv4",
+		// 为绕过 fake-ip、直接查 local_dns/proxy_dns 拿真实 IP 的域名（如 profile.json
+		// 里的 futunn.com/wise.com 等）启用反查表：路由匹配 TCP/UDP 连接时会先按
+		// 目的 IP 反查回域名再过一遍规则，域名规则（包括用户在 profile.json 里写的）
+		// 才能在真实 IP 上生效。否则这些域名的连接在规则链最前面（用户规则通常排在
+		// 内置 sniff 动作之前）时 metadata.Domain 为空，域名规则直接失配，
+		// 只能等后面的 sniff 补上域名，但为时已晚（该规则早已跳过），最终误落到
+		// final: proxy，表现为"明明配了直连却还在走代理、速度变慢"。
+		"reverse_mapping": true,
 	}
 
 	data, err := singboxjson.Marshal(dnsMap)
@@ -137,5 +144,6 @@ func (m *DNSModule) Apply(opts *option.Options, ctx *BuildContext) error {
 	// 3. 基础设置: 强制使用系统硬编码，不能被用户覆盖。
 	opts.DNS.Final = defaultDnsOpts.Final
 	opts.DNS.Strategy = defaultDnsOpts.Strategy
+	opts.DNS.ReverseMapping = defaultDnsOpts.ReverseMapping
 	return nil
 }

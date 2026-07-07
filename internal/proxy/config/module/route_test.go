@@ -1,10 +1,12 @@
 package module
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
 	"github.com/kyson-dev/sing-helm/internal/proxy/config/model"
+	"github.com/sagernet/sing-box/include"
 	"github.com/sagernet/sing-box/option"
 	singboxjson "github.com/sagernet/sing/common/json"
 )
@@ -139,6 +141,22 @@ func TestRouteApply_UserDefaultDomainResolverIsPreserved(t *testing.T) {
 	}
 }
 
+// stringListContains checks whether v (a decoded badoption.Listable[string],
+// which collapses to a bare string when it has exactly one element) contains target.
+func stringListContains(v any, target string) bool {
+	switch p := v.(type) {
+	case string:
+		return p == target
+	case []any:
+		for _, item := range p {
+			if s, ok := item.(string); ok && s == target {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func protocolHasDNS(v any) bool {
 	switch p := v.(type) {
 	case string:
@@ -158,6 +176,127 @@ func protocolHasDNS(v any) bool {
 		}
 	}
 	return false
+}
+
+func TestRouteApply_UserRulesBetweenLeadingAndTrailing(t *testing.T) {
+	tx := include.Context(context.Background())
+	userRuleData, err := singboxjson.Marshal(map[string]any{
+		"domain_suffix": []string{"example.com"},
+		"outbound":      "direct",
+	})
+	if err != nil {
+		t.Fatalf("marshal user rule: %v", err)
+	}
+	var userRule option.Rule
+	if err := singboxjson.UnmarshalContext(tx, userRuleData, &userRule); err != nil {
+		t.Fatalf("unmarshal user rule: %v", err)
+	}
+
+	opts := &option.Options{
+		Route: &option.RouteOptions{
+			Rules: []option.Rule{userRule},
+		},
+	}
+	m := &RouteModule{RouteMode: model.RouteModeRule}
+	if err := m.Apply(opts, NewBuildContext(nil)); err != nil {
+		t.Fatalf("apply route: %v", err)
+	}
+
+	raw, err := singboxjson.Marshal(opts.Route)
+	if err != nil {
+		t.Fatalf("marshal route: %v", err)
+	}
+	var routeMap map[string]any
+	if err := json.Unmarshal(raw, &routeMap); err != nil {
+		t.Fatalf("decode route: %v", err)
+	}
+
+	rules, ok := routeMap["rules"].([]any)
+	if !ok || len(rules) < 3 {
+		t.Fatalf("route rules missing or too short: %#v", rules)
+	}
+
+	first, _ := rules[0].(map[string]any)
+	if first["action"] != "sniff" {
+		t.Fatalf("rules[0] = %#v, want action sniff", rules[0])
+	}
+	second, _ := rules[1].(map[string]any)
+	if !protocolHasDNS(second["protocol"]) || second["action"] != "hijack-dns" {
+		t.Fatalf("rules[1] = %#v, want hijack-dns", rules[1])
+	}
+
+	userRuleIdx, builtinWhitelistIdx := -1, -1
+	for i, rule := range rules {
+		rm, ok := rule.(map[string]any)
+		if !ok {
+			continue
+		}
+		if stringListContains(rm["domain_suffix"], "example.com") && userRuleIdx < 0 {
+			userRuleIdx = i
+		}
+		if stringListContains(rm["rule_set"], "geosite-google") && builtinWhitelistIdx < 0 {
+			builtinWhitelistIdx = i
+		}
+	}
+
+	if userRuleIdx < 0 {
+		t.Fatalf("user rule not found in generated route rules")
+	}
+	if builtinWhitelistIdx < 0 {
+		t.Fatalf("builtin geosite-google whitelist rule not found")
+	}
+	if userRuleIdx >= builtinWhitelistIdx {
+		t.Fatalf("user rule must come before builtin whitelist rules: user=%d builtin=%d", userRuleIdx, builtinWhitelistIdx)
+	}
+	if userRuleIdx <= 1 {
+		t.Fatalf("user rule must come after sniff/hijack-dns: user=%d", userRuleIdx)
+	}
+}
+
+func TestRouteApply_GeoipCNFallbackPresent(t *testing.T) {
+	opts := &option.Options{}
+	m := &RouteModule{RouteMode: model.RouteModeRule}
+	if err := m.Apply(opts, NewBuildContext(nil)); err != nil {
+		t.Fatalf("apply route: %v", err)
+	}
+
+	raw, err := singboxjson.Marshal(opts.Route)
+	if err != nil {
+		t.Fatalf("marshal route: %v", err)
+	}
+	var routeMap map[string]any
+	if err := json.Unmarshal(raw, &routeMap); err != nil {
+		t.Fatalf("decode route: %v", err)
+	}
+
+	rules, ok := routeMap["rules"].([]any)
+	if !ok || len(rules) == 0 {
+		t.Fatalf("route rules missing")
+	}
+
+	resolveIdx, geoipCNIdx := -1, -1
+	for i, rule := range rules {
+		rm, ok := rule.(map[string]any)
+		if !ok {
+			continue
+		}
+		if rm["action"] == "resolve" && resolveIdx < 0 {
+			resolveIdx = i
+		}
+		if rm["outbound"] == "direct" && stringListContains(rm["rule_set"], "geoip-cn") {
+			geoipCNIdx = i
+		}
+	}
+
+	if resolveIdx < 0 {
+		t.Fatalf("resolve action rule not found")
+	}
+	if geoipCNIdx < 0 {
+		t.Fatalf("geoip-cn direct fallback rule not found")
+	}
+	if geoipCNIdx <= resolveIdx {
+		t.Fatalf("geoip-cn fallback must come after resolve: geoip-cn=%d resolve=%d", geoipCNIdx, resolveIdx)
+	}
 }
 
 func TestRouteApply_IPv6Block(t *testing.T) {
