@@ -118,7 +118,7 @@ func (m *TUNModule) Apply(opts *option.Options, ctx *BuildContext) error {
 		"tag":          "tun-in",
 		"mtu":          mtu,
 		"auto_route":   true,
-		"strict_route": true,
+		"strict_route": false,
 		// 同时下发 IPv4/IPv6 地址：iOS 端 (libbox) 会据此为 NEPacketTunnelNetworkSettings
 		// 生成对应地址族的默认路由。若只配置 IPv4，双栈网络下系统的 IPv6 流量
 		// (含 DNS 查询) 会直接走物理网卡绕过隧道，造成 DNS/流量泄漏。
