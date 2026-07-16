@@ -46,7 +46,7 @@ func newRunCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(&mode, "mode", "m", "", "Proxy mode: system, tun, or default")
-	cmd.Flags().StringVarP(&rule, "route", "r", "", "Route mode: rule, global, or direct")
+	cmd.Flags().StringVarP(&rule, "route", "r", "", "Route mode: rule, rule-direct, global, or direct")
 	cmd.Flags().IntVar(&apiPort, "api-port", 0, "Fixed API port")
 	cmd.Flags().IntVar(&mixPort, "mixed-port", 0, "Fixed Mixed port")
 	return cmd

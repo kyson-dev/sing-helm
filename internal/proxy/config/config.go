@@ -60,7 +60,7 @@ func DefaultModules(opts *model.RunOptions) []module.ConfigModule {
 	case model.ProxyModeTUN:
 		modules = append(modules,
 			&module.TUNModule{},
-			&module.DNSModule{},
+			&module.DNSModule{RouteMode: opts.RouteMode},
 		)
 	case model.ProxyModeSystem:
 		// DNSModule 为通过 mixed 入站的显式代理流量提供 DNS 路由。
@@ -70,7 +70,7 @@ func DefaultModules(opts *model.RunOptions) []module.ConfigModule {
 				ListenAddr:     opts.ListenAddr,
 				Port:           opts.MixedPort,
 			},
-			&module.DNSModule{},
+			&module.DNSModule{RouteMode: opts.RouteMode},
 		)
 	case model.ProxyModeDefault:
 		modules = append(modules,
@@ -79,7 +79,7 @@ func DefaultModules(opts *model.RunOptions) []module.ConfigModule {
 				ListenAddr:     opts.ListenAddr,
 				Port:           opts.MixedPort,
 			},
-			&module.DNSModule{},
+			&module.DNSModule{RouteMode: opts.RouteMode},
 		)
 	}
 

@@ -110,7 +110,7 @@ func newStartCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&dMode, "mode", "m", "", "Proxy mode: system, tun, or default")
-	cmd.Flags().StringVarP(&dRule, "route", "r", "", "Route mode: rule, global, or direct")
+	cmd.Flags().StringVarP(&dRule, "route", "r", "", "Route mode: rule, rule-direct, global, or direct")
 
 	return cmd
 }

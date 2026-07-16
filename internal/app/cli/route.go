@@ -9,12 +9,13 @@ import (
 
 func newRouteCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "route [rule|global|direct]",
+		Use:   "route [rule|rule-direct|global|direct]",
 		Short: "Switch route mode",
 		Long: `Switch the route mode:
-  rule   - Route traffic based on rules (default)
-  global - All traffic goes through proxy
-  direct - All traffic goes direct
+  rule         - Route based on rules, default proxy (default)
+  rule-direct  - Route based on rules, default direct
+  global       - All traffic goes through proxy
+  direct       - All traffic goes direct
 
 Note: This will restart sing-box to apply the new mode.`,
 		Args: cobra.MaximumNArgs(1),

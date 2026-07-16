@@ -43,6 +43,9 @@ func (m *RouteModule) Apply(opts *option.Options, ctx *BuildContext) error {
 
 	// 2. 将全局/直连模式转化为更高级别的劫持
 	switch m.RouteMode {
+	case model.RouteModeRuleDirect:
+		// 按规则路由，默认直连（白名单模式）：规则链与 rule 一致，仅 final 不同
+		opts.Route.Final = moduleUtils.TagDirect
 	case model.RouteModeGlobal:
 		// 全局代理：覆盖前面的默认 Final
 		opts.Route.Final = moduleUtils.TagProxy
@@ -115,32 +118,16 @@ func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 	// 片段 2.1: ICMP 直连（避免代理出站不支持 ICMP 导致报错）
 	rules = append(rules, map[string]any{"protocol": []string{"icmp"}, "outbound": moduleUtils.TagDirect})
 
-
-	// ============ 片段 3: 白名单（来自 meta-rules-dat，优先于广告拦截）============
-	// 不再使用 SagerNet 的 geosite-cn/geoip-cn/geolocation-!cn：经实测确认历史上
-	// www.gstatic.com 被误直连，命中的是 SagerNet geosite-cn 这个域名规则集
-	// （geoip-cn 对日志中出现的所有 Google/GitHub IP 均未命中，是无辜的）。改用
-	// meta-rules-dat（mihomo 团队维护，原生发布 sing-box .srs，按公司/产品拆分，
-	// 已实测 www.gstatic.com/google.com/github.com 在其 cn.srs 中均为干净）。
-	// 以后新增名单，只应在这里逐条添加具体规则集，不允许重新引入任何"大类"。
-
-	// 海外强制代理白名单 -> 代理。放在最前面，防止被下面的国内白名单或广告规则
-	// 集意外误伤（历史事故：gstatic.com 被误直连、github.com 被广告规则集误判
-	// block，均导致本该走代理的连接白白等满超时或 EPERM）。
-	// 这里只用域名规则集，故意不带 geoip-google：域名匹配不需要真实 IP，可以在
-	// 下面的 resolve 之前就直接命中，让已知域名零延迟分流；geoip-google 的 IP
-	// 兜底放到 resolve 之后单独处理（见片段 6），避免为了它把 resolve 提前到
-	// 所有连接都要付出一次真实 DNS 往返的位置。
-	ruleSets = append(ruleSets, metaGeositeRuleSet("google"), metaGeositeRuleSet("github"))
+	// ============ 片段 3: 域名分流规则（根据路由模式选择不同规则集）============
+	// rule-direct（白名单模式）：final=direct，仅被 GFW 封锁的域名走代理。
+	// 不需要 geosite-cn/apple -> direct 规则，因为默认出站就是 direct。
+	ruleSets = append(ruleSets, metaGeositeRuleSet("gfw"), metaGeositeRuleSet("google"), metaGeositeRuleSet("github"))
 	rules = append(rules, map[string]any{
-		"rule_set": []string{"geosite-google", "geosite-github"},
+		"rule_set": []string{"geosite-gfw", "geosite-google", "geosite-github"},
 		"outbound": moduleUtils.TagProxy,
 	})
 
-	// 国内/苹果直连白名单 -> 直连。只用域名规则集 cn（不引入对应的 geoip-cn）：
-	// fake-ip 模式下规则匹配前已把目的地址还原成域名，IP 库能多覆盖的场景很小
-	// （只有绕过 DNS 直拨字面量 IP 的流量），却要背上跨境 CDN/Anycast IP 误判的
-	// 风险，不值得。
+	// 国内/苹果直连白名单 -> 直连。
 	ruleSets = append(ruleSets, metaGeositeRuleSet("apple"), metaGeositeRuleSet("cn"))
 	rules = append(rules, map[string]any{
 		"rule_set": []string{"geosite-apple", "geosite-cn"},
@@ -184,25 +171,19 @@ func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 	// matchRule 会先把目的地址还原成域名再匹配规则，这条规则根本碰不到；
 	// 它只会命中极少数绕过 DNS、直接连字面量 IPv6 地址的流量。用 reject
 	// 返回 TCP RST（而不是静默丢包），让这类流量能尽快失败/回退，避免 EPERM 错误。
-	//rules = append(rules, map[string]any{"ip_version": 6, "action": "reject"})
+	rules = append(rules, map[string]any{"ip_version": 6, "action": "reject"})
 
-	// geoip-google 兜底：极少数不在 geosite-google 名单里的 Google 域名，或绕过
-	// DNS 直接拨字面量 IP 的流量，只要目的地址落在 Google IP 段也强制代理——
-	// 误判代价只是多走一次代理，没有实际损失。
-	ruleSets = append(ruleSets, metaGeoipRuleSet("google"))
-	rules = append(rules, map[string]any{"rule_set": []string{"geoip-google"}, "outbound": moduleUtils.TagProxy})
+	// ============ 片段 6.5: IP 兜底规则（根据路由模式选择）============
+	ruleSets = append(ruleSets, metaGeoipRuleSet("telegram"), metaGeoipRuleSet("google"))
+	rules = append(rules, map[string]any{"rule_set": []string{"geoip-telegram", "geoip-google"}, "outbound": moduleUtils.TagProxy})
 
 	// geoip-cn 兜底：sniff 顺序修复 + dns.reverse_mapping 上线后，只有真正拿不到域名的
 	// 连接（未走 DNS 的裸 IP、UDP 首包等）才会落到这里；直连一个国内 IP 段判断出错，
-	// 代价可控（连不通时最坏也只是这一条连接失败，不影响其它流量），比"这类流量默认
-	// 全部代理"更符合"国内 app 不该必须经代理才能用"的预期。历史上移除它是因为它排在
-	// 域名白名单之前时拦截过 www.gstatic.com 这类误判；现在它排在所有域名规则、resolve
-	// 之后，只兜底裸 IP，误判面已大幅收窄。
 	ruleSets = append(ruleSets, metaGeoipRuleSet("cn"))
 	rules = append(rules, map[string]any{"rule_set": []string{"geoip-cn"}, "outbound": moduleUtils.TagDirect})
 
-	// ============ 片段 7: 默认代理 ============
-	// 未命中以上任何规则的流量，落到 RouteModule.Apply 里设置的 final: proxy。
+	// ============ 片段 7: 默认出站 ============
+	// 未命中以上任何规则的流量，落到 RouteModule.Apply 里设置的 final。
 
 	_, leadingRules, err := buildRouteFragment(nil, leadingRuleSpecs)
 	if err != nil {

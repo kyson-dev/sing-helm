@@ -80,6 +80,57 @@ func TestDNSApply_SystemServerPriorityUserRulesFirst(t *testing.T) {
 	}
 }
 
+func TestDNSApply_RuleDirect(t *testing.T) {
+	opts := &option.Options{}
+	opts.DNS = &option.DNSOptions{}
+
+	m := &DNSModule{RouteMode: "rule-direct"}
+	if err := m.Apply(opts, NewBuildContext(nil)); err != nil {
+		t.Fatalf("apply dns: %v", err)
+	}
+
+	raw, err := singboxjson.Marshal(opts.DNS)
+	if err != nil {
+		t.Fatalf("marshal dns: %v", err)
+	}
+	var res map[string]any
+	if err := json.Unmarshal(raw, &res); err != nil {
+		t.Fatalf("decode dns: %v", err)
+	}
+
+	if res["final"] != "local_dns" {
+		t.Fatalf("expected final to be local_dns under rule-direct, got %v", res["final"])
+	}
+
+	rules, ok := res["rules"].([]any)
+	if !ok || len(rules) == 0 {
+		t.Fatalf("rules must not be empty")
+	}
+
+	hasGFWProxyDNS := false
+	hasCNLocalDNS := false
+	for _, rule := range rules {
+		rm, ok := rule.(map[string]any)
+		if !ok {
+			continue
+		}
+		if stringListContains(rm["rule_set"], "geosite-gfw") && rm["server"] == "proxy_dns" {
+			hasGFWProxyDNS = true
+		}
+		if stringListContains(rm["rule_set"], "geosite-cn") {
+			hasCNLocalDNS = true
+		}
+	}
+
+	if !hasGFWProxyDNS {
+		t.Fatalf("rule-direct mode must route geosite-gfw to proxy_dns")
+	}
+	if hasCNLocalDNS {
+		t.Fatalf("rule-direct mode must not route geosite-cn in DNS (final is already local_dns)")
+	}
+}
+
+
 func applyDNSFromMap(d *option.DNSOptions, m map[string]any) error {
 	data, err := singboxjson.Marshal(m)
 	if err != nil {

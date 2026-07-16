@@ -3,6 +3,7 @@ package module
 import (
 	"context"
 
+	"github.com/kyson-dev/sing-helm/internal/proxy/config/model"
 	moduleUtils "github.com/kyson-dev/sing-helm/internal/proxy/config/module/utils"
 	"github.com/sagernet/sing-box/include"
 	"github.com/sagernet/sing-box/option"
@@ -11,7 +12,9 @@ import (
 
 // DNSModule TUN DNS 模块
 // TUN 模式需要特殊的 DNS 配置
-type DNSModule struct{}
+type DNSModule struct {
+	RouteMode model.RouteMode
+}
 
 func (m *DNSModule) Name() string {
 	return "dns"
@@ -85,18 +88,7 @@ func (m *DNSModule) Apply(opts *option.Options, ctx *BuildContext) error {
 				"action":        "route",
 				"server":        moduleUtils.TagLocalDNS,
 			},
-			// DNS解析模块不应该设置ip集，它本来就是输入域名输出ip的。
-			// tag 与 route.go 的白名单规则共用同一份 rule_set 定义（meta-rules-dat 的
-			// geosite-cn/geosite-apple），命中的域名交给 AliDoH 解析；未命中的一律落到
-			// 下面的 final: proxy_dns，走代理侧 DoH 解析（不再需要额外的 !cn 规则，效果和
-			// final 完全重复）。
-			{
-				"rule_set": []string{"geosite-cn", "geosite-apple"},
-				"action":   "route",
-				"server":   moduleUtils.TagLocalDNS,
-			},
 		},
-		"final": "proxy_dns",
 		// prefer_ipv4 只排序不过滤 (v4 优先，v6 仍保留)：既让 fake-ip 能正常
 		// 生成 AAAA 占位地址，也让出站拨号阶段的真实解析同时拿到 v4/v6，
 		// 交给 dialer 的 Happy Eyeballs 去竞速，而不是在 DNS 层就切断 v6。
@@ -109,6 +101,23 @@ func (m *DNSModule) Apply(opts *option.Options, ctx *BuildContext) error {
 		// 只能等后面的 sniff 补上域名，但为时已晚（该规则早已跳过），最终误落到
 		// final: proxy，表现为"明明配了直连却还在走代理、速度变慢"。
 		"reverse_mapping": true,
+	}
+
+	// 根据路由模式选择 DNS 分流策略和 final
+	dnsMap["rules"] = append(dnsMap["rules"].([]map[string]any), map[string]any{
+			"rule_set": []string{"geosite-gfw", "geosite-github" ,"geosite-google"},
+			"action":   "route",
+			"server":   moduleUtils.TagProxyDNS,
+		})
+	dnsMap["rules"] = append(dnsMap["rules"].([]map[string]any), map[string]any{
+			"rule_set": []string{"geosite-cn", "geosite-apple"},
+			"action":   "route",
+			"server":   moduleUtils.TagLocalDNS,
+		})
+	if m.RouteMode == model.RouteModeRuleDirect {
+		dnsMap["final"] = moduleUtils.TagLocalDNS
+	} else {
+		dnsMap["final"] = moduleUtils.TagProxyDNS
 	}
 
 	data, err := singboxjson.Marshal(dnsMap)

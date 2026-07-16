@@ -166,6 +166,8 @@ func cmdSwitchRoute(current string) tea.Cmd {
 		var next string
 		switch strings.ToLower(current) {
 		case "rule":
+			next = "rule-direct"
+		case "rule-direct":
 			next = "global"
 		case "global":
 			next = "direct"
