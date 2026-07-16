@@ -404,8 +404,8 @@ func TestRouteApply_RuleDirect_FinalIsDirectWithFullRules(t *testing.T) {
 	if !hasGFWProxy {
 		t.Fatalf("rule-direct mode must keep geosite-gfw → proxy rule")
 	}
-	if hasCNDirect {
-		t.Fatalf("rule-direct mode must not have geosite-cn rule")
+	if !hasCNDirect {
+		t.Fatalf("rule-direct mode should have geosite-cn rule")
 	}
 	if !hasTelegramIPProxy {
 		t.Fatalf("rule-direct mode must route geoip-telegram to proxy")

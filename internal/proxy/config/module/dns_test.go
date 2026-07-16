@@ -63,8 +63,8 @@ func TestDNSApply_SystemServerPriorityUserRulesFirst(t *testing.T) {
 
 	rules := m["rules"].([]any)
 	// user(1) + system default rules: ads-reject, HTTPS/SVCB-reject, fakeip A/AAAA,
-	// PTR->local_dns, private-domain-suffix->local_dns, cn/apple->local_dns.
-	if len(rules) != 7 {
+	// PTR->local_dns, private-domain-suffix->local_dns, gfw/google/github->proxy_dns, cn/apple->local_dns.
+	if len(rules) != 8 {
 		t.Fatalf("expected user rules + default rules, got %d", len(rules))
 	}
 	firstRule := rules[0].(map[string]any)
@@ -125,8 +125,8 @@ func TestDNSApply_RuleDirect(t *testing.T) {
 	if !hasGFWProxyDNS {
 		t.Fatalf("rule-direct mode must route geosite-gfw to proxy_dns")
 	}
-	if hasCNLocalDNS {
-		t.Fatalf("rule-direct mode must not route geosite-cn in DNS (final is already local_dns)")
+	if !hasCNLocalDNS {
+		t.Fatalf("rule-direct mode should route geosite-cn in DNS")
 	}
 }
 
