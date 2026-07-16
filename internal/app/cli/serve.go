@@ -10,6 +10,7 @@ import (
 	"strings"
 	"syscall"
 
+	coredaemon "github.com/kyson-dev/sing-helm/internal/app/daemon"
 	"github.com/kyson-dev/sing-helm/internal/proxy/config"
 	"github.com/kyson-dev/sing-helm/internal/proxy/config/export"
 	"github.com/kyson-dev/sing-helm/internal/proxy/config/model"
@@ -39,7 +40,13 @@ func newServeCommand() *cobra.Command {
 			// 1. 生成并写入本地文件
 			runops := model.DefaultRunOptions()
 			runops.ProxyMode = model.ProxyModeTUN
-			runops.RouteMode = model.RouteModeRule
+			// 与本地实际运行状态（sing-helm mode 设置的路由模式）保持同步，
+			// 而不是写死 rule，否则 iOS 端订阅到的配置会和本机行为不一致。
+			if state, err := coredaemon.LoadState(); err == nil {
+				runops.RouteMode = state.RunOptions.RouteMode
+			} else {
+				runops.RouteMode = model.RouteModeRule
+			}
 
 			logger.Info("Building options...")
 			opts, err := config.BuildOptions(&runops)

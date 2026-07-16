@@ -174,8 +174,12 @@ func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 	rules = append(rules, map[string]any{"ip_version": 6, "action": "reject"})
 
 	// ============ 片段 6.5: IP 兜底规则（根据路由模式选择）============
-	ruleSets = append(ruleSets, metaGeoipRuleSet("telegram"), metaGeoipRuleSet("google"))
-	rules = append(rules, map[string]any{"rule_set": []string{"geoip-telegram", "geoip-google"}, "outbound": moduleUtils.TagProxy})
+	ruleSets = append(ruleSets, metaGeoipRuleSet("telegram"),
+		metaGeoipRuleSet("google"),
+		metaGeoipRuleSet("netflix"),
+		metaGeoipRuleSet("facebook"),
+		metaGeoipRuleSet("twitter"))
+	rules = append(rules, map[string]any{"rule_set": []string{"geoip-telegram", "geoip-google", "geoip-netflix", "geoip-facebook", "geoip-twitter"}, "outbound": moduleUtils.TagProxy})
 
 	// geoip-cn 兜底：sniff 顺序修复 + dns.reverse_mapping 上线后，只有真正拿不到域名的
 	// 连接（未走 DNS 的裸 IP、UDP 首包等）才会落到这里；直连一个国内 IP 段判断出错，
