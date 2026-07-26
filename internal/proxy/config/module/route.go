@@ -16,6 +16,40 @@ type RouteModule struct {
 	RouteMode model.RouteMode
 }
 
+// 以下三份列表是 rule 模式下 direct 分流的规则集目录，均取自 meta-rules-dat
+// （sing 分支），是 DNS 模块（dns.go 的 local_dns 分流规则）和路由模块共同的
+// 唯一数据源，两边同时读取，不会出现"路由判断直连、DNS 却还查代理"的不同步。
+// 要新增一个直连分类，只需在对应列表里加一个规则集名字，applyDefaultFragments
+// 和 DNSModule.Apply 会自动生成对应的 rule_set + rule。
+//
+// 没有单独的"proxy 域名白名单"：凡是没有命中下面任一直连规则集的域名，天然落到
+// RouteModule.Apply 里设置的 Final（rule 模式下恒为 proxy），不需要再显式列一份
+// GFW 封锁域名清单去手动分流到代理。这也避免了曾经的一个坑——geosite-gfw 这类
+// 社区维护的"大陆需代理"名单里混有 futunn.com 等域名，如果显式声明了
+// geosite-gfw -> proxy 规则、又排在 futu 白名单前面，会抢先命中导致明明加了
+// 直连白名单却还在走代理。
+var (
+	// directDomainRuleSets 应当直连的域名白名单：国内站点、苹果服务，以及一批
+	// "服务器本就在国内/香港、走代理反而更慢"的金融类 App —— 富途 (futu)
+	// 及证券/银行域名合集。这些不在 geosite-cn 里，是这类 App 走代理体验变差
+	// 的常见原因。
+	directDomainRuleSets = []string{
+		"apple", "cn", "futu", "category-securities-cn", "category-bank-cn", "category-finance@cn",
+	}
+
+	// proxyIPRuleSets / directIPRuleSets 是域名规则都没命中时（裸 IP 连接、UDP
+	// 首包等）的 IP 段兜底。
+	proxyIPRuleSets  = []string{"telegram", "google", "netflix", "facebook", "twitter"}
+	directIPRuleSets = []string{"cn"}
+
+	// directASNRuleSets 是按 AS 号收录的 IP 段兜底，用于覆盖那些客户端直接连字面量
+	// IP（不带域名/SNI，域名规则打不到）、且服务器不在国内 IP 段（geoip-cn 也打不到）
+	// 的场景。AS132203 是腾讯云的 ASN——富途 App 的行情/长连接通道实测走的就是这个
+	// ASN 下的 IP（124.156.x/119.28.x/129.226.x/170.106.x/43.128.x/43.153.x 等），
+	// 域名和国内 IP 段规则都覆盖不到，此前会误落到 final=proxy。
+	directASNRuleSets = []string{"AS132203"}
+)
+
 func (m *RouteModule) Name() string {
 	return "route"
 }
@@ -43,9 +77,6 @@ func (m *RouteModule) Apply(opts *option.Options, ctx *BuildContext) error {
 
 	// 2. 将全局/直连模式转化为更高级别的劫持
 	switch m.RouteMode {
-	case model.RouteModeRuleDirect:
-		// 按规则路由，默认直连（白名单模式）：规则链与 rule 一致，仅 final 不同
-		opts.Route.Final = moduleUtils.TagDirect
 	case model.RouteModeGlobal:
 		// 全局代理：覆盖前面的默认 Final
 		opts.Route.Final = moduleUtils.TagProxy
@@ -118,19 +149,12 @@ func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 	// 片段 2.1: ICMP 直连（避免代理出站不支持 ICMP 导致报错）
 	rules = append(rules, map[string]any{"protocol": []string{"icmp"}, "outbound": moduleUtils.TagDirect})
 
-	// ============ 片段 3: 域名分流规则（根据路由模式选择不同规则集）============
-	// rule-direct（白名单模式）：final=direct，仅被 GFW 封锁的域名走代理。
-	// 不需要 geosite-cn/apple -> direct 规则，因为默认出站就是 direct。
-	ruleSets = append(ruleSets, metaGeositeRuleSet("gfw"), metaGeositeRuleSet("google"), metaGeositeRuleSet("github"))
+	// ============ 片段 3: 域名分流规则 ============
+	// 国内/苹果/金融类直连白名单 -> 直连；其余域名（含 GFW 封锁站点）不再显式列
+	// 规则，直接落到 Final=proxy。见上面 directDomainRuleSets 的注释。
+	ruleSets = append(ruleSets, geositeRuleSets(directDomainRuleSets)...)
 	rules = append(rules, map[string]any{
-		"rule_set": []string{"geosite-gfw", "geosite-google", "geosite-github"},
-		"outbound": moduleUtils.TagProxy,
-	})
-
-	// 国内/苹果直连白名单 -> 直连。
-	ruleSets = append(ruleSets, metaGeositeRuleSet("apple"), metaGeositeRuleSet("cn"))
-	rules = append(rules, map[string]any{
-		"rule_set": []string{"geosite-apple", "geosite-cn"},
+		"rule_set": ruleSetTags("geosite", directDomainRuleSets),
 		"outbound": moduleUtils.TagDirect,
 	})
 
@@ -173,18 +197,19 @@ func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 	// 返回 TCP RST（而不是静默丢包），让这类流量能尽快失败/回退，避免 EPERM 错误。
 	rules = append(rules, map[string]any{"ip_version": 6, "action": "reject"})
 
-	// ============ 片段 6.5: IP 兜底规则（根据路由模式选择）============
-	ruleSets = append(ruleSets, metaGeoipRuleSet("telegram"),
-		metaGeoipRuleSet("google"),
-		metaGeoipRuleSet("netflix"),
-		metaGeoipRuleSet("facebook"),
-		metaGeoipRuleSet("twitter"))
-	rules = append(rules, map[string]any{"rule_set": []string{"geoip-telegram", "geoip-google", "geoip-netflix", "geoip-facebook", "geoip-twitter"}, "outbound": moduleUtils.TagProxy})
+	// ============ 片段 6.5: IP 兜底规则 ============
+	ruleSets = append(ruleSets, geoipRuleSets(proxyIPRuleSets)...)
+	rules = append(rules, map[string]any{"rule_set": ruleSetTags("geoip", proxyIPRuleSets), "outbound": moduleUtils.TagProxy})
 
 	// geoip-cn 兜底：sniff 顺序修复 + dns.reverse_mapping 上线后，只有真正拿不到域名的
 	// 连接（未走 DNS 的裸 IP、UDP 首包等）才会落到这里；直连一个国内 IP 段判断出错，
-	ruleSets = append(ruleSets, metaGeoipRuleSet("cn"))
-	rules = append(rules, map[string]any{"rule_set": []string{"geoip-cn"}, "outbound": moduleUtils.TagDirect})
+	ruleSets = append(ruleSets, geoipRuleSets(directIPRuleSets)...)
+	rules = append(rules, map[string]any{"rule_set": ruleSetTags("geoip", directIPRuleSets), "outbound": moduleUtils.TagDirect})
+
+	// 按 ASN 兜底：见 directASNRuleSets 注释，覆盖裸 IP 连接、且不在国内 IP 段
+	// 但实际应直连的服务器（如托管在腾讯云香港/新加坡节点的国内 App 长连接通道）。
+	ruleSets = append(ruleSets, asnRuleSets(directASNRuleSets)...)
+	rules = append(rules, map[string]any{"rule_set": ruleSetTags("asn", directASNRuleSets), "outbound": moduleUtils.TagDirect})
 
 	// ============ 片段 7: 默认出站 ============
 	// 未命中以上任何规则的流量，落到 RouteModule.Apply 里设置的 final。
@@ -228,6 +253,52 @@ func metaGeoipRuleSet(name string) map[string]any {
 		"url":             "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/" + name + ".srs",
 		"download_detour": moduleUtils.TagProxy,
 	}
+}
+
+// metaAsnRuleSet 引用 meta-rules-dat 按 AS 号维护的 IP 规则集
+func metaAsnRuleSet(name string) map[string]any {
+	return map[string]any{
+		"tag":             "asn-" + name,
+		"type":            "remote",
+		"format":          "binary",
+		"url":             "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/asn/" + name + ".srs",
+		"download_detour": moduleUtils.TagProxy,
+	}
+}
+
+// geositeRuleSets/geoipRuleSets/asnRuleSets 把规则集名字列表批量展开成 rule_set 声明。
+func geositeRuleSets(names []string) []map[string]any {
+	sets := make([]map[string]any, 0, len(names))
+	for _, name := range names {
+		sets = append(sets, metaGeositeRuleSet(name))
+	}
+	return sets
+}
+
+func geoipRuleSets(names []string) []map[string]any {
+	sets := make([]map[string]any, 0, len(names))
+	for _, name := range names {
+		sets = append(sets, metaGeoipRuleSet(name))
+	}
+	return sets
+}
+
+func asnRuleSets(names []string) []map[string]any {
+	sets := make([]map[string]any, 0, len(names))
+	for _, name := range names {
+		sets = append(sets, metaAsnRuleSet(name))
+	}
+	return sets
+}
+
+// ruleSetTags 把规则集名字列表转成对应的 tag 列表（如 "cn" -> "geosite-cn"），
+// 用于生成引用这些规则集的 rule。kind 为 "geosite" 或 "geoip"。
+func ruleSetTags(kind string, names []string) []string {
+	tags := make([]string, 0, len(names))
+	for _, name := range names {
+		tags = append(tags, kind+"-"+name)
+	}
+	return tags
 }
 
 func keepSniffRules(rules []option.Rule) []option.Rule {

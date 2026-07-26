@@ -63,8 +63,8 @@ func TestDNSApply_SystemServerPriorityUserRulesFirst(t *testing.T) {
 
 	rules := m["rules"].([]any)
 	// user(1) + system default rules: ads-reject, HTTPS/SVCB-reject, fakeip A/AAAA,
-	// PTR->local_dns, private-domain-suffix->local_dns, gfw/google/github->proxy_dns, cn/apple->local_dns.
-	if len(rules) != 8 {
+	// PTR->local_dns, private-domain-suffix->local_dns, directDomainRuleSets->local_dns.
+	if len(rules) != 7 {
 		t.Fatalf("expected user rules + default rules, got %d", len(rules))
 	}
 	firstRule := rules[0].(map[string]any)
@@ -80,11 +80,11 @@ func TestDNSApply_SystemServerPriorityUserRulesFirst(t *testing.T) {
 	}
 }
 
-func TestDNSApply_RuleDirect(t *testing.T) {
+func TestDNSApply_RuleMode_GeositeRoutingAndFinal(t *testing.T) {
 	opts := &option.Options{}
 	opts.DNS = &option.DNSOptions{}
 
-	m := &DNSModule{RouteMode: "rule-direct"}
+	m := &DNSModule{RouteMode: "rule"}
 	if err := m.Apply(opts, NewBuildContext(nil)); err != nil {
 		t.Fatalf("apply dns: %v", err)
 	}
@@ -98,8 +98,8 @@ func TestDNSApply_RuleDirect(t *testing.T) {
 		t.Fatalf("decode dns: %v", err)
 	}
 
-	if res["final"] != "local_dns" {
-		t.Fatalf("expected final to be local_dns under rule-direct, got %v", res["final"])
+	if res["final"] != "proxy_dns" {
+		t.Fatalf("expected final to be proxy_dns under rule mode, got %v", res["final"])
 	}
 
 	rules, ok := res["rules"].([]any)
@@ -107,26 +107,28 @@ func TestDNSApply_RuleDirect(t *testing.T) {
 		t.Fatalf("rules must not be empty")
 	}
 
-	hasGFWProxyDNS := false
 	hasCNLocalDNS := false
+	hasFutuLocalDNS := false
 	for _, rule := range rules {
 		rm, ok := rule.(map[string]any)
 		if !ok {
 			continue
 		}
-		if stringListContains(rm["rule_set"], "geosite-gfw") && rm["server"] == "proxy_dns" {
-			hasGFWProxyDNS = true
-		}
-		if stringListContains(rm["rule_set"], "geosite-cn") {
+		if stringListContains(rm["rule_set"], "geosite-cn") && rm["server"] == "local_dns" {
 			hasCNLocalDNS = true
+		}
+		// futu 不是硬编码在 dns.go 里的，而是和 route.go 共用同一份
+		// directDomainRuleSets；这里能查到就证明两边真的用的是单一数据源。
+		if stringListContains(rm["rule_set"], "geosite-futu") && rm["server"] == "local_dns" {
+			hasFutuLocalDNS = true
 		}
 	}
 
-	if !hasGFWProxyDNS {
-		t.Fatalf("rule-direct mode must route geosite-gfw to proxy_dns")
-	}
 	if !hasCNLocalDNS {
-		t.Fatalf("rule-direct mode should route geosite-cn in DNS")
+		t.Fatalf("rule mode should route geosite-cn to local_dns")
+	}
+	if !hasFutuLocalDNS {
+		t.Fatalf("dns rules should stay in sync with route.go's directDomainRuleSets (geosite-futu missing)")
 	}
 }
 

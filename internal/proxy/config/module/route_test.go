@@ -234,7 +234,7 @@ func TestRouteApply_UserRulesBetweenLeadingAndTrailing(t *testing.T) {
 		if stringListContains(rm["domain_suffix"], "example.com") && userRuleIdx < 0 {
 			userRuleIdx = i
 		}
-		if stringListContains(rm["rule_set"], "geosite-google") && builtinWhitelistIdx < 0 {
+		if stringListContains(rm["rule_set"], "geosite-cn") && builtinWhitelistIdx < 0 {
 			builtinWhitelistIdx = i
 		}
 	}
@@ -243,7 +243,7 @@ func TestRouteApply_UserRulesBetweenLeadingAndTrailing(t *testing.T) {
 		t.Fatalf("user rule not found in generated route rules")
 	}
 	if builtinWhitelistIdx < 0 {
-		t.Fatalf("builtin geosite-google whitelist rule not found")
+		t.Fatalf("builtin geosite-cn whitelist rule not found")
 	}
 	if userRuleIdx >= builtinWhitelistIdx {
 		t.Fatalf("user rule must come before builtin whitelist rules: user=%d builtin=%d", userRuleIdx, builtinWhitelistIdx)
@@ -337,9 +337,9 @@ func TestRouteApply_IPv6Block(t *testing.T) {
 	}
 }
 
-func TestRouteApply_RuleDirect_FinalIsDirectWithFullRules(t *testing.T) {
+func TestRouteApply_RuleMode_FinalIsProxyWithFullRules(t *testing.T) {
 	opts := &option.Options{}
-	m := &RouteModule{RouteMode: model.RouteModeRuleDirect}
+	m := &RouteModule{RouteMode: model.RouteModeRule}
 	if err := m.Apply(opts, NewBuildContext(nil)); err != nil {
 		t.Fatalf("apply route: %v", err)
 	}
@@ -353,23 +353,26 @@ func TestRouteApply_RuleDirect_FinalIsDirectWithFullRules(t *testing.T) {
 		t.Fatalf("decode route: %v", err)
 	}
 
-	// 验证 final = direct
-	if routeMap["final"] != "direct" {
-		t.Fatalf("rule-direct route final = %v, want direct", routeMap["final"])
+	// 验证 final = proxy
+	if routeMap["final"] != "proxy" {
+		t.Fatalf("rule route final = %v, want proxy", routeMap["final"])
 	}
 
 	rules, ok := routeMap["rules"].([]any)
 	if !ok || len(rules) == 0 {
-		t.Fatalf("rule-direct route rules must not be empty")
+		t.Fatalf("rule route rules must not be empty")
 	}
 
-	// 验证完整规则链存在：sniff、hijack-dns、geosite-gfw → proxy，以及 geoip-telegram/google → proxy
+	// 验证完整规则链存在：sniff、hijack-dns、geosite-cn/futu → direct，
+	// 以及 geoip-telegram/google → proxy。不再有单独的 geosite-gfw → proxy
+	// 规则——未命中直连白名单的域名（含 GFW 封锁站点）天然落到 Final=proxy。
 	hasSniff := false
 	hasHijackDNS := false
-	hasGFWProxy := false
 	hasCNDirect := false
+	hasFutuDirect := false
 	hasTelegramIPProxy := false
 	hasGoogleIPProxy := false
+	hasAsnDirect := false
 	for _, rule := range rules {
 		rm, ok := rule.(map[string]any)
 		if !ok {
@@ -381,11 +384,11 @@ func TestRouteApply_RuleDirect_FinalIsDirectWithFullRules(t *testing.T) {
 		if rm["action"] == "hijack-dns" {
 			hasHijackDNS = true
 		}
-		if stringListContains(rm["rule_set"], "geosite-gfw") && rm["outbound"] == "proxy" {
-			hasGFWProxy = true
-		}
-		if stringListContains(rm["rule_set"], "geosite-cn") {
+		if stringListContains(rm["rule_set"], "geosite-cn") && rm["outbound"] == "direct" {
 			hasCNDirect = true
+		}
+		if stringListContains(rm["rule_set"], "geosite-futu") && rm["outbound"] == "direct" {
+			hasFutuDirect = true
 		}
 		if stringListContains(rm["rule_set"], "geoip-telegram") && rm["outbound"] == "proxy" {
 			hasTelegramIPProxy = true
@@ -393,49 +396,42 @@ func TestRouteApply_RuleDirect_FinalIsDirectWithFullRules(t *testing.T) {
 		if stringListContains(rm["rule_set"], "geoip-google") && rm["outbound"] == "proxy" {
 			hasGoogleIPProxy = true
 		}
+		if stringListContains(rm["rule_set"], "asn-AS132203") && rm["outbound"] == "direct" {
+			hasAsnDirect = true
+		}
 	}
 
 	if !hasSniff {
-		t.Fatalf("rule-direct mode must keep sniff rule")
+		t.Fatalf("rule mode must keep sniff rule")
 	}
 	if !hasHijackDNS {
-		t.Fatalf("rule-direct mode must keep hijack-dns rule")
-	}
-	if !hasGFWProxy {
-		t.Fatalf("rule-direct mode must keep geosite-gfw → proxy rule")
+		t.Fatalf("rule mode must keep hijack-dns rule")
 	}
 	if !hasCNDirect {
-		t.Fatalf("rule-direct mode should have geosite-cn rule")
+		t.Fatalf("rule mode should have geosite-cn → direct rule")
+	}
+	if !hasFutuDirect {
+		t.Fatalf("rule mode should have geosite-futu → direct rule")
 	}
 	if !hasTelegramIPProxy {
-		t.Fatalf("rule-direct mode must route geoip-telegram to proxy")
+		t.Fatalf("rule mode must route geoip-telegram to proxy")
 	}
 	if !hasGoogleIPProxy {
-		t.Fatalf("rule-direct mode must route geoip-google to proxy")
+		t.Fatalf("rule mode must route geoip-google to proxy")
+	}
+	if !hasAsnDirect {
+		t.Fatalf("rule mode should have asn-AS132203 → direct rule")
 	}
 }
 
-func TestRouteApply_RuleDirect_RulesNotCleared(t *testing.T) {
-	// rule-direct 应保留完整规则链，而 direct 模式应清空规则
+func TestRouteApply_DirectModeClearsRules(t *testing.T) {
 	optsDirect := &option.Options{}
 	mDirect := &RouteModule{RouteMode: model.RouteModeDirect}
 	if err := mDirect.Apply(optsDirect, NewBuildContext(nil)); err != nil {
 		t.Fatalf("apply direct route: %v", err)
 	}
 
-	optsRuleDirect := &option.Options{}
-	mRuleDirect := &RouteModule{RouteMode: model.RouteModeRuleDirect}
-	if err := mRuleDirect.Apply(optsRuleDirect, NewBuildContext(nil)); err != nil {
-		t.Fatalf("apply rule-direct route: %v", err)
-	}
-
-	// direct 模式：rules 应为 nil
 	if optsDirect.Route.Rules != nil {
 		t.Fatalf("direct mode should have nil rules, got %d rules", len(optsDirect.Route.Rules))
-	}
-
-	// rule-direct 模式：rules 应非空
-	if len(optsRuleDirect.Route.Rules) == 0 {
-		t.Fatalf("rule-direct mode should preserve rules, but rules are empty")
 	}
 }

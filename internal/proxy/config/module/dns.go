@@ -103,22 +103,17 @@ func (m *DNSModule) Apply(opts *option.Options, ctx *BuildContext) error {
 		"reverse_mapping": true,
 	}
 
-	// 根据路由模式选择 DNS 分流策略和 final
+	// 直连白名单查询走本地 DNS，其余一律走 proxy_dns（final）。这里直接复用
+	// route.go 里的 directDomainRuleSets，作为路由和 DNS 分流的唯一数据源——
+	// 以前这里是单独硬编码的 ["geosite-cn", "geosite-apple"]，加了 futu 之类的
+	// 新分类只改了 route.go 却忘了同步 DNS，会导致这些域名的 DNS 解析走
+	// proxy_dns（多一次代理往返），即使路由层面最终仍判定为直连。
 	dnsMap["rules"] = append(dnsMap["rules"].([]map[string]any), map[string]any{
-			"rule_set": []string{"geosite-gfw", "geosite-github" ,"geosite-google"},
-			"action":   "route",
-			"server":   moduleUtils.TagProxyDNS,
-		})
-	dnsMap["rules"] = append(dnsMap["rules"].([]map[string]any), map[string]any{
-			"rule_set": []string{"geosite-cn", "geosite-apple"},
-			"action":   "route",
-			"server":   moduleUtils.TagLocalDNS,
-		})
-	if m.RouteMode == model.RouteModeRuleDirect {
-		dnsMap["final"] = moduleUtils.TagLocalDNS
-	} else {
-		dnsMap["final"] = moduleUtils.TagProxyDNS
-	}
+		"rule_set": ruleSetTags("geosite", directDomainRuleSets),
+		"action":   "route",
+		"server":   moduleUtils.TagLocalDNS,
+	})
+	dnsMap["final"] = moduleUtils.TagProxyDNS
 
 	data, err := singboxjson.Marshal(dnsMap)
 	if err != nil {

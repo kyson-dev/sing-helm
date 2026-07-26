@@ -17,10 +17,9 @@ const (
 type RouteMode string
 
 const (
-	RouteModeRule       RouteMode = "rule"         // 按规则路由，默认代理（黑名单模式）
-	RouteModeRuleDirect RouteMode = "rule-direct"  // 按规则路由，默认直连（白名单模式）
-	RouteModeGlobal     RouteMode = "global"       // 全局代理
-	RouteModeDirect     RouteMode = "direct"       // 全局直连
+	RouteModeRule   RouteMode = "rule"   // 按规则路由，未命中规则默认代理
+	RouteModeGlobal RouteMode = "global" // 全局代理
+	RouteModeDirect RouteMode = "direct" // 全局直连
 )
 
 // RunOptions 运行时参数
@@ -60,8 +59,6 @@ func ParseRouteMode(s string) (RouteMode, error) {
 	switch s {
 	case "rule", "":
 		return RouteModeRule, nil
-	case "rule-direct":
-		return RouteModeRuleDirect, nil
 	case "global":
 		return RouteModeGlobal, nil
 	case "direct":

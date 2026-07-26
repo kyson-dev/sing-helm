@@ -113,12 +113,12 @@ func TestDaemonHandleCommands(t *testing.T) {
 		t.Fatalf("expected route ok, got status=%s error=%s", routeResp.Status, routeResp.Error)
 	}
 
-	routeDirectResp := d.Handle(ctx, ipc.CommandMessage{Name: "route", Payload: map[string]any{"route": "rule-direct"}})
+	routeDirectResp := d.Handle(ctx, ipc.CommandMessage{Name: "route", Payload: map[string]any{"route": "direct"}})
 	if routeDirectResp.Status != "ok" {
-		t.Fatalf("expected route rule-direct ok, got status=%s error=%s", routeDirectResp.Status, routeDirectResp.Error)
+		t.Fatalf("expected route direct ok, got status=%s error=%s", routeDirectResp.Status, routeDirectResp.Error)
 	}
-	if rm, ok := routeDirectResp.Data["route_mode"].(string); !ok || rm != "rule-direct" {
-		t.Fatalf("expected route_mode=rule-direct, got %v", routeDirectResp.Data["route_mode"])
+	if rm, ok := routeDirectResp.Data["route_mode"].(string); !ok || rm != "direct" {
+		t.Fatalf("expected route_mode=direct, got %v", routeDirectResp.Data["route_mode"])
 	}
 
 	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
