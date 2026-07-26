@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	Tag    string = "v0.2.10"
+	Tag    string = "v0.2.11"
 	Commit string = "none"
 	Date   string = "unknow"
 )
