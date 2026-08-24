@@ -8,7 +8,7 @@ import (
 
 func TestAddNodes_DedupeKeepsAliasMapping(t *testing.T) {
 	p := NewOutboundProcessor()
-	p.AddNodes([]model.Node{
+	if err := p.AddNodes([]model.Node{
 		{
 			Name:   "first",
 			Source: "s1",
@@ -29,7 +29,9 @@ func TestAddNodes_DedupeKeepsAliasMapping(t *testing.T) {
 				"uuid":        "u-1",
 			},
 		},
-	})
+	}); err != nil {
+		t.Fatalf("AddNodes: %v", err)
+	}
 
 	outbounds := p.GetProcessedOutbounds()
 	if len(outbounds) != 1 {
@@ -53,7 +55,7 @@ func TestAddNodes_DedupeKeepsAliasMapping(t *testing.T) {
 
 func TestResolveDetour_AmbiguousGlobalNameRequiresSourceQualifier(t *testing.T) {
 	p := NewOutboundProcessor()
-	p.AddNodes([]model.Node{
+	if err := p.AddNodes([]model.Node{
 		{
 			Name:   "same",
 			Source: "alpha",
@@ -74,7 +76,9 @@ func TestResolveDetour_AmbiguousGlobalNameRequiresSourceQualifier(t *testing.T) 
 				"uuid":        "u-2",
 			},
 		},
-	})
+	}); err != nil {
+		t.Fatalf("AddNodes: %v", err)
+	}
 
 	alphaTag := p.originalToTag["alpha"]["same"]
 	betaTag := p.originalToTag["beta"]["same"]
@@ -95,7 +99,7 @@ func TestResolveDetour_AmbiguousGlobalNameRequiresSourceQualifier(t *testing.T) 
 
 func TestFingerprint_DifferentCredentialsAreNotDeduped(t *testing.T) {
 	p := NewOutboundProcessor()
-	p.AddNodes([]model.Node{
+	if err := p.AddNodes([]model.Node{
 		{
 			Name:   "node-a",
 			Source: "s1",
@@ -116,10 +120,34 @@ func TestFingerprint_DifferentCredentialsAreNotDeduped(t *testing.T) {
 				"uuid":        "uuid-b",
 			},
 		},
-	})
+	}); err != nil {
+		t.Fatalf("AddNodes: %v", err)
+	}
 
 	outbounds := p.GetProcessedOutbounds()
 	if len(outbounds) != 2 {
 		t.Fatalf("expected 2 outbounds when credentials differ, got %d", len(outbounds))
+	}
+}
+
+func TestAddNodes_NormalizesTCPTransportFromExistingCache(t *testing.T) {
+	p := NewOutboundProcessor()
+	if err := p.AddNodes([]model.Node{{
+		Name:   "cached-tcp-node",
+		Source: "subscription",
+		Type:   "vless",
+		Outbound: map[string]any{
+			"server":      "1.1.1.1",
+			"server_port": 443,
+			"uuid":        "11111111-1111-1111-1111-111111111111",
+			"transport":   map[string]any{"type": "tcp"},
+		},
+	}}); err != nil {
+		t.Fatalf("AddNodes: %v", err)
+	}
+
+	outbounds := p.GetProcessedOutbounds()
+	if len(outbounds) != 1 {
+		t.Fatalf("expected one outbound, got %d", len(outbounds))
 	}
 }

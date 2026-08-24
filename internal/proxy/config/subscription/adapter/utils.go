@@ -199,6 +199,13 @@ func ApplyTransportOptions(outbound map[string]any, m map[string]any) {
 }
 
 func ApplyURITransport(outbound map[string]any, network string, query map[string][]string) {
+	network = strings.ToLower(strings.TrimSpace(network))
+	// TCP is sing-box's default V2Ray transport. It cannot be expressed as an
+	// explicit transport object, so leave the field unset.
+	if network == "" || network == "tcp" {
+		return
+	}
+
 	getQuery := func(k string) string {
 		if v := query[k]; len(v) > 0 {
 			return v[0]

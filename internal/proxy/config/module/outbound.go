@@ -33,7 +33,9 @@ func (m *OutboundModule) Apply(opts *option.Options, ctx *BuildContext) error {
 		if err != nil {
 			return err
 		}
-		processor.AddNodes(nodes)
+		if err := processor.AddNodes(nodes); err != nil {
+			return err
+		}
 	}
 
 	// 2. 获取去重且正确命名后的 proxy 出站节点

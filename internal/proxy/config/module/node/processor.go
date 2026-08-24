@@ -40,7 +40,7 @@ func NewOutboundProcessor() *OutboundProcessor {
 }
 
 // AddNodes processes a list of raw nodes gathered from a provider
-func (p *OutboundProcessor) AddNodes(nodes []model.Node) {
+func (p *OutboundProcessor) AddNodes(nodes []model.Node) error {
 	for _, n := range nodes {
 		source := strings.TrimSpace(n.Source)
 		if source == "" {
@@ -69,12 +69,16 @@ func (p *OutboundProcessor) AddNodes(nodes []model.Node) {
 		}
 
 		// Create the option.Outbound structure
-		outbound := p.mapToOutbound(n.Type, uniqueTag, n.Outbound)
+		outbound, err := p.mapToOutbound(n.Type, uniqueTag, n.Outbound)
+		if err != nil {
+			return fmt.Errorf("convert node %q from %s: %w", n.Name, source, err)
+		}
 
 		p.processedNodes = append(p.processedNodes, outbound)
 		p.actualTags = append(p.actualTags, uniqueTag)
 		p.sourceGroups[source] = append(p.sourceGroups[source], uniqueTag)
 	}
+	return nil
 }
 
 // GetProcessedOutbounds returns all properly mapped and tagged outbounds
@@ -142,7 +146,7 @@ func (p *OutboundProcessor) recordMapping(source, original, unique string) {
 	p.globalNameToTag[original] = unique
 }
 
-func (p *OutboundProcessor) mapToOutbound(outType, tag string, raw map[string]any) option.Outbound {
+func (p *OutboundProcessor) mapToOutbound(outType, tag string, raw map[string]any) (option.Outbound, error) {
 	var outbound option.Outbound
 
 	// Ensure tag matches our uniqueness guarantee
@@ -152,6 +156,15 @@ func (p *OutboundProcessor) mapToOutbound(outType, tag string, raw map[string]an
 	}
 	rawCopy["tag"] = tag
 	rawCopy["type"] = outType
+	// Old cache files and some sing-box subscriptions can explicitly specify
+	// transport.type=tcp. TCP is the default transport and is not a valid
+	// explicit V2Ray transport object in sing-box, so normalize it here too.
+	// This keeps previously refreshed caches usable after upgrading.
+	if transport, ok := rawCopy["transport"].(map[string]any); ok {
+		if transportType, _ := transport["type"].(string); strings.EqualFold(strings.TrimSpace(transportType), "tcp") {
+			delete(rawCopy, "transport")
+		}
+	}
 
 	// Handle internal detour logic if it references other nodes
 	// e.g. wireguard nodes detour via another proxy
@@ -161,8 +174,10 @@ func (p *OutboundProcessor) mapToOutbound(outType, tag string, raw map[string]an
 		}
 	}
 
-	moduleUtils.ApplyMapToOutbound(&outbound, rawCopy)
-	return outbound
+	if err := moduleUtils.ApplyMapToOutbound(&outbound, rawCopy); err != nil {
+		return option.Outbound{}, err
+	}
+	return outbound, nil
 }
 
 func (p *OutboundProcessor) resolveDetour(target string) (string, bool) {
