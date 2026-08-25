@@ -89,9 +89,9 @@ func (m *DNSModule) Apply(opts *option.Options, ctx *BuildContext) error {
 				"server":        moduleUtils.TagLocalDNS,
 			},
 		},
-		// prefer_ipv4 只排序不过滤 (v4 优先，v6 仍保留)：既让 fake-ip 能正常
-		// 生成 AAAA 占位地址，也让出站拨号阶段的真实解析同时拿到 v4/v6，
-		// 交给 dialer 的 Happy Eyeballs 去竞速，而不是在 DNS 层就切断 v6。
+		// prefer_ipv4：A/AAAA 都查，两者都拿到时优先用 v4（sing-box dns/client.go
+		// sortAddresses），但 v6 候选依然会进入 DestinationAddresses，可以被
+		// DialParallelNetwork 竞速或在 v4 失败时兜底。与 iOS 端保持一致。
 		"strategy": "prefer_ipv4",
 		// 为绕过 fake-ip、直接查 local_dns/proxy_dns 拿真实 IP 的域名（如 profile.json
 		// 里的 futunn.com/wise.com 等）启用反查表：路由匹配 TCP/UDP 连接时会先按

@@ -299,7 +299,11 @@ func TestRouteApply_GeoipCNFallbackPresent(t *testing.T) {
 	}
 }
 
-func TestRouteApply_IPv6Block(t *testing.T) {
+// TestRouteApply_NoUnconditionalIPv6Block 验证不存在无条件拦截字面量 IPv6 的
+// reject 规则——删除原因见 docs/design/fake-ip-routing.md 的 IPv6 policy 一节：
+// 本机没有真实 v6 路由时 direct 拨号会立刻收到 no route to host，不需要在路由层
+// 提前拦截，无差别拦截反而会误杀本来能成功的连接（如蜂窝网络）。
+func TestRouteApply_NoUnconditionalIPv6Block(t *testing.T) {
 	opts := &option.Options{}
 	m := &RouteModule{RouteMode: model.RouteModeRule}
 	if err := m.Apply(opts, NewBuildContext(nil)); err != nil {
@@ -320,20 +324,14 @@ func TestRouteApply_IPv6Block(t *testing.T) {
 		t.Fatalf("route rules missing")
 	}
 
-	hasIPv6Block := false
 	for _, rule := range rules {
 		rm, ok := rule.(map[string]any)
 		if !ok {
 			continue
 		}
 		if ipVer, _ := rm["ip_version"].(float64); ipVer == 6 && rm["action"] == "reject" {
-			hasIPv6Block = true
-			break
+			t.Fatalf("unexpected unconditional IPv6 reject rule found: %v", rm)
 		}
-	}
-
-	if !hasIPv6Block {
-		t.Fatalf("expected IPv6 reject rule, but not found")
 	}
 }
 

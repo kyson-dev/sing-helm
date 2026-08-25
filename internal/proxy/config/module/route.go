@@ -141,7 +141,12 @@ func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 
 	// 针对 ali dns 放行（因为在 DNS 模块中配置了国内直接去 ali 解析，避免循环）
 	// 字面量 IP 匹配 metadata.Destination.Addr，不依赖 resolve，放在哪里都一样。
-	rules = append(rules, map[string]any{"ip_cidr": []string{"223.5.5.5/32", "223.6.6.6/32", "2400:3200::/32"}, "outbound": moduleUtils.TagDirect})
+	// 注意：不要加 IPv6 版本的整段放行——dns.go 里 local_dns 只配置了 223.5.5.5
+	// (IPv4 UDP)，没有任何 IPv6 AliDNS 地址需要放行；曾经加过 "2400:3200::/32"，
+	// 但 v6 的 /32 覆盖的是阿里云整个分配网段（不像 v4 /32 是精确单地址），
+	// 会把任何部署在阿里云上、恰好走字面量 v6 地址连接的服务（如 Soul 的 CDN）
+	// 一并误判为 direct，绕过后面 ip_version:6 reject 等所有判断。
+	rules = append(rules, map[string]any{"ip_cidr": []string{"223.5.5.5/32", "223.6.6.6/32"}, "outbound": moduleUtils.TagDirect})
 
 	// 片段 2: NTP 直连
 	rules = append(rules, map[string]any{"protocol": []string{"ntp"}, "outbound": moduleUtils.TagDirect})
@@ -191,11 +196,15 @@ func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 	// resolve 出的真实私网 IP 兜底直连；不会因为 resolve 挪到后面而失效。
 	rules = append(rules, map[string]any{"ip_is_private": true, "outbound": moduleUtils.TagDirect})
 
-	// IPv6 字面量兜底拦截：DNS 模块已启用 fake-ip，凡是经过域名解析的流量，
-	// matchRule 会先把目的地址还原成域名再匹配规则，这条规则根本碰不到；
-	// 它只会命中极少数绕过 DNS、直接连字面量 IPv6 地址的流量。用 reject
-	// 返回 TCP RST（而不是静默丢包），让这类流量能尽快失败/回退，避免 EPERM 错误。
-	rules = append(rules, map[string]any{"ip_version": 6, "action": "reject"})
+	// 曾经这里有条无条件的 IPv6 字面量拦截 reject 规则，前提是"字面量 v6 连接
+	// 不快速失败会傻等 OS 默认 30-75s 超时"。删除原因：手机实测日志显示，本机
+	// 网络真没有 v6 路由时，direct 拨号会立刻收到 "no route to host"（操作系统
+	// 层面瞬间失败，不是超时挂起）；本机有 v6 时应该让它正常走通。这条规则唯一
+	// 的效果其实是无差别拒绝所有字面量 v6，连本来能成功的连接（比如蜂窝网络）
+	// 也一并误杀。我们没有能力在配置阶段判断本机/代理节点是否有 v6，索性不再
+	// 猜——交给 direct/proxy 各自的真实拨号结果自然决定成败。若以后重新出现
+	// 挂起（而非瞬间失败）的情况，说明这个假设不成立，需要重新引入某种保护。
+	// 见 docs/design/fake-ip-routing.md。
 
 	// ============ 片段 6.5: IP 兜底规则 ============
 	ruleSets = append(ruleSets, geoipRuleSets(proxyIPRuleSets)...)

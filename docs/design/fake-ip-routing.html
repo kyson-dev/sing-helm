@@ -1,0 +1,475 @@
+<title>Fake-IP 路由管线</title>
+<style>
+  :root {
+    --bg: #f3f1ec;
+    --surface: #ffffff;
+    --surface-2: #ebe8e1;
+    --ink: #22242a;
+    --muted: #6b6f78;
+    --line: #d8d4cb;
+    --case-literal: #6b7280;
+    --case-literal-bg: #6b728014;
+    --case-bypass: #a8661f;
+    --case-bypass-bg: #b5762a14;
+    --case-fakeip: #227272;
+    --case-fakeip-bg: #2f8f8f14;
+    --danger: #a8392f;
+    --danger-bg: #a8392f12;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #16181c;
+      --surface: #1e2126;
+      --surface-2: #23262c;
+      --ink: #e8e6e1;
+      --muted: #8b9099;
+      --line: #33373f;
+      --case-literal: #9aa0ab;
+      --case-literal-bg: #9aa0ab1a;
+      --case-bypass: #e0a458;
+      --case-bypass-bg: #e0a4581a;
+      --case-fakeip: #5fb3b3;
+      --case-fakeip-bg: #5fb3b31a;
+      --danger: #d9695f;
+      --danger-bg: #d9695f1a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #16181c;
+    --surface: #1e2126;
+    --surface-2: #23262c;
+    --ink: #e8e6e1;
+    --muted: #8b9099;
+    --line: #33373f;
+    --case-literal: #9aa0ab;
+    --case-literal-bg: #9aa0ab1a;
+    --case-bypass: #e0a458;
+    --case-bypass-bg: #e0a4581a;
+    --case-fakeip: #5fb3b3;
+    --case-fakeip-bg: #5fb3b31a;
+    --danger: #d9695f;
+    --danger-bg: #d9695f1a;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: ui-sans-serif, -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.55;
+    margin: 0;
+    padding: 56px 24px 90px;
+  }
+
+  .page {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+  }
+
+  .mono {
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", "JetBrains Mono", Consolas, monospace;
+  }
+
+  header {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .eyebrow {
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  h1 {
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+    font-size: clamp(28px, 4vw, 40px);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .dek {
+    max-width: 66ch;
+    color: var(--muted);
+    font-size: 16px;
+  }
+
+  .dek code {
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+    background: var(--surface-2);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 0.92em;
+    color: var(--ink);
+  }
+
+  /* legend */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 28px;
+    padding: 18px 22px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: baseline;
+    gap: 9px;
+    font-size: 13.5px;
+  }
+  .swatch {
+    display: inline-block;
+    width: 11px;
+    height: 11px;
+    border-radius: 2.5px;
+    flex: none;
+    transform: translateY(1px);
+  }
+  .legend-item b {
+    font-weight: 600;
+  }
+  .legend-item span.desc { color: var(--muted); }
+
+  /* diagram */
+  figure {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .diagram-scroll {
+    overflow-x: auto;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 8px;
+  }
+  .diagram-scroll svg {
+    display: block;
+    width: 100%;
+    min-width: 980px;
+    height: auto;
+  }
+  figcaption {
+    font-size: 13px;
+    color: var(--muted);
+    max-width: 74ch;
+  }
+
+  svg text {
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+    fill: var(--ink);
+  }
+  svg .lbl-muted { fill: var(--muted); }
+  svg .stage-head {
+    fill: var(--muted);
+    letter-spacing: 0.06em;
+  }
+
+  /* table */
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 760px;
+    font-size: 13.5px;
+    background: var(--surface);
+  }
+  thead th {
+    text-align: left;
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+    font-size: 11.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface-2);
+  }
+  tbody td {
+    padding: 11px 16px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td.loc {
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+    font-size: 12.5px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  td.cond {
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  /* callout */
+  .callout {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 22px 26px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--case-fakeip);
+    border-radius: 10px;
+  }
+  .callout h2 {
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+    font-size: 15px;
+    margin: 0;
+    letter-spacing: 0.01em;
+  }
+  .callout p {
+    margin: 0;
+    font-size: 14.5px;
+    color: var(--ink);
+    max-width: 78ch;
+  }
+  .callout p.sub { color: var(--muted); font-size: 13.5px; }
+  .callout .rule {
+    padding: 12px 16px;
+    background: var(--danger-bg);
+    border-radius: 8px;
+    font-size: 13.5px;
+    border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  }
+</style>
+
+<div class="page">
+
+  <header>
+    <div class="eyebrow">sing-helm · dns.go + route.go</div>
+    <h1>Fake-IP 路由管线</h1>
+    <p class="dek">
+      同一条 <code>route.rules</code> 顺序表，三种流量走出三条完全不同的命运：会不会被
+      <code>ip_version:6</code> 拒绝、会不会触发 <code>action: resolve</code>、拨号时有没有候选地址可以竞速——
+      分界点全部由 <code>Destination</code> 在到达每一站时是「域名」还是「IP」这一件事决定。
+    </p>
+  </header>
+
+  <div class="legend">
+    <div class="legend-item"><span class="swatch" style="background:var(--case-fakeip)"></span><b>Fake-IP</b><span class="desc">— 域名 A/AAAA 查询命中占位地址池</span></div>
+    <div class="legend-item"><span class="swatch" style="background:var(--case-bypass)"></span><b>绕过 Fake-IP</b><span class="desc">— profile.json 前置规则，直接查真实 IP</span></div>
+    <div class="legend-item"><span class="swatch" style="background:var(--case-literal)"></span><b>字面量 IP</b><span class="desc">— App 从不经过 DNS，直连写死的地址</span></div>
+    <div class="legend-item"><span class="swatch" style="background:var(--danger)"></span><b>可能被拒</b><span class="desc">— ip_version:6 reject，仅 macOS</span></div>
+  </div>
+
+  <figure>
+    <div class="diagram-scroll">
+      <svg viewBox="0 0 1360 680" role="img" aria-label="三条流量路径示意图：fake-ip 流量在域名规则未命中时经 resolve 得到候选地址列表并在拨号时做 Happy Eyeballs 竞速；绕过 fake-ip 与字面量 IP 流量全程只有单一真实地址，never 触发竞速，且可能在 ip_version 6 规则处被拒绝。">
+        <defs>
+          <marker id="arrow-fakeip" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L8,4 L0,8 Z" fill="var(--case-fakeip)"></path>
+          </marker>
+          <marker id="arrow-bypass" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L8,4 L0,8 Z" fill="var(--case-bypass)"></path>
+          </marker>
+          <marker id="arrow-literal" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L8,4 L0,8 Z" fill="var(--case-literal)"></path>
+          </marker>
+        </defs>
+
+        <!-- stage headers -->
+        <g class="stage-head" font-size="11">
+          <text x="140" y="34" text-anchor="middle">起点</text>
+          <text x="400" y="34" text-anchor="middle">ROUTE 入口映射</text>
+          <text x="660" y="34" text-anchor="middle">域名规则匹配</text>
+          <text x="920" y="34" text-anchor="middle">RESOLVE / IP 规则</text>
+          <text x="1180" y="34" text-anchor="middle">拨号</text>
+        </g>
+        <line x1="0" y1="46" x2="1360" y2="46" stroke="var(--line)" stroke-width="1"></line>
+
+        <!-- lane labels -->
+        <text x="14" y="106" class="lbl-muted" font-size="11" font-weight="600">FAKE-IP</text>
+        <text x="14" y="336" class="lbl-muted" font-size="11" font-weight="600">绕过</text>
+        <text x="14" y="556" class="lbl-muted" font-size="11" font-weight="600">字面量</text>
+
+        <!-- ============ TEAL: fake-ip lane ============ -->
+        <g stroke="var(--case-fakeip)" fill="none" stroke-width="1.6">
+          <line x1="240" y1="110" x2="300" y2="110" marker-end="url(#arrow-fakeip)"></line>
+          <line x1="500" y1="110" x2="560" y2="110" marker-end="url(#arrow-fakeip)"></line>
+          <!-- fork: 未命中 continues straight -->
+          <line x1="760" y1="110" x2="820" y2="110" marker-end="url(#arrow-fakeip)"></line>
+          <!-- fork: 命中 bends down -->
+          <polyline points="700,138 700,210 820,210" marker-end="url(#arrow-fakeip)"></polyline>
+          <line x1="1020" y1="110" x2="1080" y2="110" marker-end="url(#arrow-fakeip)"></line>
+          <line x1="1020" y1="210" x2="1080" y2="210" marker-end="url(#arrow-fakeip)"></line>
+        </g>
+        <text x="792" y="102" font-size="10" fill="var(--case-fakeip)" text-anchor="middle">未命中</text>
+        <text x="742" y="178" font-size="10" fill="var(--case-fakeip)" text-anchor="middle">命中</text>
+
+        <g font-size="11.5" text-anchor="middle">
+          <!-- C1 -->
+          <rect x="40" y="82" width="200" height="56" rx="7" fill="var(--case-fakeip-bg)" stroke="var(--case-fakeip)" stroke-width="1.2"></rect>
+          <text x="140" y="105">A/AAAA 查询</text>
+          <text x="140" y="121" class="lbl-muted">无条件分配 fake-ip</text>
+          <!-- C2 -->
+          <rect x="300" y="82" width="200" height="56" rx="7" fill="var(--case-fakeip-bg)" stroke="var(--case-fakeip)" stroke-width="1.2"></rect>
+          <text x="400" y="105">Destination 整体</text>
+          <text x="400" y="121" class="lbl-muted">替换为域名(Fqdn)</text>
+          <!-- C3 -->
+          <rect x="560" y="82" width="200" height="56" rx="7" fill="var(--case-fakeip-bg)" stroke="var(--case-fakeip)" stroke-width="1.2"></rect>
+          <text x="660" y="105">域名白名单</text>
+          <text x="660" y="121" class="lbl-muted">(geosite) 匹配?</text>
+          <!-- C4a 未命中→resolve -->
+          <rect x="820" y="82" width="200" height="56" rx="7" fill="var(--case-fakeip-bg)" stroke="var(--case-fakeip)" stroke-width="1.2"></rect>
+          <text x="920" y="105">resolve 真查询</text>
+          <text x="920" y="121" class="lbl-muted">填充候选地址列表</text>
+          <!-- C4b 命中→resolve不执行 -->
+          <rect x="820" y="182" width="200" height="56" rx="7" fill="var(--case-fakeip-bg)" stroke="var(--case-fakeip)" stroke-width="1.2"></rect>
+          <text x="920" y="205">resolve 不执行</text>
+          <text x="920" y="221" class="lbl-muted">Destination 仍是域名</text>
+          <!-- C5a -->
+          <rect x="1080" y="82" width="200" height="56" rx="7" fill="var(--case-fakeip)" fill-opacity="0.22" stroke="var(--case-fakeip)" stroke-width="1.4"></rect>
+          <text x="1180" y="105" font-weight="600">DialParallel 竞速</text>
+          <text x="1180" y="121" class="lbl-muted">v4 立即拨,超时追加 v6</text>
+          <!-- C5b -->
+          <rect x="1080" y="182" width="200" height="56" rx="7" fill="var(--case-fakeip)" fill-opacity="0.22" stroke="var(--case-fakeip)" stroke-width="1.4"></rect>
+          <text x="1180" y="205" font-weight="600">outbound 自带</text>
+          <text x="1180" y="221" class="lbl-muted">resolveDialer 独立竞速</text>
+        </g>
+
+        <!-- ============ AMBER: bypass lane ============ -->
+        <g stroke="var(--case-bypass)" fill="none" stroke-width="1.6">
+          <line x1="240" y1="340" x2="300" y2="340" marker-end="url(#arrow-bypass)"></line>
+          <line x1="500" y1="340" x2="560" y2="340" marker-end="url(#arrow-bypass)"></line>
+          <line x1="760" y1="340" x2="820" y2="340" marker-end="url(#arrow-bypass)"></line>
+          <polyline points="700,368 700,430 820,430" marker-end="url(#arrow-bypass)"></polyline>
+          <line x1="1020" y1="340" x2="1080" y2="340" marker-end="url(#arrow-bypass)"></line>
+          <line x1="1020" y1="430" x2="1080" y2="430" marker-end="url(#arrow-bypass)"></line>
+        </g>
+        <text x="792" y="332" font-size="10" fill="var(--case-bypass)" text-anchor="middle">未命中</text>
+        <text x="742" y="398" font-size="10" fill="var(--case-bypass)" text-anchor="middle">命中</text>
+
+        <g font-size="11.5" text-anchor="middle">
+          <!-- C1 -->
+          <rect x="40" y="312" width="200" height="56" rx="7" fill="var(--case-bypass-bg)" stroke="var(--case-bypass)" stroke-width="1.2"></rect>
+          <text x="140" y="335">自定义 DNS 规则</text>
+          <text x="140" y="351" class="lbl-muted">local/proxy_dns 真实解析</text>
+          <!-- C2 -->
+          <rect x="300" y="312" width="200" height="56" rx="7" fill="var(--case-bypass-bg)" stroke="var(--case-bypass)" stroke-width="1.2"></rect>
+          <text x="400" y="335">只填 metadata.Domain</text>
+          <text x="400" y="351" class="lbl-muted">Destination 仍是真实 IP</text>
+          <!-- C3 -->
+          <rect x="560" y="312" width="200" height="56" rx="7" fill="var(--case-bypass-bg)" stroke="var(--case-bypass)" stroke-width="1.2"></rect>
+          <text x="660" y="335">域名规则</text>
+          <text x="660" y="351" class="lbl-muted">(如 geosite-futu) 匹配?</text>
+          <!-- C4a 未命中 -->
+          <rect x="820" y="312" width="200" height="56" rx="7" fill="var(--danger-bg)" stroke="var(--danger)" stroke-width="1.2"></rect>
+          <text x="920" y="335">resolve 空操作</text>
+          <text x="920" y="351" class="lbl-muted">ip_version:6 可能命中拒绝</text>
+          <!-- C4b 命中 -->
+          <rect x="820" y="402" width="200" height="56" rx="7" fill="var(--case-bypass-bg)" stroke="var(--case-bypass)" stroke-width="1.2"></rect>
+          <text x="920" y="425">直接判定出站</text>
+          <text x="920" y="441" class="lbl-muted">未经过 resolve</text>
+          <!-- C5a -->
+          <rect x="1080" y="312" width="200" height="56" rx="7" fill="var(--case-bypass-bg)" stroke="var(--case-bypass)" stroke-width="1.2"></rect>
+          <text x="1180" y="335">单地址拨号</text>
+          <text x="1180" y="351" class="lbl-muted">无候选,不竞速</text>
+          <!-- C5b -->
+          <rect x="1080" y="402" width="200" height="56" rx="7" fill="var(--case-bypass-bg)" stroke="var(--case-bypass)" stroke-width="1.2"></rect>
+          <text x="1180" y="425">单地址拨号</text>
+          <text x="1180" y="441" class="lbl-muted">域名已知也不竞速</text>
+        </g>
+
+        <!-- ============ GREY: literal IP lane ============ -->
+        <g stroke="var(--case-literal)" fill="none" stroke-width="1.6">
+          <line x1="240" y1="560" x2="300" y2="560" marker-end="url(#arrow-literal)"></line>
+          <line x1="500" y1="560" x2="560" y2="560" marker-end="url(#arrow-literal)"></line>
+          <line x1="760" y1="560" x2="820" y2="560" marker-end="url(#arrow-literal)"></line>
+          <line x1="1020" y1="560" x2="1080" y2="560" marker-end="url(#arrow-literal)"></line>
+        </g>
+        <g font-size="11.5" text-anchor="middle">
+          <!-- C1 -->
+          <rect x="40" y="532" width="200" height="56" rx="7" fill="var(--case-literal-bg)" stroke="var(--case-literal)" stroke-width="1.2"></rect>
+          <text x="140" y="555">App 直连字面量 IP</text>
+          <text x="140" y="571" class="lbl-muted">无 DNS 环节</text>
+          <!-- C2 -->
+          <rect x="300" y="532" width="200" height="56" rx="7" fill="var(--case-literal-bg)" stroke="var(--case-literal)" stroke-width="1.2"></rect>
+          <text x="400" y="555">两张表均未命中</text>
+          <text x="400" y="571" class="lbl-muted">Domain 为空</text>
+          <!-- C3 -->
+          <rect x="560" y="532" width="200" height="56" rx="7" fill="var(--case-literal-bg)" stroke="var(--case-literal)" stroke-width="1.2" stroke-dasharray="4 3"></rect>
+          <text x="660" y="555">域名规则</text>
+          <text x="660" y="571" class="lbl-muted">全部跳过</text>
+          <!-- C4 -->
+          <rect x="820" y="532" width="200" height="56" rx="7" fill="var(--danger-bg)" stroke="var(--danger)" stroke-width="1.2"></rect>
+          <text x="920" y="555">resolve 空操作</text>
+          <text x="920" y="571" class="lbl-muted">ip_version:6 可能命中拒绝</text>
+          <!-- C5 -->
+          <rect x="1080" y="532" width="200" height="56" rx="7" fill="var(--case-literal-bg)" stroke="var(--case-literal)" stroke-width="1.2"></rect>
+          <text x="1180" y="555">单地址拨号</text>
+          <text x="1180" y="571" class="lbl-muted">无候选,不竞速</text>
+        </g>
+
+        <!-- vertical separators -->
+        <g stroke="var(--line)" stroke-width="1" stroke-dasharray="2 4">
+          <line x1="270" y1="56" x2="270" y2="614"></line>
+          <line x1="530" y1="56" x2="530" y2="614"></line>
+          <line x1="790" y1="56" x2="790" y2="614"></line>
+          <line x1="1050" y1="56" x2="1050" y2="614"></line>
+        </g>
+      </svg>
+    </div>
+    <figcaption>
+      同一份 <code style="font-family:inherit">route.rules</code>，三条泳道分别对应三种流量在到达时的状态。分叉点（域名规则「命中 / 未命中」）
+      只出现在 fake-ip 与绕过两条泳道，因为只有它们手上真的有域名可以拿去比对；字面量 IP 那条泳道直接跳过整段域名规则。
+      唯一真正触发 Happy Eyeballs 竞速的终点，是 <b style="color:var(--case-fakeip)">fake-ip</b> 泳道的两个右侧格子——
+      因为只有它们，<code style="font-family:inherit">Destination</code> 到拨号那一刻仍然是域名形态。
+    </figcaption>
+  </figure>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>阶段</th><th>判断依据</th><th>代码位置</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>DNS 首次解析（客户端可见）</td><td class="cond">query_type 为 A/AAAA，无域名限制 → 无条件 fake-ip</td><td class="loc">dns/router.go:263（Exchange, allowFakeIP=true）</td></tr>
+        <tr><td>fake-ip 占位地址生成</td><td class="cond">inet4_range 198.18.0.0/15 · inet6_range fc00::/18</td><td class="loc">dns.go:47-52</td></tr>
+        <tr><td>反查表写入</td><td class="cond">仅 Exchange 中非-fakeip 应答才记录</td><td class="loc">dns/router.go:312-322</td></tr>
+        <tr><td>Route 入口映射</td><td class="cond">Destination 是否落在 fake-ip store 里</td><td class="loc">route/route.go:411-424</td></tr>
+        <tr><td>反查表消费</td><td class="cond">仅当 metadata.Domain == "" 时才查</td><td class="loc">route/route.go:426-431</td></tr>
+        <tr><td>规则匹配顺序</td><td class="cond">for range r.rules，严格先到先得</td><td class="loc">route/route.go:439-444</td></tr>
+        <tr><td>action: resolve</td><td class="cond">仅当 metadata.Destination.IsDomain()</td><td class="loc">route/route.go:761-771</td></tr>
+        <tr><td>Lookup（第二次解析）</td><td class="cond">allowFakeIP=false → fake-ip 规则被跳过</td><td class="loc">dns/router.go:377, 154</td></tr>
+        <tr><td>ip_version:6 拒绝规则</td><td class="cond">只认 Destination.IsIP() &amp;&amp; IsIPv6()</td><td class="loc">route/rule/rule_item_ipversion.go:17-20</td></tr>
+        <tr><td>拨号入口分支</td><td class="cond">DestinationAddresses 非空 或 Destination.IsIP()</td><td class="loc">route/conn.go:100-104</td></tr>
+        <tr><td>Happy Eyeballs 竞速</td><td class="cond">拆分 v4/v6，先拨主力，fallbackDelay 后追加备用</td><td class="loc">common/dialer/default_parallel_network.go:47-127</td></tr>
+        <tr><td>outbound 自带解析</td><td class="cond">Destination 仍为域名且候选列表为空时触发</td><td class="loc">common/dialer/resolve.go:94-112</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout">
+    <h2>配置规则 = 顺序执行的代码，没有隐藏的智能仲裁</h2>
+    <p>
+      <code style="font-family:inherit">rules</code> 数组本质是一串 <code style="font-family:inherit">if / else if</code>，写规则的顺序就是执行顺序。
+      整张图里所有「为什么这条流量会/不会竞速、会/不会被拒」的答案，最终都能归结到同一个变量在某个时间点的状态：
+      <code style="font-family:inherit">Destination</code> 是域名还是 IP。
+    </p>
+    <p class="sub">这也是我们在这次梳理里定位到的那个不对称之处——留一条实操准则：</p>
+    <div class="rule">
+      任何在 profile.json 里配置「绕过 fake-ip」的域名，必须在 <code style="font-family:inherit">ip_version:6 reject</code>（route.go:198）之前，
+      有一条明确的直连域名规则能兜住它——否则一旦它只解析出 AAAA 记录，会在 macOS 上被直接拒绝，即使 route 引擎其实知道它的域名。
+    </div>
+  </div>
+
+</div>

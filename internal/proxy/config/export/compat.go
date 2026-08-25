@@ -230,42 +230,7 @@ func applyPlatformCompat(root map[string]any, platform string) {
 	case "ios":
 		// Avoid embedding desktop cache paths and local API listeners in mobile exports.
 		delete(root, "experimental")
-		// 中国移动网络（5G/LTE）广泛使用 IPv6（DS-Lite、NAT64），
-		// ipv4_only 会导致 IPv6-only 服务解析失败，在部分蜂窝网络下严重影响连通性。
-		// iOS 使用 prefer_ipv4：有 IPv4 时优先返回，否则回退 IPv6。
-		if dns, ok := root["dns"].(map[string]any); ok {
-			dns["strategy"] = "prefer_ipv4"
-		}
-		// route.go 里无条件的 ip_version:6 reject 是为桌面双栈网络设计的
-		// （快速 RST 逼迫客户端回退 IPv4）。IPv6-only 蜂窝网络（NAT64/DS-Lite）
-		// 没有 IPv4 可回退，保留这条规则会和上面的 prefer_ipv4 直接冲突，
-		// 导致纯 IPv6 网络下完全无法连接，因此 iOS 导出去掉它。
-		removeIPv6RejectRoute(root)
 	}
-}
-
-// removeIPv6RejectRoute strips the bare {"ip_version":6,"action":"reject"} rule
-// injected by route.go. Only matches the exact bare form (no other matchers) so
-// a user-authored rule that happens to combine ip_version:6 with other criteria
-// is left untouched.
-func removeIPv6RejectRoute(root map[string]any) {
-	route, ok := root["route"].(map[string]any)
-	if !ok {
-		return
-	}
-	rules, ok := route["rules"].([]any)
-	if !ok {
-		return
-	}
-	filtered := make([]any, 0, len(rules))
-	for _, entry := range rules {
-		rule, ok := entry.(map[string]any)
-		if ok && len(rule) == 2 && intFromAny(rule["ip_version"]) == 6 && rule["action"] == "reject" {
-			continue
-		}
-		filtered = append(filtered, entry)
-	}
-	route["rules"] = filtered
 }
 
 // buildLegacyDNSAddress constructs legacy DNS address string from components
