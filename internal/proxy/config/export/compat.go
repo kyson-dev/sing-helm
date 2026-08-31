@@ -12,6 +12,7 @@ func applyCompatForV1114(root map[string]any) {
 	downgradeDNSServers(root)
 	downgradeDNSDetour(root)
 	downgradeRuleSets(root)
+	downgradeRuleSetHTTPClient(root)
 	downgradeSelectorOutbounds(root)
 	downgradeDefaultDomainResolver(root)
 	downgradeOutboundTLS(root)
@@ -162,6 +163,35 @@ func downgradeRuleSets(root map[string]any) {
 				}
 			}
 		}
+	}
+}
+
+// downgradeRuleSetHTTPClient converts the v1.14+ remote rule_set http_client.detour
+// field back to v1.11.x's download_detour, which v1.11.4 rejects http_client under
+// DisallowUnknownFields for not knowing.
+func downgradeRuleSetHTTPClient(root map[string]any) {
+	route, ok := root["route"].(map[string]any)
+	if !ok {
+		return
+	}
+	ruleSets, ok := route["rule_set"].([]any)
+	if !ok {
+		return
+	}
+
+	for _, entry := range ruleSets {
+		ruleSet, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		httpClient, ok := ruleSet["http_client"].(map[string]any)
+		if !ok {
+			continue
+		}
+		if detour, ok := httpClient["detour"].(string); ok && detour != "" {
+			ruleSet["download_detour"] = detour
+		}
+		delete(ruleSet, "http_client")
 	}
 }
 

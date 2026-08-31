@@ -82,6 +82,43 @@ func TestApplyCompatForV1114_StripsCertificatePublicKeySHA256(t *testing.T) {
 	}
 }
 
+func TestApplyCompatForV1114_ConvertsRuleSetHTTPClientToDownloadDetour(t *testing.T) {
+	root := map[string]any{
+		"route": map[string]any{
+			"rule_set": []any{
+				map[string]any{
+					"tag":         "geosite-ads",
+					"type":        "remote",
+					"format":      "binary",
+					"url":         "https://example.com/geosite-ads.srs",
+					"http_client": map[string]any{"detour": "proxy"},
+				},
+			},
+		},
+	}
+
+	applyCompatForV1114(root)
+
+	route, ok := root["route"].(map[string]any)
+	if !ok {
+		t.Fatalf("route missing")
+	}
+	ruleSets, ok := route["rule_set"].([]any)
+	if !ok || len(ruleSets) == 0 {
+		t.Fatalf("rule_set missing")
+	}
+	ruleSet, ok := ruleSets[0].(map[string]any)
+	if !ok {
+		t.Fatalf("rule_set[0] is not an object")
+	}
+	if _, ok := ruleSet["http_client"]; ok {
+		t.Fatalf("expected http_client to be stripped for v1.11.4")
+	}
+	if ruleSet["download_detour"] != "proxy" {
+		t.Fatalf("expected download_detour to be set to proxy, got %#v", ruleSet["download_detour"])
+	}
+}
+
 func firstInboundAsMap(t *testing.T, root map[string]any) map[string]any {
 	t.Helper()
 

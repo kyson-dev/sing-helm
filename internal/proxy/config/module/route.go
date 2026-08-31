@@ -165,11 +165,11 @@ func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 
 	// ============ 片段 5: 去广告（放在白名单之后，避免误伤上面已确认的服务）============
 	ruleSets = append(ruleSets, map[string]any{
-		"tag":             "geosite-ads",
-		"type":            "remote",
-		"format":          "binary",
-		"url":             "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/category-ads-all.srs",
-		"download_detour": moduleUtils.TagProxy,
+		"tag":         "geosite-ads",
+		"type":        "remote",
+		"format":      "binary",
+		"url":         "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/category-ads-all.srs",
+		"http_client": map[string]any{"detour": moduleUtils.TagProxy},
 	})
 
 	// 用 reject 而非 block outbound：block 在 macOS TUN 下会以 EPERM 的形式
@@ -245,33 +245,33 @@ func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 // metaGeositeRuleSet 引用 meta-rules-dat 按公司/产品维护的域名规则集
 func metaGeositeRuleSet(name string) map[string]any {
 	return map[string]any{
-		"tag":             "geosite-" + name,
-		"type":            "remote",
-		"format":          "binary",
-		"url":             "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/" + name + ".srs",
-		"download_detour": moduleUtils.TagProxy,
+		"tag":         "geosite-" + name,
+		"type":        "remote",
+		"format":      "binary",
+		"url":         "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/" + name + ".srs",
+		"http_client": map[string]any{"detour": moduleUtils.TagProxy},
 	}
 }
 
 // metaGeoipRuleSet 引用 meta-rules-dat 按公司/产品维护的 IP 规则集
 func metaGeoipRuleSet(name string) map[string]any {
 	return map[string]any{
-		"tag":             "geoip-" + name,
-		"type":            "remote",
-		"format":          "binary",
-		"url":             "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/" + name + ".srs",
-		"download_detour": moduleUtils.TagProxy,
+		"tag":         "geoip-" + name,
+		"type":        "remote",
+		"format":      "binary",
+		"url":         "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/" + name + ".srs",
+		"http_client": map[string]any{"detour": moduleUtils.TagProxy},
 	}
 }
 
 // metaAsnRuleSet 引用 meta-rules-dat 按 AS 号维护的 IP 规则集
 func metaAsnRuleSet(name string) map[string]any {
 	return map[string]any{
-		"tag":             "asn-" + name,
-		"type":            "remote",
-		"format":          "binary",
-		"url":             "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/asn/" + name + ".srs",
-		"download_detour": moduleUtils.TagProxy,
+		"tag":         "asn-" + name,
+		"type":        "remote",
+		"format":      "binary",
+		"url":         "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/asn/" + name + ".srs",
+		"http_client": map[string]any{"detour": moduleUtils.TagProxy},
 	}
 }
 

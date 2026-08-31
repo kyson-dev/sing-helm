@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/kyson-dev/sing-helm/internal/proxy/config/model"
+	moduleUtils "github.com/kyson-dev/sing-helm/internal/proxy/config/module/utils"
 	"github.com/sagernet/sing-box/include"
 	"github.com/sagernet/sing-box/option"
 	singboxjson "github.com/sagernet/sing/common/json"
@@ -250,6 +251,49 @@ func TestRouteApply_UserRulesBetweenLeadingAndTrailing(t *testing.T) {
 	}
 	if userRuleIdx <= 1 {
 		t.Fatalf("user rule must come after sniff/hijack-dns: user=%d", userRuleIdx)
+	}
+}
+
+// TestRouteApply_RuleSetHTTPClientDetourRoundTrips 验证生成的 rule_set 用
+// http_client.detour（而非废弃的 download_detour）声明下载出站，且该写法能被
+// sing-box 自己的严格解码器（DisallowUnknownFields）正确解析回 detour 字段——
+// 只 json.Unmarshal 到 map[string]any 不会校验 http_client 是否是 sing-box
+// 认识的合法字段，必须走 option.Route 才能验证。
+func TestRouteApply_RuleSetHTTPClientDetourRoundTrips(t *testing.T) {
+	opts := &option.Options{}
+	m := &RouteModule{RouteMode: model.RouteModeRule}
+	if err := m.Apply(opts, NewBuildContext(nil)); err != nil {
+		t.Fatalf("apply route: %v", err)
+	}
+
+	raw, err := singboxjson.Marshal(opts.Route)
+	if err != nil {
+		t.Fatalf("marshal route: %v", err)
+	}
+
+	var decoded option.RouteOptions
+	tx := include.Context(context.Background())
+	if err := singboxjson.UnmarshalContext(tx, raw, &decoded); err != nil {
+		t.Fatalf("decode route: %v", err)
+	}
+
+	if len(decoded.RuleSet) == 0 {
+		t.Fatalf("rule_set missing")
+	}
+	found := false
+	for _, rs := range decoded.RuleSet {
+		if rs.Type != "remote" {
+			continue
+		}
+		if rs.RemoteOptions.DownloadDetour != "" {
+			t.Fatalf("expected download_detour to be unused, got %q on %v", rs.RemoteOptions.DownloadDetour, rs.Tag)
+		}
+		if rs.RemoteOptions.HTTPClient != nil && rs.RemoteOptions.HTTPClient.Detour == moduleUtils.TagProxy {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected at least one remote rule_set with http_client.detour == %q", moduleUtils.TagProxy)
 	}
 }
 
