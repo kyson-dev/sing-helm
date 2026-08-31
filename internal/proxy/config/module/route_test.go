@@ -254,49 +254,6 @@ func TestRouteApply_UserRulesBetweenLeadingAndTrailing(t *testing.T) {
 	}
 }
 
-// TestRouteApply_RuleSetHTTPClientDetourRoundTrips 验证生成的 rule_set 用
-// http_client.detour（而非废弃的 download_detour）声明下载出站，且该写法能被
-// sing-box 自己的严格解码器（DisallowUnknownFields）正确解析回 detour 字段——
-// 只 json.Unmarshal 到 map[string]any 不会校验 http_client 是否是 sing-box
-// 认识的合法字段，必须走 option.Route 才能验证。
-func TestRouteApply_RuleSetHTTPClientDetourRoundTrips(t *testing.T) {
-	opts := &option.Options{}
-	m := &RouteModule{RouteMode: model.RouteModeRule}
-	if err := m.Apply(opts, NewBuildContext(nil)); err != nil {
-		t.Fatalf("apply route: %v", err)
-	}
-
-	raw, err := singboxjson.Marshal(opts.Route)
-	if err != nil {
-		t.Fatalf("marshal route: %v", err)
-	}
-
-	var decoded option.RouteOptions
-	tx := include.Context(context.Background())
-	if err := singboxjson.UnmarshalContext(tx, raw, &decoded); err != nil {
-		t.Fatalf("decode route: %v", err)
-	}
-
-	if len(decoded.RuleSet) == 0 {
-		t.Fatalf("rule_set missing")
-	}
-	found := false
-	for _, rs := range decoded.RuleSet {
-		if rs.Type != "remote" {
-			continue
-		}
-		if rs.RemoteOptions.DownloadDetour != "" {
-			t.Fatalf("expected download_detour to be unused, got %q on %v", rs.RemoteOptions.DownloadDetour, rs.Tag)
-		}
-		if rs.RemoteOptions.HTTPClient != nil && rs.RemoteOptions.HTTPClient.Detour == moduleUtils.TagProxy {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatalf("expected at least one remote rule_set with http_client.detour == %q", moduleUtils.TagProxy)
-	}
-}
-
 func TestRouteApply_GeoipCNFallbackPresent(t *testing.T) {
 	opts := &option.Options{}
 	m := &RouteModule{RouteMode: model.RouteModeRule}
@@ -340,6 +297,123 @@ func TestRouteApply_GeoipCNFallbackPresent(t *testing.T) {
 	}
 	if geoipCNIdx <= resolveIdx {
 		t.Fatalf("geoip-cn fallback must come after resolve: geoip-cn=%d resolve=%d", geoipCNIdx, resolveIdx)
+	}
+}
+
+// TestRouteApply_RuleSetHTTPClientDetourRoundTrips 验证生成的 rule_set 用
+// http_client.detour（而非废弃的 download_detour）声明下载出站，且该写法能被
+// sing-box 自己的严格解码器（DisallowUnknownFields）正确解析回 detour 字段——
+// 只 json.Unmarshal 到 map[string]any 不会校验 http_client 是否是 sing-box
+// 认识的合法字段，必须走 option.Route 才能验证。
+func TestRouteApply_RuleSetHTTPClientDetourRoundTrips(t *testing.T) {
+	opts := &option.Options{}
+	m := &RouteModule{RouteMode: model.RouteModeRule}
+	if err := m.Apply(opts, NewBuildContext(nil)); err != nil {
+		t.Fatalf("apply route: %v", err)
+	}
+
+	raw, err := singboxjson.Marshal(opts.Route)
+	if err != nil {
+		t.Fatalf("marshal route: %v", err)
+	}
+
+	var decoded option.RouteOptions
+	tx := include.Context(context.Background())
+	if err := singboxjson.UnmarshalContext(tx, raw, &decoded); err != nil {
+		t.Fatalf("decode route: %v", err)
+	}
+
+	if len(decoded.RuleSet) == 0 {
+		t.Fatalf("rule_set missing")
+	}
+	found := false
+	for _, rs := range decoded.RuleSet {
+		if rs.Type != "remote" {
+			continue
+		}
+		if rs.RemoteOptions.DownloadDetour != "" {
+			t.Fatalf("expected download_detour to be unused, got %q on %v", rs.RemoteOptions.DownloadDetour, rs.Tag)
+		}
+		if rs.RemoteOptions.HTTPClient != nil && rs.RemoteOptions.HTTPClient.Detour == moduleUtils.TagProxy {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected at least one remote rule_set with http_client.detour == %q", moduleUtils.TagProxy)
+	}
+}
+
+// TestRouteApply_AppleIPRangeDirect 验证 17.0.0.0/8 (Apple 自有 IP 段) 有直连
+// 兜底规则——APNs 推送等裸 IP/QUIC 连接嗅探不到域名，需要靠这条规则兜底直连，
+// 否则会落到 Final=proxy 导致推送通道频繁经代理重连。
+func TestRouteApply_AppleIPRangeDirect(t *testing.T) {
+	opts := &option.Options{}
+	m := &RouteModule{RouteMode: model.RouteModeRule}
+	if err := m.Apply(opts, NewBuildContext(nil)); err != nil {
+		t.Fatalf("apply route: %v", err)
+	}
+
+	raw, err := singboxjson.Marshal(opts.Route)
+	if err != nil {
+		t.Fatalf("marshal route: %v", err)
+	}
+	var routeMap map[string]any
+	if err := json.Unmarshal(raw, &routeMap); err != nil {
+		t.Fatalf("decode route: %v", err)
+	}
+
+	rules, ok := routeMap["rules"].([]any)
+	if !ok || len(rules) == 0 {
+		t.Fatalf("route rules missing")
+	}
+
+	found := false
+	for _, rule := range rules {
+		rm, ok := rule.(map[string]any)
+		if !ok {
+			continue
+		}
+		if stringListContains(rm["ip_cidr"], "17.0.0.0/8") && rm["outbound"] == "direct" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected 17.0.0.0/8 -> direct fallback rule for Apple's own IP range")
+	}
+}
+
+// TestRouteApply_GlobalModeDropsAppleIPRange 验证全局代理模式下 17.0.0.0/8
+// 直连兜底规则不会被 keepSniffRules 误保留——只有 AliDNS 的 223.5.5.5/32、
+// 223.6.6.6/32 是刻意保留的启动期例外，/8 这种大段不该在"全局代理"下还绕过代理。
+func TestRouteApply_GlobalModeDropsAppleIPRange(t *testing.T) {
+	opts := &option.Options{}
+	m := &RouteModule{RouteMode: model.RouteModeGlobal}
+	if err := m.Apply(opts, NewBuildContext(nil)); err != nil {
+		t.Fatalf("apply route: %v", err)
+	}
+
+	raw, err := singboxjson.Marshal(opts.Route)
+	if err != nil {
+		t.Fatalf("marshal route: %v", err)
+	}
+	var routeMap map[string]any
+	if err := json.Unmarshal(raw, &routeMap); err != nil {
+		t.Fatalf("decode route: %v", err)
+	}
+
+	rules, ok := routeMap["rules"].([]any)
+	if !ok {
+		t.Fatalf("route rules missing")
+	}
+
+	for _, rule := range rules {
+		rm, ok := rule.(map[string]any)
+		if !ok {
+			continue
+		}
+		if stringListContains(rm["ip_cidr"], "17.0.0.0/8") {
+			t.Fatalf("global mode must not keep the 17.0.0.0/8 direct bypass: %v", rm)
+		}
 	}
 }
 

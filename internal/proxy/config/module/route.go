@@ -148,6 +148,18 @@ func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 	// 一并误判为 direct，绕过后面 ip_version:6 reject 等所有判断。
 	rules = append(rules, map[string]any{"ip_cidr": []string{"223.5.5.5/32", "223.6.6.6/32"}, "outbound": moduleUtils.TagDirect})
 
+	// 片段 1.5: Apple 自有 IP 段 (17.0.0.0/8) 直连兜底。
+	// 实测客户端连接日志里能看到不少目的地是 17.248.163.x:443 的裸 UDP/QUIC
+	// 连接（无法确认具体是 Apple 的哪个服务），既没有可嗅探的域名/SNI 命中
+	// geosite-apple，落到片段 6.5 的 IP 兜底时 proxyIPRuleSets/geoip-cn 也都
+	// 覆盖不到（目标是美国的 Apple IP，不在国内 IP 段），于是这类连接会落到
+	// Final=proxy，白白把本该直连的 Apple 流量绕去美国出口，没有任何好处。
+	// meta-rules-dat 没有提供 geoip-apple 规则集可引用，17.0.0.0/8 自 1992 年起
+	// 整体分配给 Apple、长期稳定，直接硬编码 CIDR 兜底。
+	// 仅覆盖 IPv4：Apple 的 IPv6 段（如 2620:149::/32）存在同样的裸 IP 漏洞，
+	// 但目前抓到的连接样本都是 v4，暂不处理，等有 v6 命中的证据再补。
+	rules = append(rules, map[string]any{"ip_cidr": []string{"17.0.0.0/8"}, "outbound": moduleUtils.TagDirect})
+
 	// 片段 2: NTP 直连
 	rules = append(rules, map[string]any{"protocol": []string{"ntp"}, "outbound": moduleUtils.TagDirect})
 
@@ -310,6 +322,22 @@ func ruleSetTags(kind string, names []string) []string {
 	return tags
 }
 
+// isAliDNSCIDR 判断一条 ip_cidr 规则是否恰好就是 AliDNS 启动期直连例外
+// (223.5.5.5/32、223.6.6.6/32)，用于 keepSniffRules 精确保留，不误留其他
+// ip_cidr 规则（如 17.0.0.0/8 Apple 直连兜底）。
+func isAliDNSCIDR(cidrList []any) bool {
+	if len(cidrList) == 0 {
+		return false
+	}
+	for _, v := range cidrList {
+		s, ok := v.(string)
+		if !ok || (s != "223.5.5.5/32" && s != "223.6.6.6/32") {
+			return false
+		}
+	}
+	return true
+}
+
 func keepSniffRules(rules []option.Rule) []option.Rule {
 	kept := rules[:0]
 	for _, rule := range rules {
@@ -327,7 +355,11 @@ func keepSniffRules(rules []option.Rule) []option.Rule {
 			continue
 		}
 		// Preserve AliDNS direct-bypass so bootstrap DoH to 223.5.5.5 stays direct.
-		if _, hasCIDR := rm["ip_cidr"]; hasCIDR {
+		// 只匹配 AliDNS 这两个 /32——不能像以前那样"只要带 ip_cidr 就保留"，
+		// 否则片段 1.5 新增的 17.0.0.0/8 (Apple IP 段直连兜底) 也会被无差别保留，
+		// 导致全局代理模式下整个 Apple /8 都绕过代理，破坏"全局代理=一切走代理"
+		// 的承诺——AliDNS 的 /32 是刻意的启动期例外，/8 不是同一类东西。
+		if cidrList, ok := rm["ip_cidr"].([]any); ok && isAliDNSCIDR(cidrList) {
 			kept = append(kept, rule)
 		}
 		// 保留局域网私网直连规则，防止全局代理模式下局域网设备断连
