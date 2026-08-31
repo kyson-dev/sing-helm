@@ -126,7 +126,7 @@ func newServeCommand() *cobra.Command {
 
 	cmd.Flags().IntVarP(&port, "port", "p", 8090, "HTTP server port")
 	cmd.Flags().StringVar(&platform, "platform", "ios", "Target platform (e.g. ios)")
-	cmd.Flags().StringVar(&targetVersion, "target-version", "1.11.4", "Target sing-box version: 1.11.4 or latest")
+	cmd.Flags().StringVar(&targetVersion, "target-version", "latest", "Target sing-box version: 1.11.4 or latest")
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output local file path")
 
 	return cmd
