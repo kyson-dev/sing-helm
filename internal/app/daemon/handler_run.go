@@ -12,6 +12,7 @@ import (
 	"github.com/kyson-dev/sing-helm/internal/sys/ipc"
 	"github.com/kyson-dev/sing-helm/internal/sys/logger"
 	"github.com/kyson-dev/sing-helm/internal/sys/paths"
+	"github.com/kyson-dev/sing-helm/internal/sys/securefile"
 	"github.com/kyson-dev/sing-helm/internal/sys/sysnet"
 )
 
@@ -203,7 +204,7 @@ func backupConfig(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(backup, input, 0644); err != nil {
+	if err := securefile.WriteFile(backup, input); err != nil {
 		return "", err
 	}
 	return backup, nil
@@ -217,5 +218,5 @@ func restoreConfig(backupPath, targetPath string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(targetPath, data, 0644)
+	return securefile.WriteFile(targetPath, data)
 }

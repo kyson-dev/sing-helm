@@ -26,13 +26,17 @@ func (m *DNSModule) Apply(opts *option.Options, ctx *BuildContext) error {
 	}
 
 	// 使用 IP 地址直接连接 DoH 服务器，避免引导解析（resolver_dns）发出明文 UDP DNS 查询。
-	// 223.5.5.5 = AliDNS DoH IP，8.8.8.8 = Google DNS DoH IP，两者均支持 IP 直连。
+	// TLS server_name 固定验证服务端身份；不配置 UDP fallback，DoH 故障时明确失败，
+	// 避免静默泄漏 DNS 查询。
 	dnsMap := map[string]any{
 		"servers": []map[string]any{
 			{
 				"tag":    moduleUtils.TagLocalDNS,
-				"type":   "udp",
-				"server": "223.5.5.5", // 使用 UDP 直连，避开 TLS 握手与系统时间校验失败导致的冷启动死锁
+				"type":   "https",
+				"server": "223.5.5.5", // AliDNS IPv4，避免无 IPv6 Wi-Fi 上的引导与连接问题
+				"tls": map[string]any{
+					"server_name": "dns.alidns.com",
+				},
 			},
 			{
 				"tag":    moduleUtils.TagProxyDNS,

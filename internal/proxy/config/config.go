@@ -3,12 +3,12 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 
 	"github.com/kyson-dev/sing-helm/internal/proxy/config/model"
 	"github.com/kyson-dev/sing-helm/internal/proxy/config/module"
 	nodeProvider "github.com/kyson-dev/sing-helm/internal/proxy/config/module/node"
 	"github.com/kyson-dev/sing-helm/internal/sys/logger"
+	"github.com/kyson-dev/sing-helm/internal/sys/securefile"
 	"github.com/sagernet/sing-box/option"
 	singboxjson "github.com/sagernet/sing/common/json"
 )
@@ -114,7 +114,7 @@ func SaveToFile(path string, opts *option.Options) error {
 		return fmt.Errorf("failed to marshal indent: %w", err)
 	}
 
-	if err := os.WriteFile(path, data, 0644); err != nil {
+	if err := securefile.WriteFile(path, data); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 

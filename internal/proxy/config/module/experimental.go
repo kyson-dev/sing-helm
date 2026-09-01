@@ -23,8 +23,9 @@ func (m *ExperimentalModule) Name() string {
 }
 
 func (m *ExperimentalModule) Apply(opts *option.Options, ctx *BuildContext) error {
-	// 如果用户已经在 profile.json 中完全配置了 experimental，尤其是 clash_api
-	// 我们就直接跳过（依赖 TemplateModule 前置早已完成了参数提取）
+	// 如果用户已经在 profile.json 中配置了 clash_api，保留它并回填
+	// 运行参数；无论 clash_api 是否由用户提供，下方都会强制补齐
+	// FakeIP 持久化缓存，避免隧道重启后丢失映射。
 	if opts.Experimental != nil && opts.Experimental.ClashAPI != nil && opts.Experimental.ClashAPI.ExternalController != "" {
 		if ctx != nil && ctx.RunOptions != nil {
 			listenAddr, apiPort, ok := parseExternalController(opts.Experimental.ClashAPI.ExternalController)
@@ -34,41 +35,48 @@ func (m *ExperimentalModule) Apply(opts *option.Options, ctx *BuildContext) erro
 			ctx.RunOptions.ListenAddr = listenAddr
 			ctx.RunOptions.APIPort = apiPort
 		}
-		return nil
-	}
-	// 确定监听地址
-	listenAddr := m.ListenAddr
-	if listenAddr == "" {
-		listenAddr = "127.0.0.1"
-	}
+	} else {
+		// 确定监听地址
+		listenAddr := m.ListenAddr
+		if listenAddr == "" {
+			listenAddr = "127.0.0.1"
+		}
 
-	// 确定 API 端口
-	apiPort := m.APIPort
-	if apiPort == 0 {
-		var err error
-		apiPort, err = moduleUtils.GetFreePort()
-		if err != nil {
-			return err
+		// 确定 API 端口
+		apiPort := m.APIPort
+		if apiPort == 0 {
+			var err error
+			apiPort, err = moduleUtils.GetFreePort()
+			if err != nil {
+				return err
+			}
+		}
+
+		// 更新 context 中的端口信息
+		ctx.RunOptions.APIPort = apiPort
+		ctx.RunOptions.ListenAddr = listenAddr
+
+		// 创建或追加 Clash API 配置
+		if opts.Experimental == nil {
+			opts.Experimental = &option.ExperimentalOptions{}
+		}
+		opts.Experimental.ClashAPI = &option.ClashAPIOptions{
+			ExternalController: fmt.Sprintf("%s:%d", listenAddr, apiPort),
 		}
 	}
 
-	// 更新 context 中的端口信息
-	ctx.RunOptions.APIPort = apiPort
-	ctx.RunOptions.ListenAddr = listenAddr
-
-	// 创建或追加 Clash API 配置
 	if opts.Experimental == nil {
 		opts.Experimental = &option.ExperimentalOptions{}
 	}
-	opts.Experimental.ClashAPI = &option.ClashAPIOptions{
-		ExternalController: fmt.Sprintf("%s:%d", listenAddr, apiPort),
-	}
-
 	if opts.Experimental.CacheFile == nil {
 		opts.Experimental.CacheFile = &option.CacheFileOptions{
-			Enabled: true,
-			Path:    paths.Get().CacheFile,
+			Enabled:     true,
+			Path:        paths.Get().CacheFile,
+			StoreFakeIP: true,
 		}
+	} else {
+		opts.Experimental.CacheFile.Enabled = true
+		opts.Experimental.CacheFile.StoreFakeIP = true
 	}
 
 	return nil

@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/kyson-dev/sing-helm/internal/sys/logger"
+	"github.com/kyson-dev/sing-helm/internal/sys/securefile"
 )
 
 // Refresh downloads a subscription and updates its cache
@@ -53,7 +53,7 @@ func Refresh(ctx context.Context, source Source, cacheDir string) error {
 		Nodes:     nodes,
 	}
 
-	err = os.MkdirAll(cacheDir, 0755)
+	err = securefile.EnsurePrivateDir(cacheDir)
 	if err != nil {
 		return fmt.Errorf("create cache dir failed: %w", err)
 	}

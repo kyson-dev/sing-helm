@@ -37,4 +37,24 @@ func TestExperimentalApply_BackfillFromExternalController(t *testing.T) {
 	if run.ListenAddr != "127.0.0.1" || run.APIPort != 9090 {
 		t.Fatalf("expected backfill from external_controller, got %+v", run)
 	}
+	if opts.Experimental.CacheFile == nil || !opts.Experimental.CacheFile.Enabled || !opts.Experimental.CacheFile.StoreFakeIP {
+		t.Fatalf("expected fake-IP cache to be forced on, got %+v", opts.Experimental.CacheFile)
+	}
+}
+
+func TestExperimentalApply_EnablesFakeIPCache(t *testing.T) {
+	run := &model.RunOptions{}
+	opts := &option.Options{}
+
+	err := (&ExperimentalModule{ListenAddr: "127.0.0.1", APIPort: 9090}).Apply(opts, NewBuildContext(run))
+	if err != nil {
+		t.Fatalf("apply experimental: %v", err)
+	}
+	cacheFile := opts.Experimental.CacheFile
+	if cacheFile == nil || !cacheFile.Enabled || !cacheFile.StoreFakeIP {
+		t.Fatalf("expected fake-IP cache to be enabled, got %+v", cacheFile)
+	}
+	if cacheFile.StoreDNS {
+		t.Fatal("full DNS cache must remain disabled")
+	}
 }

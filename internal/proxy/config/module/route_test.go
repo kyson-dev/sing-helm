@@ -91,6 +91,7 @@ func TestRouteApply_GlobalKeepsSniff(t *testing.T) {
 		t.Fatalf("global route first rule = %#v, want sniff action", rules[0])
 	}
 	hasHijackDNS := false
+	hasAliDNSBypass := false
 	for _, r := range rules {
 		rm, ok := r.(map[string]any)
 		if !ok {
@@ -99,9 +100,18 @@ func TestRouteApply_GlobalKeepsSniff(t *testing.T) {
 		if rm["action"] == "hijack-dns" {
 			hasHijackDNS = true
 		}
+		if stringListContains(rm["ip_cidr"], "223.6.6.6/32") {
+			t.Fatalf("global route kept unused AliDNS bypass: %v", rm)
+		}
+		if stringListContains(rm["ip_cidr"], "223.5.5.5/32") && rm["outbound"] == "direct" {
+			hasAliDNSBypass = true
+		}
 	}
 	if !hasHijackDNS {
 		t.Fatalf("global route must keep hijack-dns rule to prevent DNS leaks")
+	}
+	if !hasAliDNSBypass {
+		t.Fatalf("global route must keep the exact 223.5.5.5/32 DoH bootstrap bypass: %#v", rules)
 	}
 }
 
@@ -383,8 +393,8 @@ func TestRouteApply_AppleIPRangeDirect(t *testing.T) {
 }
 
 // TestRouteApply_GlobalModeDropsAppleIPRange 验证全局代理模式下 17.0.0.0/8
-// 直连兜底规则不会被 keepSniffRules 误保留——只有 AliDNS 的 223.5.5.5/32、
-// 223.6.6.6/32 是刻意保留的启动期例外，/8 这种大段不该在"全局代理"下还绕过代理。
+// 直连兜底规则不会被 keepSniffRules 误保留——只有 AliDNS 的 223.5.5.5/32
+// 是刻意保留的启动期例外，/8 这种大段不该在"全局代理"下还绕过代理。
 func TestRouteApply_GlobalModeDropsAppleIPRange(t *testing.T) {
 	opts := &option.Options{}
 	m := &RouteModule{RouteMode: model.RouteModeGlobal}
@@ -450,6 +460,44 @@ func TestRouteApply_NoUnconditionalIPv6Block(t *testing.T) {
 		if ipVer, _ := rm["ip_version"].(float64); ipVer == 6 && rm["action"] == "reject" {
 			t.Fatalf("unexpected unconditional IPv6 reject rule found: %v", rm)
 		}
+	}
+}
+
+func TestRouteApply_ICMPUsesNetworkMatcher(t *testing.T) {
+	opts := &option.Options{}
+	m := &RouteModule{RouteMode: model.RouteModeRule}
+	if err := m.Apply(opts, NewBuildContext(nil)); err != nil {
+		t.Fatalf("apply route: %v", err)
+	}
+
+	raw, err := singboxjson.Marshal(opts.Route)
+	if err != nil {
+		t.Fatalf("marshal route: %v", err)
+	}
+	var routeMap map[string]any
+	if err := json.Unmarshal(raw, &routeMap); err != nil {
+		t.Fatalf("decode route: %v", err)
+	}
+
+	rules, ok := routeMap["rules"].([]any)
+	if !ok {
+		t.Fatal("route rules missing")
+	}
+	found := false
+	for _, rule := range rules {
+		rm, ok := rule.(map[string]any)
+		if !ok {
+			continue
+		}
+		if stringListContains(rm["protocol"], "icmp") {
+			t.Fatalf("ICMP must not use the protocol matcher: %v", rm)
+		}
+		if stringListContains(rm["network"], "icmp") && rm["outbound"] == moduleUtils.TagDirect {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("network=icmp direct rule not found")
 	}
 }
 

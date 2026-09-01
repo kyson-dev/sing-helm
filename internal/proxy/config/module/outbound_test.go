@@ -88,6 +88,9 @@ func TestOutboundApply_GeneratedOverridesUserAndEmptyGroupsAutoFill(t *testing.T
 	var keep *option.SelectorOutboundOptions
 	for i := range opts.Outbounds {
 		out := &opts.Outbounds[i]
+		if out.Tag == moduleUtils.TagBlock || out.Type == moduleUtils.TagBlock {
+			t.Fatalf("deprecated block outbound must not be generated: %+v", out)
+		}
 		switch out.Tag {
 		case moduleUtils.TagProxy:
 			proxy = out.Options.(*option.SelectorOutboundOptions)

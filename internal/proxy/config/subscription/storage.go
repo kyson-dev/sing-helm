@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/kyson-dev/sing-helm/internal/sys/securefile"
 )
 
 // LoadSources reads all .json subscription definitions from the config directory
@@ -51,7 +53,7 @@ func LoadSources(configDir string) ([]Source, error) {
 
 // SaveSource saves a single subscription source to its own .json file
 func SaveSource(configDir string, source Source) error {
-	if err := os.MkdirAll(configDir, 0755); err != nil {
+	if err := securefile.EnsurePrivateDir(configDir); err != nil {
 		return fmt.Errorf("create config dir failed: %w", err)
 	}
 
@@ -61,7 +63,7 @@ func SaveSource(configDir string, source Source) error {
 		return fmt.Errorf("marshal subscription source failed: %w", err)
 	}
 
-	return os.WriteFile(configPath, data, 0644)
+	return securefile.WriteFile(configPath, data)
 }
 
 // DeleteSource removes a subscription source's .json definition
@@ -92,7 +94,7 @@ func SaveCache(cachePath string, cache Cache) error {
 		return fmt.Errorf("marshal cache file failed: %w", err)
 	}
 
-	if err := os.WriteFile(cachePath, data, 0644); err != nil {
+	if err := securefile.WriteFile(cachePath, data); err != nil {
 		return fmt.Errorf("write cache file failed: %w", err)
 	}
 

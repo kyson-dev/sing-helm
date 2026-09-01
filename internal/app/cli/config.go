@@ -8,6 +8,7 @@ import (
 
 	"github.com/kyson-dev/sing-helm/internal/proxy/config/subscription"
 	"github.com/kyson-dev/sing-helm/internal/sys/paths"
+	"github.com/kyson-dev/sing-helm/internal/sys/securefile"
 	"github.com/spf13/cobra"
 )
 
@@ -76,10 +77,10 @@ func newConfigAddCommand() *cobra.Command {
 			}
 
 			p := paths.Get()
-			if err := os.MkdirAll(p.SubConfigDir, 0755); err != nil {
+			if err := securefile.EnsurePrivateDir(p.SubConfigDir); err != nil {
 				return fmt.Errorf("failed to create config directory: %w", err)
 			}
-			if err := os.MkdirAll(p.SubCacheDir, 0755); err != nil {
+			if err := securefile.EnsurePrivateDir(p.SubCacheDir); err != nil {
 				return fmt.Errorf("failed to create cache directory: %w", err)
 			}
 
@@ -126,10 +127,10 @@ func newConfigEditCommand() *cobra.Command {
 			p := paths.Get()
 			target := p.ConfigFile
 			if len(args) == 1 {
-				if err := os.MkdirAll(p.SubConfigDir, 0755); err != nil {
+				if err := securefile.EnsurePrivateDir(p.SubConfigDir); err != nil {
 					return fmt.Errorf("failed to create config dir: %w", err)
 				}
-				if err := os.MkdirAll(p.SubCacheDir, 0755); err != nil {
+				if err := securefile.EnsurePrivateDir(p.SubCacheDir); err != nil {
 					return fmt.Errorf("failed to create cache dir: %w", err)
 				}
 				target = filepath.Join(p.SubConfigDir, args[0]+".json")
@@ -146,10 +147,10 @@ func newConfigRefreshCommand() *cobra.Command {
 		Args:  cobra.RangeArgs(0, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := paths.Get()
-			if err := os.MkdirAll(p.SubConfigDir, 0755); err != nil {
+			if err := securefile.EnsurePrivateDir(p.SubConfigDir); err != nil {
 				return fmt.Errorf("failed to create config dir: %w", err)
 			}
-			if err := os.MkdirAll(p.SubCacheDir, 0755); err != nil {
+			if err := securefile.EnsurePrivateDir(p.SubCacheDir); err != nil {
 				return fmt.Errorf("failed to create cache dir: %w", err)
 			}
 
@@ -173,10 +174,10 @@ func newConfigDeleteCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := paths.Get()
-			if err := os.MkdirAll(p.SubConfigDir, 0755); err != nil {
+			if err := securefile.EnsurePrivateDir(p.SubConfigDir); err != nil {
 				return fmt.Errorf("failed to create config dir: %w", err)
 			}
-			if err := os.MkdirAll(p.SubCacheDir, 0755); err != nil {
+			if err := securefile.EnsurePrivateDir(p.SubCacheDir); err != nil {
 				return fmt.Errorf("failed to create cache dir: %w", err)
 			}
 

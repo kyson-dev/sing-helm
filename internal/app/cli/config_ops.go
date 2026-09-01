@@ -10,6 +10,7 @@ import (
 
 	"github.com/kyson-dev/sing-helm/internal/proxy/config/subscription"
 	"github.com/kyson-dev/sing-helm/internal/sys/paths"
+	"github.com/kyson-dev/sing-helm/internal/sys/securefile"
 	"github.com/spf13/cobra"
 )
 
@@ -45,6 +46,10 @@ func runConfigList(cmd *cobra.Command, args []string) error { //nolint:unparam
 }
 
 func openInEditor(cmd *cobra.Command, path string) error {
+	if err := securefile.EnsurePrivateFile(path); err != nil {
+		return fmt.Errorf("secure config file %s: %w", path, err)
+	}
+
 	editor := os.Getenv("EDITOR")
 	if editor == "" {
 		editor = "vim" // Default to vim if EDITOR not set
@@ -60,10 +65,17 @@ func openInEditor(cmd *cobra.Command, path string) error {
 	execCmd.Stdout = os.Stdout
 	execCmd.Stderr = os.Stderr
 
-	if err := execCmd.Run(); err != nil {
-		return fmt.Errorf("failed to open editor %s: %w", editor, err)
+	runErr := execCmd.Run()
+	hardenErr := securefile.HardenPrivateFile(path)
+	if runErr != nil {
+		if hardenErr != nil {
+			return fmt.Errorf("editor %s failed: %v; additionally failed to secure %s: %w", editor, runErr, path, hardenErr)
+		}
+		return fmt.Errorf("failed to open editor %s: %w", editor, runErr)
 	}
-
+	if hardenErr != nil {
+		return fmt.Errorf("secure edited config file %s: %w", path, hardenErr)
+	}
 	return nil
 }
 

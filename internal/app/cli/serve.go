@@ -15,15 +15,15 @@ import (
 	"github.com/kyson-dev/sing-helm/internal/proxy/config/export"
 	"github.com/kyson-dev/sing-helm/internal/proxy/config/model"
 	"github.com/kyson-dev/sing-helm/internal/sys/logger"
+	"github.com/kyson-dev/sing-helm/internal/sys/securefile"
 	"github.com/spf13/cobra"
 )
 
 func newServeCommand() *cobra.Command {
 	var (
-		port          int
-		platform      string
-		targetVersion string
-		output        string
+		port     int
+		platform string
+		output   string
 	)
 
 	cmd := &cobra.Command{
@@ -31,12 +31,6 @@ func newServeCommand() *cobra.Command {
 		Short: "Generate config file and start local HTTP server",
 		Long:  `Generates a sing-box configuration file locally and starts a HTTP server to share it via LAN.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resolvedVersion, err := resolveServeTargetVersion(targetVersion)
-			if err != nil {
-				fmt.Println(err)
-				return err
-			}
-
 			// 1. 生成并写入本地文件
 			runops := model.DefaultRunOptions()
 			runops.ProxyMode = model.ProxyModeTUN
@@ -55,20 +49,17 @@ func newServeCommand() *cobra.Command {
 				return err
 			}
 
-			logger.Info("Exporting config...", "version", targetVersion, "resolved_version", resolvedVersion, "platform", platform)
-			data, err := export.Export(opts, export.Target{Version: resolvedVersion, Platform: platform})
+			logger.Info("Exporting config...", "version", "latest", "platform", platform)
+			data, err := export.Export(opts, export.Target{Platform: platform})
 			if err != nil {
 				fmt.Println(err)
 				return err
 			}
 
 			if output == "" {
-				output = defaultExportPath(targetVersion, platform)
+				output = defaultExportPath(platform)
 			}
-			if err := os.MkdirAll(filepath.Dir(output), 0755); err != nil {
-				return err
-			}
-			if err := os.WriteFile(output, data, 0644); err != nil {
+			if err := saveExport(output, data); err != nil {
 				return err
 			}
 			fmt.Printf("✅ Config exported to: %s\n", output)
@@ -126,30 +117,20 @@ func newServeCommand() *cobra.Command {
 
 	cmd.Flags().IntVarP(&port, "port", "p", 8090, "HTTP server port")
 	cmd.Flags().StringVar(&platform, "platform", "ios", "Target platform (e.g. ios)")
-	cmd.Flags().StringVar(&targetVersion, "target-version", "latest", "Target sing-box version: 1.11.4 or latest")
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output local file path")
 
 	return cmd
 }
 
-func resolveServeTargetVersion(v string) (string, error) {
-	version := strings.ToLower(strings.TrimSpace(v))
-	switch version {
-	case "1.11.4":
-		return "1.11.4", nil
-	case "latest":
-		return "latest", nil
-	default:
-		return "", fmt.Errorf("unsupported --target-version %q, only supports: 1.11.4, latest", v)
+func saveExport(output string, data []byte) error {
+	if err := os.MkdirAll(filepath.Dir(output), 0755); err != nil {
+		return err
 	}
+	return securefile.WriteFile(output, data)
 }
 
-func defaultExportPath(version, platform string) string {
-	name := "singbox-config"
-	ver := strings.TrimSpace(strings.TrimPrefix(version, "v"))
-	if ver != "" {
-		name += "-" + ver
-	}
+func defaultExportPath(platform string) string {
+	name := "singbox-config-latest"
 	plat := strings.TrimSpace(strings.ToLower(platform))
 	if plat != "" {
 		name += "-" + plat

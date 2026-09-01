@@ -141,12 +141,12 @@ func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 
 	// 针对 ali dns 放行（因为在 DNS 模块中配置了国内直接去 ali 解析，避免循环）
 	// 字面量 IP 匹配 metadata.Destination.Addr，不依赖 resolve，放在哪里都一样。
-	// 注意：不要加 IPv6 版本的整段放行——dns.go 里 local_dns 只配置了 223.5.5.5
-	// (IPv4 UDP)，没有任何 IPv6 AliDNS 地址需要放行；曾经加过 "2400:3200::/32"，
+	// 注意：只放行 dns.go 中 local_dns 实际使用的 223.5.5.5；不保留未使用的
+	// 备用地址。也不要加 IPv6 版本的整段放行——曾经加过 "2400:3200::/32"，
 	// 但 v6 的 /32 覆盖的是阿里云整个分配网段（不像 v4 /32 是精确单地址），
 	// 会把任何部署在阿里云上、恰好走字面量 v6 地址连接的服务（如 Soul 的 CDN）
 	// 一并误判为 direct，绕过后面 ip_version:6 reject 等所有判断。
-	rules = append(rules, map[string]any{"ip_cidr": []string{"223.5.5.5/32", "223.6.6.6/32"}, "outbound": moduleUtils.TagDirect})
+	rules = append(rules, map[string]any{"ip_cidr": []string{"223.5.5.5/32"}, "outbound": moduleUtils.TagDirect})
 
 	// 片段 1.5: Apple 自有 IP 段 (17.0.0.0/8) 直连兜底。
 	// 实测客户端连接日志里能看到不少目的地是 17.248.163.x:443 的裸 UDP/QUIC
@@ -163,8 +163,8 @@ func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 	// 片段 2: NTP 直连
 	rules = append(rules, map[string]any{"protocol": []string{"ntp"}, "outbound": moduleUtils.TagDirect})
 
-	// 片段 2.1: ICMP 直连（避免代理出站不支持 ICMP 导致报错）
-	rules = append(rules, map[string]any{"protocol": []string{"icmp"}, "outbound": moduleUtils.TagDirect})
+	// 片段 2.1: ICMP 直连（ICMP 是网络类型，不是可嗅探的应用层协议）。
+	rules = append(rules, map[string]any{"network": []string{"icmp"}, "outbound": moduleUtils.TagDirect})
 
 	// ============ 片段 3: 域名分流规则 ============
 	// 国内/苹果/金融类直连白名单 -> 直连；其余域名（含 GFW 封锁站点）不再显式列
@@ -323,19 +323,26 @@ func ruleSetTags(kind string, names []string) []string {
 }
 
 // isAliDNSCIDR 判断一条 ip_cidr 规则是否恰好就是 AliDNS 启动期直连例外
-// (223.5.5.5/32、223.6.6.6/32)，用于 keepSniffRules 精确保留，不误留其他
+// (223.5.5.5/32)，用于 keepSniffRules 精确保留，不误留其他
 // ip_cidr 规则（如 17.0.0.0/8 Apple 直连兜底）。
-func isAliDNSCIDR(cidrList []any) bool {
-	if len(cidrList) == 0 {
-		return false
-	}
-	for _, v := range cidrList {
-		s, ok := v.(string)
-		if !ok || (s != "223.5.5.5/32" && s != "223.6.6.6/32") {
+func isAliDNSCIDR(value any) bool {
+	switch cidr := value.(type) {
+	case string:
+		return cidr == "223.5.5.5/32"
+	case []any:
+		if len(cidr) == 0 {
 			return false
 		}
+		for _, item := range cidr {
+			s, ok := item.(string)
+			if !ok || s != "223.5.5.5/32" {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
 	}
-	return true
 }
 
 func keepSniffRules(rules []option.Rule) []option.Rule {
@@ -355,11 +362,11 @@ func keepSniffRules(rules []option.Rule) []option.Rule {
 			continue
 		}
 		// Preserve AliDNS direct-bypass so bootstrap DoH to 223.5.5.5 stays direct.
-		// 只匹配 AliDNS 这两个 /32——不能像以前那样"只要带 ip_cidr 就保留"，
+		// 只匹配 AliDNS 这个 /32——不能像以前那样"只要带 ip_cidr 就保留"，
 		// 否则片段 1.5 新增的 17.0.0.0/8 (Apple IP 段直连兜底) 也会被无差别保留，
 		// 导致全局代理模式下整个 Apple /8 都绕过代理，破坏"全局代理=一切走代理"
 		// 的承诺——AliDNS 的 /32 是刻意的启动期例外，/8 不是同一类东西。
-		if cidrList, ok := rm["ip_cidr"].([]any); ok && isAliDNSCIDR(cidrList) {
+		if isAliDNSCIDR(rm["ip_cidr"]) {
 			kept = append(kept, rule)
 		}
 		// 保留局域网私网直连规则，防止全局代理模式下局域网设备断连

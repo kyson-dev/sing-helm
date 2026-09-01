@@ -1,9 +1,12 @@
 package paths
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/kyson-dev/sing-helm/internal/sys/securefile"
 )
 
 // Paths 定义了应用所有的关键路径
@@ -65,7 +68,7 @@ func resolve(home string) (Paths, error) {
 		return Paths{}, err
 	}
 
-	if err := os.MkdirAll(absHome, 0755); err != nil {
+	if err := securefile.EnsurePrivateDir(absHome); err != nil {
 		return Paths{}, err
 	}
 
@@ -76,7 +79,50 @@ func resolve(home string) (Paths, error) {
 	}
 
 	logDir := resolveLogDir(runtimeDir)
-	return getPath(absHome, runtimeDir, logDir), nil
+	resolved := getPath(absHome, runtimeDir, logDir)
+	if err := hardenConfigPermissions(resolved); err != nil {
+		return Paths{}, err
+	}
+	return resolved, nil
+}
+
+func hardenConfigPermissions(p Paths) error {
+	if err := securefile.EnsurePrivateDir(p.HomeDir); err != nil {
+		return fmt.Errorf("harden config home %s: %w", p.HomeDir, err)
+	}
+	if err := securefile.HardenPrivateFile(p.ConfigFile); err != nil {
+		return fmt.Errorf("harden base config %s: %w", p.ConfigFile, err)
+	}
+	if err := hardenJSONDirectory(p.SubConfigDir); err != nil {
+		return fmt.Errorf("harden subscription configs %s: %w", p.SubConfigDir, err)
+	}
+	if err := hardenJSONDirectory(p.SubCacheDir); err != nil {
+		return fmt.Errorf("harden subscription cache %s: %w", p.SubCacheDir, err)
+	}
+	return nil
+}
+
+func hardenJSONDirectory(dir string) error {
+	if err := securefile.HardenPrivateDir(dir); err != nil {
+		return err
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
+			continue
+		}
+		path := filepath.Join(dir, entry.Name())
+		if err := securefile.HardenPrivateFile(path); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // GetPath 根据主目录生成路径配置 (纯函数)
@@ -107,15 +153,16 @@ func getPath(home string, runtimeDir string, logDir string) Paths {
 func GetRuntimeMetaFileWithDir(runtimeDir string) string {
 	return filepath.Join(runtimeDir, "runtime.json")
 }
+
 // GetRuntimeLockFileWithDir 根据运行时目录获取 lock 文件路径
 func GetRuntimeLockFileWithDir(runtimeDir string) string {
 	return filepath.Join(runtimeDir, "sing-helm.lock")
 }
+
 // GetProfileFileWithDir 根据主目录获取 profile.json 路径
 func GetProfileFileWithDir(homeDir string) string {
 	return filepath.Join(homeDir, "profile.json")
 }
-
 
 // ResetForTest 重置环境单例状态
 // ⚠️ 仅供测试使用，生产代码禁止调用

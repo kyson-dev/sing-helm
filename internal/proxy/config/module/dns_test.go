@@ -51,6 +51,23 @@ func TestDNSApply_SystemServerPriorityUserRulesFirst(t *testing.T) {
 	if firstTag != "local_dns" {
 		t.Fatalf("expected system local_dns first, got %q", firstTag)
 	}
+	localDNS := servers[0].(map[string]any)
+	if localDNS["type"] != "https" || localDNS["server"] != "223.5.5.5" {
+		t.Fatalf("local_dns = %#v, want HTTPS to 223.5.5.5", localDNS)
+	}
+	if _, exists := localDNS["detour"]; exists {
+		t.Fatalf("local_dns must use route rules instead of an invalid direct detour: %#v", localDNS)
+	}
+	tlsOptions, ok := localDNS["tls"].(map[string]any)
+	if !ok || tlsOptions["server_name"] != "dns.alidns.com" {
+		t.Fatalf("local_dns TLS = %#v, want authenticated dns.alidns.com", localDNS["tls"])
+	}
+	if insecure, exists := tlsOptions["insecure"]; exists && insecure != false {
+		t.Fatalf("local_dns must not disable certificate verification: %#v", tlsOptions)
+	}
+	if _, exists := localDNS["domain_resolver"]; exists {
+		t.Fatalf("IP-based local_dns must not need a bootstrap resolver: %#v", localDNS)
+	}
 	userDNSCount := 0
 	for _, s := range servers {
 		if s.(map[string]any)["tag"] == "user_dns" {
@@ -131,7 +148,6 @@ func TestDNSApply_RuleMode_GeositeRoutingAndFinal(t *testing.T) {
 		t.Fatalf("dns rules should stay in sync with route.go's directDomainRuleSets (geosite-futu missing)")
 	}
 }
-
 
 func applyDNSFromMap(d *option.DNSOptions, m map[string]any) error {
 	data, err := singboxjson.Marshal(m)

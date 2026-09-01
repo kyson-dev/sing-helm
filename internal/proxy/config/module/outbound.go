@@ -54,15 +54,6 @@ func (m *OutboundModule) Apply(opts *option.Options, ctx *BuildContext) error {
 	moduleUtils.ApplyMapToOutbound(&directOutbound, directOutboundMap)
 	filteredOutbounds = append(filteredOutbounds, directOutbound)
 
-	// 6. 添加 block 出站
-	blockOutbound := option.Outbound{}
-	blockOutboundMap := map[string]any{
-		"type": moduleUtils.TagBlock,
-		"tag":  moduleUtils.TagBlock,
-	}
-	moduleUtils.ApplyMapToOutbound(&blockOutbound, blockOutboundMap)
-	filteredOutbounds = append(filteredOutbounds, blockOutbound)
-
 	// 根据是否有实际节点决定如何配置 auto 和 proxy 策略组
 	if len(actualNodes) > 0 {
 
