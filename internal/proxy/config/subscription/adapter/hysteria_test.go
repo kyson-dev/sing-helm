@@ -48,6 +48,35 @@ func TestHysteria2Adapter_FromURI(t *testing.T) {
 			},
 		},
 		{
+			name: "explicit insecure=1 is dropped when pubKeySHA256 pins the cert",
+			uri:  "secret@example.com:443?sni=example.com&insecure=1&pinSHA256=AA:BB&pubKeySHA256=dGVzdGtleQ==",
+			check: func(t *testing.T, outbound map[string]any) {
+				tls, ok := outbound["tls"].(map[string]any)
+				if !ok {
+					t.Fatalf("expected tls map, got %v", outbound["tls"])
+				}
+				if tls["certificate_public_key_sha256"] != "dGVzdGtleQ==" {
+					t.Fatalf("expected certificate_public_key_sha256 to be set, got %v", tls["certificate_public_key_sha256"])
+				}
+				if _, ok := tls["insecure"]; ok {
+					t.Fatalf("expected source URI's insecure=1 to be dropped once the cert is pinned, got %v", tls["insecure"])
+				}
+			},
+		},
+		{
+			name: "insecure=1 without any pin stays insecure",
+			uri:  "secret@example.com:443?sni=example.com&insecure=1",
+			check: func(t *testing.T, outbound map[string]any) {
+				tls, ok := outbound["tls"].(map[string]any)
+				if !ok {
+					t.Fatalf("expected tls map, got %v", outbound["tls"])
+				}
+				if tls["insecure"] != true {
+					t.Fatalf("expected insecure to stay true with no pin available, got %v", tls["insecure"])
+				}
+			},
+		},
+		{
 			name: "pinSHA256 without pubKeySHA256 falls back to insecure",
 			uri:  "secret@example.com:443?sni=example.com&pinSHA256=AA:BB",
 			check: func(t *testing.T, outbound map[string]any) {

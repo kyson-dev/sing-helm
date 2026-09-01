@@ -173,9 +173,6 @@ func (a *Hysteria2Adapter) FromURI(uriStr string) (model.Node, error) {
 	if sni := query.Get("sni"); sni != "" {
 		tls["server_name"] = sni
 	}
-	if query.Get("insecure") == "1" {
-		tls["insecure"] = true
-	}
 
 	if obfsType := query.Get("obfs"); obfsType != "" {
 		outbound["obfs"] = map[string]any{
@@ -189,10 +186,21 @@ func (a *Hysteria2Adapter) FromURI(uriStr string) (model.Node, error) {
 	// the two aren't interchangeable, so pinSHA256 alone can't be translated.
 	// pubKeySHA256 is our own subscription's pre-derived SPKI hash for the
 	// same certificate; fall back to insecure when it's absent.
+	pinned := false
 	if pubKeySHA256 := query.Get("pubKeySHA256"); pubKeySHA256 != "" {
 		tls["certificate_public_key_sha256"] = pubKeySHA256
+		pinned = true
 	} else if query.Get("pinSHA256") != "" {
 		logger.Debug("hysteria2 pinSHA256 present without pubKeySHA256, falling back to insecure", "server", server)
+		tls["insecure"] = true
+	}
+
+	// A pin already makes sing-box do its own peer-certificate verification
+	// regardless of `insecure` (see common/tls/std_client.go), so keep the
+	// source URI's insecure=1 only when there is no pin to fall back on —
+	// otherwise the exported config would misleadingly claim verification
+	// is off even though the pin is enforcing it.
+	if !pinned && query.Get("insecure") == "1" {
 		tls["insecure"] = true
 	}
 
