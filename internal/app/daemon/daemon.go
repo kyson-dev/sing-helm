@@ -23,7 +23,9 @@ import (
 // default route, where sing-box's own hijack-dns rule and dns.go policy
 // (ipv4_only, geosite routing, etc.) handle them - this does not run any
 // forwarder of our own, it only nudges which resolver the OS asks.
-const tunDNSPlaceholder = "8.8.8.8"
+// 198.51.100.1 (RFC 5737 TEST-NET-2) is outside local subnets, avoids collision
+// with the 198.18.0.0/15 fake-ip pool, and prevents Chrome from auto-upgrading to DoH.
+const tunDNSPlaceholder = "198.51.100.1"
 
 // ServiceRunner abstracts the sing-box engine lifecycle.
 type ServiceRunner interface {

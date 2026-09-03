@@ -24,7 +24,7 @@ FOREIGN_DOMAIN="www.gstatic.com"
 CN_DOMAIN="www.baidu.com"
 LAN_DOMAIN=""
 SKIP_LEAK=0
-DNS_PLACEHOLDER="8.8.8.8" # must match tunDNSPlaceholder in internal/app/daemon/daemon.go
+DNS_PLACEHOLDER="198.51.100.1" # must match tunDNSPlaceholder in internal/app/daemon/daemon.go
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
 pass() { echo -e "${GREEN}[PASS]${NC} $1"; }
