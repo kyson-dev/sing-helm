@@ -595,8 +595,42 @@ func TestRouteApply_DirectModeClearsRules(t *testing.T) {
 		t.Fatalf("apply direct route: %v", err)
 	}
 
-	// 直连模式清空全部规则，只保留两条 tailnet 规则（100.64.0.0/10 与 *.ts.net → ts）。
-	if len(optsDirect.Route.Rules) != 2 {
-		t.Fatalf("direct mode should keep only the 2 tailnet rules, got %d rules", len(optsDirect.Route.Rules))
+	// 直连模式清空全部规则，只保留三条 tailnet 规则（SMB 入站回环、100.64.0.0/10 与 *.ts.net → ts）。
+	if len(optsDirect.Route.Rules) != 3 {
+		t.Fatalf("direct mode should keep only the 3 tailnet rules, got %d rules", len(optsDirect.Route.Rules))
+	}
+}
+
+// tailnet 入站 SMB 规则必须排在 100.64.0.0/10 → ts 之前，且三种路由模式都保留。
+func TestRouteApply_TailnetSMBInboundBeforeTailnetOutbound(t *testing.T) {
+	for _, mode := range []model.RouteMode{model.RouteModeRule, model.RouteModeGlobal, model.RouteModeDirect} {
+		opts := &option.Options{}
+		m := &RouteModule{RouteMode: mode}
+		if err := m.Apply(opts, NewBuildContext(nil)); err != nil {
+			t.Fatalf("mode %v: apply route: %v", mode, err)
+		}
+		smbIdx, tsIdx := -1, -1
+		for i, rule := range opts.Route.Rules {
+			raw, err := singboxjson.Marshal(rule)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var rm map[string]any
+			if err := singboxjson.Unmarshal(raw, &rm); err != nil {
+				t.Fatal(err)
+			}
+			if isTailnetInboundRule(rm) && smbIdx < 0 {
+				smbIdx = i
+				if rm["override_address"] != "127.0.0.1" || rm["override_port"] != float64(445) || rm["outbound"] != "direct" {
+					t.Fatalf("mode %v: unexpected SMB rule %#v", mode, rm)
+				}
+			}
+			if stringListContains(rm["ip_cidr"], "100.64.0.0/10") && tsIdx < 0 {
+				tsIdx = i
+			}
+		}
+		if smbIdx < 0 || tsIdx < 0 || smbIdx >= tsIdx {
+			t.Fatalf("mode %v: SMB inbound rule idx=%d must precede tailnet outbound rule idx=%d", mode, smbIdx, tsIdx)
+		}
 	}
 }

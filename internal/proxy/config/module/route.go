@@ -139,6 +139,17 @@ func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 	}
 	// tailnet 地址段和 *.ts.net 走 tailscale endpoint（由 EndpointModule 添加）。
 	// 排在用户规则之前，避免被后面的直连/代理规则抢先命中。
+	// 从 tailnet 进来访问本机 SMB(445) 的连接：改写成直连本机回环。必须排在下面
+	// 100.64.0.0/10 → ts 之前，否则目标是本机 tailnet 地址的入站连接会先命中那条，
+	// 又被送回 endpoint 而到不了本机。只匹配入站 ts + 445，不影响其他流量。
+	leadingRuleSpecs = append(leadingRuleSpecs, map[string]any{
+		"inbound":          []string{moduleUtils.TagTailscale},
+		"port":             []int{445},
+		"action":           "route",
+		"outbound":         moduleUtils.TagDirect,
+		"override_address": "127.0.0.1",
+		"override_port":    445,
+	})
 	leadingRuleSpecs = append(leadingRuleSpecs,
 		map[string]any{"ip_cidr": []string{"100.64.0.0/10"}, "outbound": moduleUtils.TagTailscale},
 		map[string]any{"domain_suffix": []string{"ts.net"}, "outbound": moduleUtils.TagTailscale},
@@ -370,7 +381,7 @@ func keepSniffRules(rules []option.Rule) []option.Rule {
 			continue
 		}
 		// tailnet 流量（上面 leadingRuleSpecs 里的 tailnet 规则）在全局模式下同样必须走 endpoint。
-		if outbound, _ := rm["outbound"].(string); outbound == moduleUtils.TagTailscale {
+		if outbound, _ := rm["outbound"].(string); outbound == moduleUtils.TagTailscale || isTailnetInboundRule(rm) {
 			kept = append(kept, rule)
 			continue
 		}
@@ -390,7 +401,7 @@ func keepSniffRules(rules []option.Rule) []option.Rule {
 	return kept
 }
 
-// keepTailscaleRules 只保留出站为 tailscale endpoint 的规则。
+// keepTailscaleRules 只保留出站为 tailscale endpoint 的规则和 tailnet 入站规则。
 func keepTailscaleRules(rules []option.Rule) []option.Rule {
 	var kept []option.Rule
 	for _, rule := range rules {
@@ -402,9 +413,21 @@ func keepTailscaleRules(rules []option.Rule) []option.Rule {
 		if err := singboxjson.Unmarshal(raw, &rm); err != nil {
 			continue
 		}
-		if outbound, _ := rm["outbound"].(string); outbound == moduleUtils.TagTailscale {
+		if outbound, _ := rm["outbound"].(string); outbound == moduleUtils.TagTailscale || isTailnetInboundRule(rm) {
 			kept = append(kept, rule)
 		}
 	}
 	return kept
+}
+
+// isTailnetInboundRule 判断是否为"来自 tailscale endpoint 入站"的规则（目前只有 SMB 回环转发）。
+func isTailnetInboundRule(rm map[string]any) bool {
+	// sing-box 序列化时单元素列表会退化成标量字符串。
+	switch inbound := rm["inbound"].(type) {
+	case string:
+		return inbound == moduleUtils.TagTailscale
+	case []any:
+		return len(inbound) == 1 && inbound[0] == moduleUtils.TagTailscale
+	}
+	return false
 }
