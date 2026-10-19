@@ -8,6 +8,7 @@ import (
 	"github.com/kyson-dev/sing-helm/internal/proxy/config/module"
 	nodeProvider "github.com/kyson-dev/sing-helm/internal/proxy/config/module/node"
 	"github.com/kyson-dev/sing-helm/internal/sys/logger"
+	"github.com/kyson-dev/sing-helm/internal/sys/paths"
 	"github.com/kyson-dev/sing-helm/internal/sys/securefile"
 	"github.com/sagernet/sing-box/option"
 	singboxjson "github.com/sagernet/sing/common/json"
@@ -54,6 +55,10 @@ func DefaultModules(opts *model.RunOptions) []module.ConfigModule {
 			&nodeProvider.SubscriptionNodeProvider{},
 		),
 	}
+
+	modules = append(modules, &module.EndpointModule{
+		StateDir: paths.Get().TailscaleDir,
+	})
 
 	// 根据 ProxyMode 选择入站模块
 	switch opts.ProxyMode {

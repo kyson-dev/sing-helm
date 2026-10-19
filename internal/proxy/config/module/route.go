@@ -98,8 +98,10 @@ func (m *RouteModule) Apply(opts *option.Options, ctx *BuildContext) error {
 	if m.RouteMode == model.RouteModeGlobal {
 		opts.Route.Rules = keepSniffRules(opts.Route.Rules)
 	}
+	// 直连模式清空所有规则，但要保留 tailnet 规则：否则 100.x 的连接会从本机网卡
+	// 直接发出去，保险库就连不上了。
 	if m.RouteMode == model.RouteModeDirect {
-		opts.Route.Rules = nil
+		opts.Route.Rules = keepTailscaleRules(opts.Route.Rules)
 	}
 
 	return nil
@@ -135,6 +137,12 @@ func (m *RouteModule) applyDefaultFragments(opts *option.Options) error {
 		{"action": "sniff"},
 		{"protocol": []string{"dns"}, "action": "hijack-dns"},
 	}
+	// tailnet 地址段和 *.ts.net 走 tailscale endpoint（由 EndpointModule 添加）。
+	// 排在用户规则之前，避免被后面的直连/代理规则抢先命中。
+	leadingRuleSpecs = append(leadingRuleSpecs,
+		map[string]any{"ip_cidr": []string{"100.64.0.0/10"}, "outbound": moduleUtils.TagTailscale},
+		map[string]any{"domain_suffix": []string{"ts.net"}, "outbound": moduleUtils.TagTailscale},
+	)
 
 	var ruleSets []map[string]any
 	var rules []map[string]any
@@ -361,6 +369,11 @@ func keepSniffRules(rules []option.Rule) []option.Rule {
 			kept = append(kept, rule)
 			continue
 		}
+		// tailnet 流量（上面 leadingRuleSpecs 里的 tailnet 规则）在全局模式下同样必须走 endpoint。
+		if outbound, _ := rm["outbound"].(string); outbound == moduleUtils.TagTailscale {
+			kept = append(kept, rule)
+			continue
+		}
 		// Preserve AliDNS direct-bypass so bootstrap DoH to 223.5.5.5 stays direct.
 		// 只匹配 AliDNS 这个 /32——不能像以前那样"只要带 ip_cidr 就保留"，
 		// 否则片段 1.5 新增的 17.0.0.0/8 (Apple IP 段直连兜底) 也会被无差别保留，
@@ -371,6 +384,25 @@ func keepSniffRules(rules []option.Rule) []option.Rule {
 		}
 		// 保留局域网私网直连规则，防止全局代理模式下局域网设备断连
 		if isPrivate, _ := rm["ip_is_private"].(bool); isPrivate {
+			kept = append(kept, rule)
+		}
+	}
+	return kept
+}
+
+// keepTailscaleRules 只保留出站为 tailscale endpoint 的规则。
+func keepTailscaleRules(rules []option.Rule) []option.Rule {
+	var kept []option.Rule
+	for _, rule := range rules {
+		raw, err := singboxjson.Marshal(rule)
+		if err != nil {
+			continue
+		}
+		var rm map[string]any
+		if err := singboxjson.Unmarshal(raw, &rm); err != nil {
+			continue
+		}
+		if outbound, _ := rm["outbound"].(string); outbound == moduleUtils.TagTailscale {
 			kept = append(kept, rule)
 		}
 	}

@@ -79,9 +79,10 @@ func TestDNSApply_SystemServerPriorityUserRulesFirst(t *testing.T) {
 	}
 
 	rules := m["rules"].([]any)
-	// user(1) + system default rules: ads-reject, HTTPS/SVCB-reject, fakeip A/AAAA,
-	// PTR->local_dns, private-domain-suffix->local_dns, directDomainRuleSets->local_dns.
-	if len(rules) != 7 {
+	// user(1) + system default rules: ads-reject, HTTPS/SVCB-reject,
+	// fakeip A/AAAA, PTR->local_dns, private-domain-suffix->local_dns,
+	// directDomainRuleSets->local_dns, ts.net->ts_dns.
+	if len(rules) != 8 {
 		t.Fatalf("expected user rules + default rules, got %d", len(rules))
 	}
 	firstRule := rules[0].(map[string]any)

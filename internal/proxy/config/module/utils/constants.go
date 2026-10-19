@@ -14,3 +14,9 @@ const (
 	TagLocalDNS = "local_dns"
 	TagProxyDNS = "proxy_dns"
 )
+
+// Tailscale endpoint and its DNS server tags
+const (
+	TagTailscale    = "ts"
+	TagTailscaleDNS = "ts_dns"
+)

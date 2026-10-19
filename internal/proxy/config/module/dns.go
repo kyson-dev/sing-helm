@@ -54,6 +54,12 @@ func (m *DNSModule) Apply(opts *option.Options, ctx *BuildContext) error {
 				"inet4_range": "198.18.0.0/15",
 				"inet6_range": "fc00::/18",
 			},
+			// Tailscale MagicDNS：解析 tailnet 内的名字（endpoint 由 EndpointModule 添加）。
+			{
+				"tag":      moduleUtils.TagTailscaleDNS,
+				"type":     "tailscale",
+				"endpoint": moduleUtils.TagTailscale,
+			},
 		},
 		"rules": []map[string]any{
 			{
@@ -92,7 +98,23 @@ func (m *DNSModule) Apply(opts *option.Options, ctx *BuildContext) error {
 				"action":        "route",
 				"server":        moduleUtils.TagLocalDNS,
 			},
+			// 直连白名单查询走本地 DNS，其余一律走 proxy_dns（final）。这里直接复用
+			// route.go 里的 directDomainRuleSets，作为路由和 DNS 分流的唯一数据源——
+			// 以前这里是单独硬编码的 ["geosite-cn", "geosite-apple"]，加了 futu 之类的
+			// 新分类只改了 route.go 却忘了同步 DNS，会导致这些域名的 DNS 解析走
+			// proxy_dns（多一次代理往返），即使路由层面最终仍判定为直连。
+			{
+				"rule_set": ruleSetTags("geosite", directDomainRuleSets),
+				"action":   "route",
+				"server":   moduleUtils.TagLocalDNS,
+			},
+			// tailnet 地址。
+			{
+				"domain_suffix": []string{"ts.net"},
+				"server":        moduleUtils.TagTailscaleDNS,
+			},
 		},
+		"final": moduleUtils.TagProxyDNS,
 		// prefer_ipv4：A/AAAA 都查，两者都拿到时优先用 v4（sing-box dns/client.go
 		// sortAddresses），但 v6 候选依然会进入 DestinationAddresses，可以被
 		// DialParallelNetwork 竞速或在 v4 失败时兜底。与 iOS 端保持一致。
@@ -106,18 +128,6 @@ func (m *DNSModule) Apply(opts *option.Options, ctx *BuildContext) error {
 		// final: proxy，表现为"明明配了直连却还在走代理、速度变慢"。
 		"reverse_mapping": true,
 	}
-
-	// 直连白名单查询走本地 DNS，其余一律走 proxy_dns（final）。这里直接复用
-	// route.go 里的 directDomainRuleSets，作为路由和 DNS 分流的唯一数据源——
-	// 以前这里是单独硬编码的 ["geosite-cn", "geosite-apple"]，加了 futu 之类的
-	// 新分类只改了 route.go 却忘了同步 DNS，会导致这些域名的 DNS 解析走
-	// proxy_dns（多一次代理往返），即使路由层面最终仍判定为直连。
-	dnsMap["rules"] = append(dnsMap["rules"].([]map[string]any), map[string]any{
-		"rule_set": ruleSetTags("geosite", directDomainRuleSets),
-		"action":   "route",
-		"server":   moduleUtils.TagLocalDNS,
-	})
-	dnsMap["final"] = moduleUtils.TagProxyDNS
 
 	data, err := singboxjson.Marshal(dnsMap)
 	if err != nil {

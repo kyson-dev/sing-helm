@@ -595,7 +595,8 @@ func TestRouteApply_DirectModeClearsRules(t *testing.T) {
 		t.Fatalf("apply direct route: %v", err)
 	}
 
-	if optsDirect.Route.Rules != nil {
-		t.Fatalf("direct mode should have nil rules, got %d rules", len(optsDirect.Route.Rules))
+	// 直连模式清空全部规则，只保留两条 tailnet 规则（100.64.0.0/10 与 *.ts.net → ts）。
+	if len(optsDirect.Route.Rules) != 2 {
+		t.Fatalf("direct mode should keep only the 2 tailnet rules, got %d rules", len(optsDirect.Route.Rules))
 	}
 }

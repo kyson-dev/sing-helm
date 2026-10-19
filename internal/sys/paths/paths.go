@@ -25,6 +25,7 @@ type Paths struct {
 	SocketFile      string // 仅 Linux 用，或存放 API 地址的文件
 	AssetDir        string // 存放 geoip.db/geosite.db
 	CacheFile       string // cache.db (sing-box 缓存)
+	TailscaleDir    string // Tailscale 节点身份目录 (含私钥)
 }
 
 var (
@@ -146,6 +147,7 @@ func getPath(home string, runtimeDir string, logDir string) Paths {
 		SocketFile:      filepath.Join(runtimeDir, "ipc.sock"),
 		AssetDir:        filepath.Join(runtimeDir, "assets"),
 		CacheFile:       filepath.Join(runtimeDir, "cache.db"),
+		TailscaleDir:    filepath.Join(runtimeDir, "tailscale"),
 	}
 }
 

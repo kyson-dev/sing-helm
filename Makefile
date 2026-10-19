@@ -12,7 +12,9 @@ DATE := $(shell date +%Y-%m-%dT%H:%M:%S%z)
 ENV := CGO_ENABLED=0
 
 # 2. TAGS: 激活 sing-box 的隐藏功能
-TAGS := with_quic,with_wireguard,with_utls,with_real_ip,with_clash_api,with_gvisor
+#    with_tailscale: 内置 Tailscale 节点（endpoint），让 sing-box 自己加入 tailnet。
+#    不用另外运行 Tailscale 客户端——它会和 TUN 抢路由和 DNS。
+TAGS := with_quic,with_wireguard,with_utls,with_real_ip,with_clash_api,with_gvisor,with_tailscale
 
 # 3. LDFLAGS: 链接器参数
 # -s: 省略符号表 (Symbol Table) -> 减小体积
