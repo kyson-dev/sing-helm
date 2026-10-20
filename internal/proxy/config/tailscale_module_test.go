@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -36,6 +37,14 @@ func indexOf(names []string, want string) int {
 	return -1
 }
 
+// taildropDirFor 给测试用：与 state 目录同级的 taildrop 目录；stateDir 为空时不设置。
+func taildropDirFor(stateDir string) string {
+	if stateDir == "" {
+		return ""
+	}
+	return filepath.Join(filepath.Dir(stateDir), "taildrop")
+}
+
 func buildWithTailscaleModule(t *testing.T, profile string, stateDir string) *option.Options {
 	t.Helper()
 	opts := &option.Options{}
@@ -48,7 +57,7 @@ func buildWithTailscaleModule(t *testing.T, profile string, stateDir string) *op
 	run := &model.RunOptions{ProxyMode: model.ProxyModeTUN, RouteMode: model.RouteModeRule, ListenAddr: "127.0.0.1"}
 	bctx := module.NewBuildContext(run)
 	mods := []module.ConfigModule{
-		&module.EndpointModule{StateDir: stateDir},
+		&module.EndpointModule{StateDir: stateDir, TaildropDir: taildropDirFor(stateDir)},
 		&module.TUNModule{},
 		&module.DNSModule{RouteMode: run.RouteMode},
 		&module.RouteModule{RouteMode: run.RouteMode},
@@ -70,6 +79,10 @@ func TestTailscaleModuleGeneratesEndpointDNSAndRoutes(t *testing.T) {
 	raw, _ := singboxjson.Marshal(opts.Endpoints)
 	if !strings.Contains(string(raw), `"state_directory":"/run/sing-helm/tailscale"`) {
 		t.Fatalf("state_directory not set: %s", raw)
+	}
+	// 回归：开机由 launchd 启动时当前目录是 "/"，taildrop 目录不能留给 sing-box 的相对路径默认值。
+	if !strings.Contains(string(raw), `"taildrop_directory":"/run/sing-helm/taildrop"`) {
+		t.Fatalf("taildrop_directory must be an explicit absolute path: %s", raw)
 	}
 
 	foundDNS := false
@@ -107,8 +120,8 @@ func TestTailscaleModuleGeneratesEndpointDNSAndRoutes(t *testing.T) {
 func TestTailscaleModuleOmitsEmptyStateDir(t *testing.T) {
 	opts := buildWithTailscaleModule(t, "", "")
 	raw, _ := singboxjson.Marshal(opts.Endpoints)
-	if strings.Contains(string(raw), "state_directory") {
-		t.Fatalf("empty StateDir must not emit state_directory: %s", raw)
+	if strings.Contains(string(raw), "state_directory") || strings.Contains(string(raw), "taildrop_directory") {
+		t.Fatalf("empty dirs must not emit state_directory/taildrop_directory: %s", raw)
 	}
 }
 
@@ -139,8 +152,9 @@ func TestTailscaleModuleIOSExportDropsStateDir(t *testing.T) {
 		t.Fatalf("export: %v", err)
 	}
 	out := string(data)
-	if strings.Contains(out, "state_directory") || strings.Contains(out, "/run/sing-helm/tailscale") {
-		t.Fatalf("iOS export must not contain the desktop state dir")
+	if strings.Contains(out, "state_directory") || strings.Contains(out, "/run/sing-helm/tailscale") ||
+		strings.Contains(out, "taildrop_directory") || strings.Contains(out, "/run/sing-helm/taildrop") {
+		t.Fatalf("iOS export must not contain the desktop state/taildrop dirs")
 	}
 	for _, want := range []string{`"type": "tailscale"`, "ts_dns", "100.64.0.0/10"} {
 		if !strings.Contains(out, want) {

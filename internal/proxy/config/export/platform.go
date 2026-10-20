@@ -10,7 +10,7 @@ func applyPlatformCompat(root map[string]any, platform string) {
 		return
 	}
 
-	stripTailscaleStateDirectory(root)
+	stripTailscaleDesktopPaths(root)
 
 	experimental, ok := root["experimental"].(map[string]any)
 	if !ok {
@@ -28,14 +28,15 @@ func applyPlatformCompat(root map[string]any, platform string) {
 	}
 }
 
-// stripTailscaleStateDirectory drops state_directory from Tailscale endpoints.
-// The desktop value is an absolute path that is not valid inside the iOS
-// sandbox; without it sing-box uses its platform-local default.
-func stripTailscaleStateDirectory(root map[string]any) {
+// stripTailscaleDesktopPaths drops state_directory and taildrop_directory from
+// Tailscale endpoints. The desktop values are absolute paths that are not valid
+// inside the iOS sandbox; without them sing-box uses its platform-local defaults.
+func stripTailscaleDesktopPaths(root map[string]any) {
 	endpoints, _ := root["endpoints"].([]any)
 	for _, e := range endpoints {
 		if endpoint, ok := e.(map[string]any); ok && endpoint["type"] == "tailscale" {
 			delete(endpoint, "state_directory")
+			delete(endpoint, "taildrop_directory")
 		}
 	}
 }

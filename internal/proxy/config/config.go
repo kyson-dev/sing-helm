@@ -57,7 +57,8 @@ func DefaultModules(opts *model.RunOptions) []module.ConfigModule {
 	}
 
 	modules = append(modules, &module.EndpointModule{
-		StateDir: paths.Get().TailscaleDir,
+		StateDir:    paths.Get().TailscaleDir,
+		TaildropDir: paths.Get().TaildropDir,
 	})
 
 	// 根据 ProxyMode 选择入站模块

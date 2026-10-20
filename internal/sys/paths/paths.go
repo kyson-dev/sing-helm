@@ -26,6 +26,7 @@ type Paths struct {
 	AssetDir        string // 存放 geoip.db/geosite.db
 	CacheFile       string // cache.db (sing-box 缓存)
 	TailscaleDir    string // Tailscale 节点身份目录 (含私钥)
+	TaildropDir     string // Taildrop 收文件目录 (必须是绝对路径，见 EndpointModule)
 }
 
 var (
@@ -148,6 +149,7 @@ func getPath(home string, runtimeDir string, logDir string) Paths {
 		AssetDir:        filepath.Join(runtimeDir, "assets"),
 		CacheFile:       filepath.Join(runtimeDir, "cache.db"),
 		TailscaleDir:    filepath.Join(runtimeDir, "tailscale"),
+		TaildropDir:     filepath.Join(runtimeDir, "taildrop"),
 	}
 }
 

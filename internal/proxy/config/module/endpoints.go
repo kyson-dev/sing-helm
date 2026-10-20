@@ -18,6 +18,10 @@ import (
 type EndpointModule struct {
 	// StateDir 是 Tailscale 节点身份（含私钥）的保存目录，空值表示由 sing-box 选默认位置。
 	StateDir string
+	// TaildropDir 是 Taildrop 收文件目录。必须给绝对路径：sing-box 的默认值是相对路径
+	// "Taildrop"，按进程当前目录解析——launchd 开机启动时当前目录是 "/"（只读），会变成
+	// "/Taildrop" 而启动失败；从家目录手动 sudo 启动则会在家目录里留下 root 的 Taildrop 文件夹。
+	TaildropDir string
 }
 
 func (m *EndpointModule) Name() string {
@@ -37,6 +41,9 @@ func (m *EndpointModule) Apply(opts *option.Options, ctx *BuildContext) error {
 	}
 	if m.StateDir != "" {
 		endpoint["state_directory"] = m.StateDir
+	}
+	if m.TaildropDir != "" {
+		endpoint["taildrop_directory"] = m.TaildropDir
 	}
 	data, err := singboxjson.Marshal(map[string]any{"endpoints": []map[string]any{endpoint}})
 	if err != nil {
